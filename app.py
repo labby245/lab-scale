@@ -198,6 +198,53 @@ def process_folder():
     })
 
 
+@app.route('/process-bulk', methods=['POST'])
+def process_bulk():
+    """Process a list of already-uploaded files (bulk 'files' mode)."""
+    data      = request.get_json(force=True)
+    files     = data.get('files', [])  # [{filename, originalBase}, ...]
+    roi       = data.get('roi')
+    method    = data.get('method', 'telea')
+    quality   = data.get('quality', 'ultra')
+    upscale   = bool(data.get('upscale', False))
+    fps_boost = bool(data.get('fps_boost', False))
+
+    if not files:
+        return jsonify({'error': 'Tidak ada file untuk diproses'}), 400
+
+    remove_wm = _has_roi(roi)
+    if not remove_wm and not upscale and not fps_boost:
+        return jsonify({'error': 'Pilih minimal satu operasi'}), 400
+
+    suffix  = _make_suffix(remove_wm, upscale, fps_boost)
+    results = []
+
+    for item in files:
+        stored_name = item.get('filename', '')
+        orig_base   = item.get('originalBase') or _name_map.get(stored_name) or os.path.splitext(stored_name)[0]
+        input_path  = os.path.join(UPLOAD_FOLDER, stored_name)
+
+        if not os.path.exists(input_path):
+            results.append({'file': orig_base, 'status': 'error', 'error': 'File tidak ditemukan'})
+            continue
+
+        out_name = f'{orig_base}{suffix}.mp4'
+        out_path = os.path.join(OUTPUT_FOLDER, out_name)
+
+        try:
+            _do_process(input_path, out_path, roi, method, quality, upscale, fps_boost)
+            results.append({'file': orig_base, 'status': 'success', 'output': out_name, 'outputPath': out_path})
+        except Exception as e:
+            results.append({'file': orig_base, 'status': 'error', 'error': str(e)[:300]})
+
+    ok = sum(1 for r in results if r['status'] == 'success')
+    return jsonify({
+        'outputDir': OUTPUT_FOLDER,
+        'results':   results,
+        'summary':   f'{ok}/{len(files)} berhasil diproses',
+    })
+
+
 @app.route('/scan-folder', methods=['POST'])
 def scan_folder():
     data = request.get_json(force=True)
