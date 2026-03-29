@@ -1,59 +1,89 @@
 import os
 import uuid
-import subprocess
-import json
 import shutil
 
-from flask import Flask, render_template, request, send_from_directory, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
-from utils.video import remove_watermark_roi_to_frames
+from utils.video import (
+    remove_watermark_roi_to_frames,
+    encode_from_frames,
+    process_video_direct,
+    probe_video_info,
+)
 
-APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+APP_ROOT     = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(APP_ROOT, 'uploads')
+TEMP_FOLDER   = os.path.join(APP_ROOT, 'temp')
 OUTPUT_FOLDER = os.path.join(APP_ROOT, 'outputs')
-TEMP_FOLDER = os.path.join(APP_ROOT, 'temp')
 ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'}
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(TEMP_FOLDER, exist_ok=True)
+for _d in (UPLOAD_FOLDER, TEMP_FOLDER, OUTPUT_FOLDER):
+    os.makedirs(_d, exist_ok=True)
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2GB
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2 GB
+
+# stored_name -> original base name (without ext)
+_name_map: dict[str, str] = {}
 
 
-def is_allowed(filename: str) -> bool:
-    _, ext = os.path.splitext(filename.lower())
-    return ext in ALLOWED_EXTENSIONS
+def _allowed(filename: str) -> bool:
+    return os.path.splitext(filename.lower())[1] in ALLOWED_EXTENSIONS
 
+
+def _make_suffix(remove_wm: bool, upscale: bool, fps_boost: bool) -> str:
+    parts = []
+    if remove_wm:  parts.append('nowm')
+    if upscale:    parts.append('upscale2x')
+    if fps_boost:  parts.append('60fps')
+    return ('_' + '_'.join(parts)) if parts else '_processed'
+
+
+def _has_roi(roi) -> bool:
+    if not roi:
+        return False
+    return int(roi.get('width', 0)) > 0 and int(roi.get('height', 0)) > 0
+
+
+def _do_process(input_path, output_path, roi, method, quality, upscale, fps_boost):
+    """Shared processing core."""
+    remove_wm = _has_roi(roi)
+    if remove_wm:
+        frames_dir = os.path.join(TEMP_FOLDER, f'frm_{uuid.uuid4().hex}')
+        try:
+            fps = remove_watermark_roi_to_frames(
+                input_video_path=input_path,
+                output_frames_dir=frames_dir,
+                roi=(int(roi['x']), int(roi['y']), int(roi['width']), int(roi['height'])),
+                inpaint_method=method,
+            )
+            encode_from_frames(
+                frames_dir=frames_dir,
+                fps=fps,
+                source_audio=input_path,
+                output_path=output_path,
+                quality=quality,
+                upscale=upscale,
+                fps_boost=fps_boost,
+            )
+        finally:
+            shutil.rmtree(frames_dir, ignore_errors=True)
+    else:
+        process_video_direct(
+            input_path=input_path,
+            output_path=output_path,
+            quality=quality,
+            upscale=upscale,
+            fps_boost=fps_boost,
+        )
+
+
+# ── Routes ──────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
     return render_template('index.html')
-
-
-@app.route('/upload', methods=['POST'])
-def upload():
-    if 'video' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['video']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    if not is_allowed(file.filename):
-        return jsonify({'error': 'Unsupported file type'}), 400
-
-    filename = secure_filename(file.filename)
-    unique_id = uuid.uuid4().hex
-    base, ext = os.path.splitext(filename)
-    stored_name = f"{base}_{unique_id}{ext}"
-    save_path = os.path.join(UPLOAD_FOLDER, stored_name)
-    file.save(save_path)
-
-    return jsonify({
-        'filename': stored_name,
-        'videoUrl': f"/video/{stored_name}"
-    })
 
 
 @app.route('/video/<path:filename>')
@@ -61,125 +91,125 @@ def serve_video(filename):
     return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=False)
 
 
-@app.route('/download/<path:filename>')
-def download_output(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
+@app.route('/upload', methods=['POST'])
+def upload():
+    if 'video' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    f = request.files['video']
+    if not f.filename:
+        return jsonify({'error': 'No selected file'}), 400
+    if not _allowed(f.filename):
+        return jsonify({'error': 'Format tidak didukung'}), 400
+
+    orig  = secure_filename(f.filename)
+    base, ext = os.path.splitext(orig)
+    stored = f'{base}_{uuid.uuid4().hex}{ext}'
+    f.save(os.path.join(UPLOAD_FOLDER, stored))
+    _name_map[stored] = base
+
+    return jsonify({'filename': stored, 'videoUrl': f'/video/{stored}', 'originalBase': base})
 
 
 @app.route('/process', methods=['POST'])
 def process():
-    data = request.get_json(force=True)
-    filename = data.get('filename')
-    roi = data.get('roi')
-    method = data.get('method', 'telea')
-    quality = data.get('quality', 'ultra')
+    data      = request.get_json(force=True)
+    filename  = data.get('filename')
+    roi       = data.get('roi')
+    method    = data.get('method', 'telea')
+    quality   = data.get('quality', 'ultra')
+    upscale   = bool(data.get('upscale', False))
+    fps_boost = bool(data.get('fps_boost', False))
 
-    if not filename or not roi:
-        return jsonify({'error': 'filename and roi are required'}), 400
+    if not filename:
+        return jsonify({'error': 'filename diperlukan'}), 400
 
     input_path = os.path.join(UPLOAD_FOLDER, filename)
     if not os.path.exists(input_path):
-        return jsonify({'error': 'File not found'}), 404
+        return jsonify({'error': 'File tidak ditemukan'}), 404
 
-    output_basename = f"processed_{uuid.uuid4().hex}.mp4"
-    frames_dir = os.path.join(TEMP_FOLDER, f"frames_{uuid.uuid4().hex}")
-    output_path = os.path.join(OUTPUT_FOLDER, output_basename)
+    remove_wm = _has_roi(roi)
+    if not remove_wm and not upscale and not fps_boost:
+        return jsonify({'error': 'Pilih minimal satu operasi'}), 400
+
+    orig_base = _name_map.get(filename, os.path.splitext(filename)[0])
+    suffix    = _make_suffix(remove_wm, upscale, fps_boost)
+    out_name  = f'{orig_base}{suffix}.mp4'
+    out_path  = os.path.join(OUTPUT_FOLDER, out_name)
 
     try:
-        fps = remove_watermark_roi_to_frames(
-            input_video_path=input_path,
-            output_frames_dir=frames_dir,
-            roi=(int(roi['x']), int(roi['y']), int(roi['width']), int(roi['height'])),
-            inpaint_method=method
-        )
-
-        width, height = probe_resolution(input_path)
-        scale_filter = build_scale_filter(width, height)
-
-        encode_frames_and_mux(frames_dir, fps, input_path, output_path, quality, scale_filter)
-
-    except Exception as exc:
-        return jsonify({'error': str(exc)}), 500
-    finally:
-        try:
-            if os.path.isdir(frames_dir):
-                shutil.rmtree(frames_dir)
-        except Exception:
-            pass
+        _do_process(input_path, out_path, roi, method, quality, upscale, fps_boost)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     return jsonify({
-        'downloadUrl': f"/download/{output_basename}",
-        'outputFilename': output_basename
+        'outputFilename': out_name,
+        'outputDir':      OUTPUT_FOLDER,
+        'outputPath':     out_path,
     })
 
 
-def probe_resolution(path: str):
-    cmd = [
-        'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'json', path
-    ]
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if proc.returncode != 0:
-        return (1920, 1080)
-    try:
-        info = json.loads(proc.stdout)
-        stream = info['streams'][0]
-        return (int(stream['width']), int(stream['height']))
-    except Exception:
-        return (1920, 1080)
+@app.route('/process-folder', methods=['POST'])
+def process_folder():
+    data        = request.get_json(force=True)
+    folder_path = data.get('folder_path', '').strip()
+    roi         = data.get('roi')
+    method      = data.get('method', 'telea')
+    quality     = data.get('quality', 'ultra')
+    upscale     = bool(data.get('upscale', False))
+    fps_boost   = bool(data.get('fps_boost', False))
+
+    if not folder_path:
+        return jsonify({'error': 'folder_path diperlukan'}), 400
+    if not os.path.isdir(folder_path):
+        return jsonify({'error': f'Folder tidak ditemukan: {folder_path}'}), 400
+
+    remove_wm = _has_roi(roi)
+    if not remove_wm and not upscale and not fps_boost:
+        return jsonify({'error': 'Pilih minimal satu operasi'}), 400
+
+    video_files = sorted(
+        f for f in os.listdir(folder_path)
+        if os.path.splitext(f.lower())[1] in ALLOWED_EXTENSIONS
+    )
+    if not video_files:
+        return jsonify({'error': 'Tidak ada video di folder tersebut'}), 400
+
+    suffix  = _make_suffix(remove_wm, upscale, fps_boost)
+    out_dir = os.path.join(folder_path, 'processed')
+    os.makedirs(out_dir, exist_ok=True)
+
+    results = []
+    for fname in video_files:
+        inp      = os.path.join(folder_path, fname)
+        base     = os.path.splitext(fname)[0]
+        out_name = f'{base}{suffix}.mp4'
+        out_path = os.path.join(out_dir, out_name)
+        try:
+            _do_process(inp, out_path, roi, method, quality, upscale, fps_boost)
+            results.append({'file': fname, 'status': 'success', 'output': out_name})
+        except Exception as e:
+            results.append({'file': fname, 'status': 'error', 'error': str(e)[:300]})
+
+    ok = sum(1 for r in results if r['status'] == 'success')
+    return jsonify({
+        'outputDir': out_dir,
+        'results':   results,
+        'summary':   f'{ok}/{len(video_files)} berhasil diproses',
+    })
 
 
-def build_scale_filter(src_w: int, src_h: int) -> str:
-    if src_h >= 2160:
-        return 'scale=iw:ih:flags=lanczos'
-    if src_h >= 1080:
-        return 'scale=iw:ih:flags=lanczos'
-    target_h = 1080
-    target_w = int(round(src_w * (target_h / src_h)))
-    if target_w % 2 == 1:
-        target_w += 1
-    return f'scale={target_w}:{target_h}:flags=lanczos'
+@app.route('/scan-folder', methods=['POST'])
+def scan_folder():
+    data = request.get_json(force=True)
+    folder_path = data.get('folder_path', '').strip()
+    if not folder_path or not os.path.isdir(folder_path):
+        return jsonify({'error': 'Folder tidak valid'}), 400
 
-
-def encode_frames_and_mux(frames_dir: str, fps: float, source_with_audio: str, output_path: str, quality: str, scale_filter: str) -> None:
-    # Quality map: include ultra (lossless x264)
-    presets = {
-        'fast': ('veryfast', '23', None),
-        'balanced': ('medium', '20', None),
-        'better': ('slow', '18', None),
-        'best': ('veryslow', '16', None),
-        'ultra': ('placebo', None, '0')  # qp=0 lossless
-    }
-    preset, crf, qp = presets.get(quality, ('placebo', None, '0'))
-
-    pattern = os.path.join(frames_dir, 'frame_%06d.png')
-
-    cmd = [
-        'ffmpeg', '-y',
-        '-framerate', str(fps), '-i', pattern,
-        '-i', source_with_audio,
-        '-map', '0:v:0', '-map', '1:a:0?',
-        '-filter:v', scale_filter,
-        '-c:v', 'libx264', '-preset', preset,
-        '-pix_fmt', 'yuv420p',
-        '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
-        '-movflags', '+faststart',
-        '-c:a', 'aac', '-b:a', '192k',
-        output_path
-    ]
-    if qp is not None:
-        cmd[cmd.index('-pix_fmt')] = '-qp'
-        cmd[cmd.index('-qp') + 1:cmd.index('-qp') + 1] = [qp, '-pix_fmt']
-    else:
-        cmd[cmd.index('-c:v') + 4:cmd.index('-c:v') + 4] = ['-crf', crf]
-
-    run_ffmpeg(cmd)
-
-
-def run_ffmpeg(cmd: list) -> None:
-    env = os.environ.copy()
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {proc.stderr[:800]}")
+    files = sorted(
+        f for f in os.listdir(folder_path)
+        if os.path.splitext(f.lower())[1] in ALLOWED_EXTENSIONS
+    )
+    return jsonify({'files': files, 'count': len(files)})
 
 
 if __name__ == '__main__':
