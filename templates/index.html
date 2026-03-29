@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>VideoForge — Watermark Remover &amp; Enhancer</title>
-  <meta name="description" content="Hapus watermark, upscale 2x, dan boost 60fps secara lokal dengan OpenCV &amp; FFmpeg." />
+  <meta name="description" content="Hapus watermark, upscale 2x, boost 60fps — lokal, tanpa cloud." />
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +17,7 @@
     <div class="container hdr-inner">
       <div class="brand">
         <div class="logo-box">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
           </svg>
         </div>
@@ -26,307 +26,174 @@
           <div class="brand-sub">Watermark · Upscale · FPS Boost</div>
         </div>
       </div>
-      <div class="mode-tabs">
-        <button class="tab active" id="tabSingle">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          Single File
-        </button>
-        <button class="tab" id="tabBulk">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-          Bulk
-        </button>
-      </div>
+      <div class="header-badge" id="modeBadge"></div>
     </div>
   </header>
 
   <main class="container main-content">
+    <div class="layout">
 
-    <!-- ===== SINGLE FILE MODE ===== -->
-    <section id="singleMode" class="mode-panel active">
-      <div class="two-col">
+      <!-- ══════════════ LEFT COLUMN ══════════════ -->
+      <div class="left-col">
 
-        <div class="left-col">
-          <!-- Upload -->
-          <div class="card" id="uploadCard">
-            <div class="card-title"><span class="badge">1</span> Upload Video</div>
-            <div id="dropzone" class="dropzone">
-              <input type="file" id="fileInput" accept="video/*" hidden />
-              <div class="dz-body">
-                <div class="dz-icon">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                </div>
-                <p class="dz-label"><strong>Drag &amp; drop</strong> video di sini</p>
-                <button id="browseBtn" class="btn-outline sm">Pilih File</button>
-                <p class="hint-sm">MP4 · MOV · WEBM · MKV · AVI &nbsp;|&nbsp; maks 2 GB</p>
+        <!-- SOURCE CARD -->
+        <div class="card" id="sourceCard">
+          <div class="card-title"><span class="badge">1</span> Pilih Video</div>
+
+          <!-- Drop zone -->
+          <div id="dropzone" class="dropzone" id="dropzone">
+            <input type="file" id="fileInput" accept="video/*" multiple hidden />
+            <input type="file" id="folderInput" webkitdirectory hidden />
+            <div class="dz-body" id="dzBody">
+              <div class="dz-icon">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
               </div>
-            </div>
-            <div class="upload-progress" id="uploadProgress" hidden>
-              <div class="prog-track"><div class="prog-fill" id="uploadBar"></div></div>
-              <span class="prog-pct" id="uploadPct">0%</span>
-            </div>
-            <div class="file-chip" id="fileChip" hidden>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <span id="fileChipName"></span>
-            </div>
-            <div class="actions-row">
-              <button id="uploadBtn" class="btn-primary" disabled>Upload</button>
+              <p class="dz-label">Drag &amp; drop <strong>file video</strong> atau <strong>folder</strong> di sini</p>
+              <div class="dz-btns">
+                <button id="browseFileBtn" class="btn-outline sm">📄 Pilih File</button>
+                <button id="browseFolderBtn" class="btn-outline sm">📁 Pilih Folder</button>
+              </div>
+              <p class="hint-sm">MP4 · MOV · WEBM · MKV · AVI &nbsp;|&nbsp; pilih 1 file atau banyak sekaligus</p>
             </div>
           </div>
 
-          <!-- Operations -->
-          <div class="card">
-            <div class="card-title"><span class="badge">2</span> Operasi</div>
-            <div class="ops">
-              <label class="op-row" for="opWatermark">
-                <div class="op-meta">
-                  <span class="op-emoji">✂️</span>
-                  <div>
-                    <div class="op-name">Hapus Watermark</div>
-                    <div class="op-desc">Tandai area di video (ROI)</div>
-                  </div>
-                </div>
-                <div class="toggle"><input type="checkbox" id="opWatermark" /><span class="knob"></span></div>
-              </label>
-              <label class="op-row" for="opUpscale">
-                <div class="op-meta">
-                  <span class="op-emoji">🔍</span>
-                  <div>
-                    <div class="op-name">Upscale 2×</div>
-                    <div class="op-desc">Lanczos — tanpa GPU</div>
-                  </div>
-                </div>
-                <div class="toggle"><input type="checkbox" id="opUpscale" /><span class="knob"></span></div>
-              </label>
-              <label class="op-row" for="opFps">
-                <div class="op-meta">
-                  <span class="op-emoji">⚡</span>
-                  <div>
-                    <div class="op-name">Boost ke 60 FPS</div>
-                    <div class="op-desc">Motion interpolation</div>
-                  </div>
-                </div>
-                <div class="toggle"><input type="checkbox" id="opFps" /><span class="knob"></span></div>
-              </label>
-            </div>
-            <div class="settings-row">
-              <div class="sel-group">
-                <label class="sel-label">Metode Inpaint</label>
-                <select id="method">
-                  <option value="telea">Telea (cepat)</option>
-                  <option value="ns">Navier-Stokes</option>
-                </select>
-              </div>
-              <div class="sel-group">
-                <label class="sel-label">Kualitas Output</label>
-                <select id="quality">
-                  <option value="fast">Fast</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="better">Better</option>
-                  <option value="best">Best</option>
-                  <option value="ultra" selected>Ultra (lossless)</option>
-                </select>
-              </div>
-            </div>
+          <!-- Or: folder path text input -->
+          <div class="or-row">
+            <span class="or-line"></span><span class="or-text">atau ketik path folder</span><span class="or-line"></span>
+          </div>
+          <div class="folder-row">
+            <input type="text" id="folderPath" class="text-input" placeholder="/Users/anda/Videos/koleksi" />
+            <button id="scanBtn" class="btn-outline sm">Scan</button>
           </div>
 
-          <button id="processBtn" class="btn-cta" disabled>
-            <span>Proses Video</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </button>
-          <div class="proc-progress" id="procProgress" hidden><div class="indeterminate"></div></div>
-          <div class="result-card" id="singleResult" hidden></div>
+          <!-- Source info (shown after selection) -->
+          <div class="source-info" id="sourceInfo" hidden>
+            <div class="src-icon" id="srcIcon"></div>
+            <div class="src-detail">
+              <div class="src-label" id="srcLabel"></div>
+              <div class="src-sub" id="srcSub"></div>
+            </div>
+            <button class="btn-ghost" id="clearSourceBtn">✕</button>
+          </div>
         </div>
 
-        <!-- RIGHT: Video + ROI Canvas -->
-        <div class="right-col">
-          <div class="card editor-card">
-            <div class="card-title">
-              <span class="badge">3</span> Area Watermark (ROI)
-              <div class="roi-header-btns">
-                <button id="drawModeBtn" class="btn-draw" disabled>✏️ Tandai Area</button>
-                <button id="clearRoi" class="btn-ghost">Reset</button>
+        <!-- OPERATIONS CARD -->
+        <div class="card">
+          <div class="card-title"><span class="badge">2</span> Operasi</div>
+          <div class="ops">
+            <label class="op-row" for="opWatermark">
+              <div class="op-meta">
+                <span class="op-emoji">✂️</span>
+                <div>
+                  <div class="op-name">Hapus Watermark</div>
+                  <div class="op-desc">Tandai area di video preview →</div>
+                </div>
               </div>
-            </div>
-            <!-- Draw mode notice -->
-            <div class="draw-notice" id="drawNotice" hidden>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Mode gambar aktif — klik &amp; drag di video untuk tandai area watermark. Klik tombol lagi untuk selesai.
-            </div>
-            <div class="video-wrap" id="videoWrap">
-              <div class="vp-placeholder" id="vpPlaceholder">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="10" r="3"/></svg>
-                <p>Upload video untuk preview &amp; pilih ROI</p>
+              <div class="toggle"><input type="checkbox" id="opWatermark" /><span class="knob"></span></div>
+            </label>
+            <label class="op-row" for="opUpscale">
+              <div class="op-meta">
+                <span class="op-emoji">🔍</span>
+                <div>
+                  <div class="op-name">Upscale 2×</div>
+                  <div class="op-desc">Lanczos — tanpa GPU</div>
+                </div>
               </div>
-              <video id="video" controls></video>
-              <canvas id="overlay"></canvas>
+              <div class="toggle"><input type="checkbox" id="opUpscale" /><span class="knob"></span></div>
+            </label>
+            <label class="op-row" for="opFps">
+              <div class="op-meta">
+                <span class="op-emoji">⚡</span>
+                <div>
+                  <div class="op-name">Boost ke 60 FPS</div>
+                  <div class="op-desc">Motion interpolation</div>
+                </div>
+              </div>
+              <div class="toggle"><input type="checkbox" id="opFps" /><span class="knob"></span></div>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="sel-group">
+              <label class="sel-label">Metode Inpaint</label>
+              <select id="method">
+                <option value="telea">Telea (cepat)</option>
+                <option value="ns">Navier-Stokes</option>
+              </select>
             </div>
-            <div class="roi-info" id="roiInfo" hidden>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-              ROI: <code id="roiText">–</code>
-              <button class="link-btn" id="clearRoiSmall">hapus</button>
+            <div class="sel-group">
+              <label class="sel-label">Kualitas Output</label>
+              <select id="quality">
+                <option value="fast">Fast</option>
+                <option value="balanced">Balanced</option>
+                <option value="better">Better</option>
+                <option value="best">Best</option>
+                <option value="ultra" selected>Ultra (lossless)</option>
+              </select>
             </div>
           </div>
         </div>
 
-      </div>
-    </section>
+        <!-- PROCESS BUTTON -->
+        <button id="processBtn" class="btn-cta" disabled>
+          <span id="processBtnLabel">Proses Video</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+        <div class="proc-progress" id="procProgress" hidden><div class="indeterminate"></div></div>
+        <div class="proc-status" id="procStatus"></div>
 
-    <!-- ===== BULK MODE ===== -->
-    <section id="bulkMode" class="mode-panel" hidden>
-      <div class="two-col">
-        <div class="left-col">
+        <!-- SINGLE RESULT -->
+        <div class="result-card" id="singleResult" hidden></div>
 
-          <!-- INPUT SOURCE -->
-          <div class="card">
-            <div class="card-title"><span class="badge">1</span> Sumber Video</div>
-            <!-- Sub-tabs -->
-            <div class="src-tabs">
-              <button class="src-tab active" id="srcTabFolder">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                Folder
-              </button>
-              <button class="src-tab" id="srcTabFiles">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                Pilih File
-              </button>
-            </div>
+      </div><!-- end left-col -->
 
-            <!-- FOLDER PANEL -->
-            <div id="srcFolderPanel">
-              <div class="folder-row">
-                <input type="text" id="folderPath" class="text-input" placeholder="/Users/anda/Videos/koleksi" />
-                <button id="scanBtn" class="btn-outline sm">Scan</button>
-              </div>
-              <div class="scan-result" id="scanResult"></div>
-            </div>
+      <!-- ══════════════ RIGHT COLUMN ══════════════ -->
+      <div class="right-col">
 
-            <!-- FILES PANEL -->
-            <div id="srcFilesPanel" hidden>
-              <div id="bulkDropzone" class="dropzone dropzone-sm">
-                <input type="file" id="bulkFileInput" accept="video/*" multiple hidden />
-                <div class="dz-body">
-                  <div class="dz-icon sm">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  </div>
-                  <p class="dz-label" style="font-size:13px"><strong>Drag &amp; drop</strong> beberapa video</p>
-                  <button id="bulkBrowseBtn" class="btn-outline sm">Pilih File</button>
-                </div>
-              </div>
-              <div class="bulk-file-list" id="bulkFileList"></div>
+        <!-- VIDEO PREVIEW + ROI -->
+        <div class="card editor-card">
+          <div class="card-title">
+            <span class="badge">3</span> Preview &amp; Area Watermark (ROI)
+            <div class="roi-header-btns">
+              <button id="drawModeBtn" class="btn-draw" disabled>✏️ Tandai Area</button>
+              <button id="clearRoi" class="btn-ghost">Reset ROI</button>
             </div>
           </div>
-
-          <!-- WATERMARK ROI REFERENCE (shown when Hapus Watermark is checked) -->
-          <div class="card" id="bulkRoiCard" hidden>
-            <div class="card-title">
-              <span class="badge">🎯</span> Area Watermark (ROI Referensi)
-              <div class="roi-header-btns">
-                <button id="bDrawModeBtn" class="btn-draw" disabled>✏️ Tandai Area</button>
-                <button id="bClearRoi" class="btn-ghost">Reset</button>
-              </div>
-            </div>
-            <p class="helper-text">Upload 1 video referensi untuk menandai area watermark. ROI yang sama diterapkan ke seluruh video.</p>
-            <div class="ref-upload-row" id="bRefUploadRow">
-              <input type="file" id="bRefFileInput" accept="video/*" hidden />
-              <button id="bRefBrowseBtn" class="btn-outline sm">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>
-                Load Video Referensi
-              </button>
-              <span class="ref-upload-status" id="bRefStatus"></span>
-            </div>
-            <div class="draw-notice" id="bDrawNotice" hidden>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Mode gambar aktif — klik &amp; drag untuk tandai area watermark.
-            </div>
-            <div class="video-wrap video-wrap-sm" id="bVideoWrap" hidden>
-              <video id="bRefVideo" controls></video>
-              <canvas id="bOverlay"></canvas>
-            </div>
-            <div class="roi-info" id="bRoiInfo" hidden>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-              ROI: <code id="bRoiText">–</code>
-              <button class="link-btn" id="bClearRoiSmall">hapus</button>
-            </div>
+          <div class="draw-notice" id="drawNotice" hidden>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Mode gambar aktif — klik &amp; drag untuk tandai area watermark, lalu klik tombol lagi untuk selesai.
           </div>
-
-          <!-- OPERATIONS -->
-          <div class="card">
-            <div class="card-title"><span class="badge">2</span> Operasi</div>
-            <div class="ops">
-              <label class="op-row" for="bOpWatermark">
-                <div class="op-meta">
-                  <span class="op-emoji">✂️</span>
-                  <div>
-                    <div class="op-name">Hapus Watermark</div>
-                    <div class="op-desc">Gambar kotak yang sama untuk semua video</div>
-                  </div>
-                </div>
-                <div class="toggle"><input type="checkbox" id="bOpWatermark" /><span class="knob"></span></div>
-              </label>
-              <label class="op-row" for="bOpUpscale">
-                <div class="op-meta">
-                  <span class="op-emoji">🔍</span>
-                  <div>
-                    <div class="op-name">Upscale 2×</div>
-                    <div class="op-desc">Lanczos — tanpa GPU</div>
-                  </div>
-                </div>
-                <div class="toggle"><input type="checkbox" id="bOpUpscale" /><span class="knob"></span></div>
-              </label>
-              <label class="op-row" for="bOpFps">
-                <div class="op-meta">
-                  <span class="op-emoji">⚡</span>
-                  <div>
-                    <div class="op-name">Boost ke 60 FPS</div>
-                    <div class="op-desc">Motion interpolation</div>
-                  </div>
-                </div>
-                <div class="toggle"><input type="checkbox" id="bOpFps" /><span class="knob"></span></div>
-              </label>
+          <div class="video-wrap" id="videoWrap">
+            <div class="vp-placeholder" id="vpPlaceholder">
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="10" r="3"/>
+                <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              <p>Pilih file atau folder untuk melihat preview video</p>
             </div>
-            <div class="settings-row">
-              <div class="sel-group">
-                <label class="sel-label">Metode Inpaint</label>
-                <select id="bMethod">
-                  <option value="telea">Telea (cepat)</option>
-                  <option value="ns">Navier-Stokes</option>
-                </select>
-              </div>
-              <div class="sel-group">
-                <label class="sel-label">Kualitas Output</label>
-                <select id="bQuality">
-                  <option value="fast">Fast</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="better">Better</option>
-                  <option value="best">Best</option>
-                  <option value="ultra" selected>Ultra (lossless)</option>
-                </select>
-              </div>
-            </div>
+            <video id="video" controls></video>
+            <canvas id="overlay"></canvas>
           </div>
-
-          <button id="bulkBtn" class="btn-cta" disabled>
-            <span>Proses Semua File</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </button>
-          <div class="proc-progress" id="bulkProgress" hidden><div class="indeterminate"></div></div>
-        </div>
-
-        <!-- RIGHT: Results -->
-        <div class="right-col">
-          <div class="card" style="min-height:320px">
-            <div class="card-title">Hasil Pemrosesan</div>
-            <div id="bulkResults" class="bulk-results">
-              <div class="bulk-empty">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                <p>Pilih sumber video dan proses</p>
-              </div>
-            </div>
+          <div class="roi-info" id="roiInfo" hidden>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            ROI terpilih: <code id="roiText">–</code>
+            <button class="link-btn" id="clearRoiSmall">hapus</button>
           </div>
         </div>
-      </div>
-    </section>
 
+        <!-- BULK RESULTS (shown after bulk processing) -->
+        <div class="card" id="bulkResultCard" hidden>
+          <div class="card-title">Hasil Pemrosesan</div>
+          <div id="bulkResults"></div>
+        </div>
+
+      </div><!-- end right-col -->
+
+    </div>
   </main>
 
   <div id="toasts" class="toasts"></div>

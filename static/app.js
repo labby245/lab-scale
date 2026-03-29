@@ -1,141 +1,365 @@
+// ── Helpers ──────────────────────────────────────────────
 const $ = id => document.getElementById(id);
+const VIDEO_EXTS = ['mp4','mov','m4v','webm','avi','mkv'];
+const isVideo = name => VIDEO_EXTS.includes(name.split('.').pop().toLowerCase());
 
-// ── Header tabs ──
-const tabSingle = $('tabSingle'), tabBulk = $('tabBulk');
-const singleMode = $('singleMode'), bulkMode = $('bulkMode');
+// ── Elements ─────────────────────────────────────────────
+const dropzone       = $('dropzone');
+const fileInput      = $('fileInput');
+const folderInput    = $('folderInput');
+const browseFileBtn  = $('browseFileBtn');
+const browseFolderBtn = $('browseFolderBtn');
+const folderPath     = $('folderPath');
+const scanBtn        = $('scanBtn');
+const sourceInfo     = $('sourceInfo');
+const srcIcon        = $('srcIcon');
+const srcLabel       = $('srcLabel');
+const srcSub         = $('srcSub');
+const clearSourceBtn = $('clearSourceBtn');
+const modeBadge      = $('modeBadge');
 
-// ── Single: Upload ──
-const dropzone = $('dropzone'), browseBtn = $('browseBtn'), fileInput = $('fileInput');
-const uploadBtn = $('uploadBtn'), uploadProgress = $('uploadProgress');
-const uploadBar = $('uploadBar'), uploadPct = $('uploadPct');
-const fileChip = $('fileChip'), fileChipName = $('fileChipName');
+const opWatermark    = $('opWatermark');
+const opUpscale      = $('opUpscale');
+const opFps          = $('opFps');
+const methodSel      = $('method');
+const qualitySel     = $('quality');
 
-// ── Single: Ops ──
-const opWatermark = $('opWatermark'), opUpscale = $('opUpscale'), opFps = $('opFps');
-const methodSel = $('method'), qualitySel = $('quality');
+const processBtn     = $('processBtn');
+const processBtnLabel = $('processBtnLabel');
+const procProgress   = $('procProgress');
+const procStatus     = $('procStatus');
+const singleResult   = $('singleResult');
+const bulkResultCard = $('bulkResultCard');
+const bulkResults    = $('bulkResults');
 
-// ── Single: ROI ──
-const video = $('video'), overlay = $('overlay');
-const vpPlaceholder = $('vpPlaceholder');
-const roiInfo = $('roiInfo'), roiText = $('roiText');
-const drawModeBtn = $('drawModeBtn'), drawNotice = $('drawNotice');
-const clearRoi = $('clearRoi'), clearRoiSmall = $('clearRoiSmall');
-
-// ── Single: Process ──
-const processBtn = $('processBtn'), procProgress = $('procProgress'), singleResult = $('singleResult');
-
-// ── Bulk: Source ──
-const srcTabFolder = $('srcTabFolder'), srcTabFiles = $('srcTabFiles');
-const srcFolderPanel = $('srcFolderPanel'), srcFilesPanel = $('srcFilesPanel');
-const folderPath = $('folderPath'), scanBtn = $('scanBtn'), scanResult = $('scanResult');
-const bulkDropzone = $('bulkDropzone'), bulkBrowseBtn = $('bulkBrowseBtn'), bulkFileInput = $('bulkFileInput');
-const bulkFileList = $('bulkFileList');
-
-// ── Bulk: Watermark ROI ──
-const bOpWatermark = $('bOpWatermark'), bOpUpscale = $('bOpUpscale'), bOpFps = $('bOpFps');
-const bulkRoiCard = $('bulkRoiCard');
-const bRefBrowseBtn = $('bRefBrowseBtn'), bRefFileInput = $('bRefFileInput'), bRefStatus = $('bRefStatus');
-const bRefVideo = $('bRefVideo'), bOverlay = $('bOverlay'), bVideoWrap = $('bVideoWrap');
-const bDrawModeBtn = $('bDrawModeBtn'), bDrawNotice = $('bDrawNotice');
-const bClearRoi = $('bClearRoi'), bClearRoiSmall = $('bClearRoiSmall');
-const bRoiInfo = $('bRoiInfo'), bRoiText = $('bRoiText');
-
-// ── Bulk: Process ──
-const bMethodSel = $('bMethod'), bQualitySel = $('bQuality');
-const bulkBtn = $('bulkBtn'), bulkProgress = $('bulkProgress'), bulkResults = $('bulkResults');
+const video          = $('video');
+const overlay        = $('overlay');
+const vpPlaceholder  = $('vpPlaceholder');
+const drawModeBtn    = $('drawModeBtn');
+const drawNotice     = $('drawNotice');
+const clearRoi       = $('clearRoi');
+const clearRoiSmall  = $('clearRoiSmall');
+const roiInfo        = $('roiInfo');
+const roiText        = $('roiText');
 
 const toasts = $('toasts');
 
-// ── State ──
-let uploadedFilename = null;
-let roi = null;
-let drawMode = false;
-let isDrawing = false, startX = 0, startY = 0;
+// ── State ────────────────────────────────────────────────
+// mode: 'none' | 'single' | 'bulk-files' | 'bulk-folder'
+let mode = 'none';
+let selectedFiles   = [];   // File[] for single/multi
+let folderInfo      = null; // { path, files[], count }
+let roi             = null;
+let drawMode        = false;
+let isDrawing       = false;
+let startX = 0, startY = 0;
 
-let bulkRoi = null;
-let bDrawMode = false;
-let bIsDrawing = false, bStartX = 0, bStartY = 0;
-let bulkRefFilename = null;
-
-let bulkSrcMode = 'folder'; // 'folder' | 'files'
-let bulkFiles = []; // FileList items for files mode
-
-// ────────────────────────────────────────────
-// TOAST
-// ────────────────────────────────────────────
-function toast(msg, type = 'info', ms = 3000) {
+// ── Toast ───────────────────────────────────────────────
+function toast(msg, type = 'info', ms = 3200) {
   const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.textContent = msg;
+  t.className = `toast ${type}`; t.textContent = msg;
   toasts.appendChild(t);
   setTimeout(() => t.remove(), ms);
 }
 
-// ────────────────────────────────────────────
-// HEADER TABS
-// ────────────────────────────────────────────
-tabSingle.addEventListener('click', () => {
-  tabSingle.classList.add('active'); tabBulk.classList.remove('active');
-  singleMode.hidden = false; bulkMode.hidden = true;
-});
-tabBulk.addEventListener('click', () => {
-  tabBulk.classList.add('active'); tabSingle.classList.remove('active');
-  bulkMode.hidden = false; singleMode.hidden = true;
-});
-
-// ────────────────────────────────────────────
-// SINGLE — UPLOAD
-// ────────────────────────────────────────────
-['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
+// ── DROP ZONE ────────────────────────────────────────────
+['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover');
 }));
-['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover');
 }));
-dropzone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) setFile(f); });
-browseBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
-
-function setFile(f) {
-  fileChipName.textContent = f.name;
-  fileChip.hidden = false;
-  uploadBtn.disabled = false;
-}
-
-uploadBtn.addEventListener('click', async () => {
-  const f = fileInput.files?.[0];
-  if (!f) { toast('Pilih file video dulu', 'error'); return; }
-  uploadProgress.hidden = false;
-  uploadBar.style.width = '0%'; uploadPct.textContent = '0%';
-  uploadBtn.disabled = true;
-
-  const form = new FormData();
-  form.append('video', f);
-  try {
-    const data = await uploadWithProgress('/upload', form, pct => {
-      uploadBar.style.width = pct + '%'; uploadPct.textContent = pct + '%';
-    });
-    uploadedFilename = data.filename;
-    video.src = data.videoUrl;
-    vpPlaceholder.style.display = 'none';
-    drawModeBtn.disabled = false;
-    updateProcessBtn();
-    toast('Upload berhasil!', 'success');
-  } catch (e) {
-    toast(e.message || 'Upload gagal', 'error');
-  } finally {
-    uploadBtn.disabled = false;
-    setTimeout(() => { uploadProgress.hidden = true; }, 800);
+dropzone.addEventListener('drop', e => {
+  const items = e.dataTransfer.items;
+  if (!items) return;
+  // Check if folder was dropped
+  const entry = items[0]?.webkitGetAsEntry?.();
+  if (entry && entry.isDirectory) {
+    // Folder dropped — use path from folder (webkitdirectory fallback via files)
+    const files = Array.from(e.dataTransfer.files).filter(f => isVideo(f.name));
+    if (files.length === 0) { toast('Tidak ada video di folder tersebut', 'error'); return; }
+    setSource('bulk-files', files);
+  } else {
+    const files = Array.from(e.dataTransfer.files).filter(f => isVideo(f.name));
+    if (files.length === 0) { toast('File bukan video yang didukung', 'error'); return; }
+    setSource(files.length === 1 ? 'single' : 'bulk-files', files);
   }
 });
 
-function uploadWithProgress(url, form, onProgress) {
+browseFileBtn.addEventListener('click', () => fileInput.click());
+browseFolderBtn.addEventListener('click', () => folderInput.click());
+
+fileInput.addEventListener('change', () => {
+  const files = Array.from(fileInput.files).filter(f => isVideo(f.name));
+  if (!files.length) return;
+  setSource(files.length === 1 ? 'single' : 'bulk-files', files);
+});
+
+folderInput.addEventListener('change', () => {
+  const files = Array.from(folderInput.files).filter(f => isVideo(f.name));
+  if (!files.length) { toast('Tidak ada video di folder tersebut', 'error'); return; }
+  setSource('bulk-files', files);
+});
+
+// Folder path scan
+scanBtn.addEventListener('click', doScan);
+folderPath.addEventListener('keydown', e => { if (e.key === 'Enter') doScan(); });
+
+async function doScan() {
+  const fp = folderPath.value.trim();
+  if (!fp) { toast('Masukkan path folder', 'error'); return; }
+  procStatus.textContent = 'Scanning folder…';
+  try {
+    const res = await post('/scan-folder', { folder_path: fp });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    if (data.count === 0) { toast('Tidak ada video di folder', 'error'); procStatus.textContent = ''; return; }
+    folderInfo = { path: fp, files: data.files, count: data.count, firstFile: data.firstFile };
+    setSource('bulk-folder', null);
+    toast(`${data.count} video ditemukan`, 'success');
+  } catch (e) {
+    procStatus.textContent = '';
+    toast(e.message || 'Folder tidak valid', 'error');
+  }
+}
+
+// ── SET SOURCE ───────────────────────────────────────────
+function setSource(newMode, files) {
+  mode = newMode;
+  selectedFiles = files || [];
+  roi = null; drawRoi(null);
+  roiInfo.hidden = true;
+  singleResult.hidden = true;
+  bulkResultCard.hidden = true;
+
+  if (mode === 'single') {
+    const f = selectedFiles[0];
+    showSourceInfo('🎬', f.name, formatSize(f.size));
+    modeBadge.textContent = 'Single File';
+    modeBadge.className = 'header-badge';
+    processBtnLabel.textContent = 'Proses Video';
+    loadVideoBlob(f);
+  } else if (mode === 'bulk-files') {
+    const f = selectedFiles[0];
+    showSourceInfo('🗂️', `${selectedFiles.length} video dipilih`, `Referensi: ${f.name}`);
+    modeBadge.textContent = `Bulk · ${selectedFiles.length} file`;
+    modeBadge.className = 'header-badge bulk';
+    processBtnLabel.textContent = `Proses ${selectedFiles.length} Video`;
+    loadVideoBlob(f);
+  } else if (mode === 'bulk-folder') {
+    showSourceInfo('📁', `${folderInfo.count} video di folder`, folderInfo.path);
+    modeBadge.textContent = `Bulk · ${folderInfo.count} file`;
+    modeBadge.className = 'header-badge bulk';
+    processBtnLabel.textContent = `Proses ${folderInfo.count} Video`;
+    if (folderInfo.firstFile) {
+      video.src = `/preview-local?path=${encodeURIComponent(folderInfo.firstFile)}`;
+      vpPlaceholder.style.display = 'none';
+      drawModeBtn.disabled = false;
+    }
+  }
+  procStatus.textContent = '';
+  updateProcessBtn();
+}
+
+function showSourceInfo(icon, label, sub) {
+  srcIcon.textContent = icon;
+  srcLabel.textContent = label;
+  srcSub.textContent = sub;
+  sourceInfo.hidden = false;
+}
+
+clearSourceBtn.addEventListener('click', () => {
+  mode = 'none'; selectedFiles = []; folderInfo = null;
+  sourceInfo.hidden = true;
+  modeBadge.textContent = ''; modeBadge.className = 'header-badge';
+  video.src = ''; vpPlaceholder.style.display = '';
+  roi = null; drawRoi(null); roiInfo.hidden = true;
+  drawModeBtn.disabled = true;
+  singleResult.hidden = true; bulkResultCard.hidden = true;
+  procStatus.textContent = '';
+  updateProcessBtn();
+});
+
+function loadVideoBlob(file) {
+  const url = URL.createObjectURL(file);
+  video.src = url;
+  vpPlaceholder.style.display = 'none';
+  drawModeBtn.disabled = false;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+// ── OPERATIONS ───────────────────────────────────────────
+[opWatermark, opUpscale, opFps].forEach(el => el.addEventListener('change', updateProcessBtn));
+
+function updateProcessBtn() {
+  const hasSource = mode !== 'none';
+  const hasOp     = opWatermark.checked || opUpscale.checked || opFps.checked;
+  const roiOk     = !opWatermark.checked || (roi && roi.width > 0);
+  processBtn.disabled = !hasSource || !hasOp || !roiOk;
+}
+
+// ── DRAW MODE ─────────────────────────────────────────────
+drawModeBtn.addEventListener('click', () => {
+  drawMode = !drawMode;
+  overlay.classList.toggle('draw-active', drawMode);
+  drawModeBtn.classList.toggle('active', drawMode);
+  drawModeBtn.textContent = drawMode ? '⏹ Selesai' : '✏️ Tandai Area';
+  drawNotice.hidden = !drawMode;
+});
+
+// ── CANVAS ROI ────────────────────────────────────────────
+function fitCanvas() {
+  const w = video.clientWidth, h = video.clientHeight;
+  if (!w || !h) return;
+  overlay.width = w; overlay.height = h;
+  overlay.style.width = w + 'px'; overlay.style.height = h + 'px';
+  overlay.style.left = '0'; overlay.style.top = '0';
+}
+
+function drawRoi(r) {
+  fitCanvas();
+  const ctx = overlay.getContext('2d');
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!r || !video.videoWidth) return;
+  const sx = overlay.width / video.videoWidth;
+  const sy = overlay.height / video.videoHeight;
+  ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+  ctx.strokeRect(r.x * sx, r.y * sy, r.width * sx, r.height * sy);
+  ctx.fillStyle = 'rgba(99,102,241,0.14)';
+  ctx.fillRect(r.x * sx, r.y * sy, r.width * sx, r.height * sy);
+  // Label
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#6366f1';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.fillText(`${r.width}×${r.height}`, r.x * sx + 4, r.y * sy - 4);
+}
+
+window.addEventListener('resize', () => { fitCanvas(); drawRoi(roi); });
+video.addEventListener('loadedmetadata', () => { fitCanvas(); });
+
+overlay.addEventListener('mousedown', e => {
+  if (!drawMode || !video.videoWidth) return;
+  isDrawing = true;
+  const p = mousePos(e);
+  startX = p.x; startY = p.y;
+  roi = null; drawRoi(null);
+});
+overlay.addEventListener('mousemove', e => {
+  if (!isDrawing) return;
+  const p = mousePos(e);
+  const sx = video.videoWidth / overlay.width;
+  const sy = video.videoHeight / overlay.height;
+  roi = {
+    x: Math.round(Math.min(p.x, startX) * sx),
+    y: Math.round(Math.min(p.y, startY) * sy),
+    width: Math.round(Math.abs(p.x - startX) * sx),
+    height: Math.round(Math.abs(p.y - startY) * sy),
+  };
+  drawRoi(roi);
+});
+overlay.addEventListener('mouseup', () => {
+  isDrawing = false;
+  if (roi && roi.width > 2 && roi.height > 2) {
+    roiText.textContent = `x:${roi.x} y:${roi.y} w:${roi.width} h:${roi.height}`;
+    roiInfo.hidden = false;
+    // Auto-exit draw mode
+    drawMode = false;
+    overlay.classList.remove('draw-active');
+    drawModeBtn.classList.remove('active');
+    drawModeBtn.textContent = '✏️ Tandai Area';
+    drawNotice.hidden = true;
+  }
+  updateProcessBtn();
+});
+
+function clearRoiFn() {
+  roi = null; drawRoi(null); roiInfo.hidden = true; updateProcessBtn();
+}
+clearRoi.addEventListener('click', clearRoiFn);
+clearRoiSmall.addEventListener('click', clearRoiFn);
+
+function mousePos(e) {
+  const r = overlay.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+// ── PROCESS ───────────────────────────────────────────────
+processBtn.addEventListener('click', doProcess);
+
+async function doProcess() {
+  if (mode === 'none') { toast('Pilih file atau folder dulu', 'error'); return; }
+  const hasOp = opWatermark.checked || opUpscale.checked || opFps.checked;
+  if (!hasOp) { toast('Pilih minimal satu operasi', 'error'); return; }
+  if (opWatermark.checked && (!roi || roi.width <= 0)) {
+    toast('Klik ✏️ Tandai Area lalu gambar kotak pada watermark', 'error'); return;
+  }
+
+  const commonPayload = {
+    roi:       opWatermark.checked ? roi : null,
+    method:    methodSel.value,
+    quality:   qualitySel.value,
+    upscale:   opUpscale.checked,
+    fps_boost: opFps.checked,
+  };
+
+  processBtn.disabled = true;
+  procProgress.hidden = false;
+  singleResult.hidden = true;
+  bulkResultCard.hidden = true;
+
+  try {
+    if (mode === 'single') {
+      procStatus.textContent = 'Mengupload…';
+      const upData = await uploadFile(selectedFiles[0]);
+      procStatus.textContent = 'Memproses…';
+      const res = await post('/process', { filename: upData.filename, ...commonPayload });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showSingleResult(data);
+      toast('Selesai! File tersimpan.', 'success');
+
+    } else if (mode === 'bulk-files') {
+      const uploaded = [];
+      for (let i = 0; i < selectedFiles.length; i++) {
+        procStatus.textContent = `Mengupload ${i + 1}/${selectedFiles.length}…`;
+        const up = await uploadFile(selectedFiles[i]);
+        uploaded.push(up);
+      }
+      procStatus.textContent = `Memproses ${selectedFiles.length} video…`;
+      const res = await post('/process-bulk', { files: uploaded, ...commonPayload });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showBulkResults(data);
+      toast(data.summary, 'success');
+
+    } else if (mode === 'bulk-folder') {
+      procStatus.textContent = `Memproses ${folderInfo.count} video…`;
+      const res = await post('/process-folder', { folder_path: folderInfo.path, ...commonPayload });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showBulkResults(data);
+      toast(data.summary, 'success');
+    }
+  } catch (e) {
+    toast(e.message || 'Terjadi kesalahan', 'error');
+  } finally {
+    procProgress.hidden = true;
+    procStatus.textContent = '';
+    processBtn.disabled = false;
+    updateProcessBtn();
+  }
+}
+
+async function uploadFile(file) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.upload.onprogress = e => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
+    const form = new FormData();
+    form.append('video', file);
+    xhr.open('POST', '/upload');
     xhr.onload = () => {
       try {
         const d = JSON.parse(xhr.responseText);
@@ -147,142 +371,9 @@ function uploadWithProgress(url, form, onProgress) {
   });
 }
 
-// ────────────────────────────────────────────
-// SINGLE — DRAW MODE TOGGLE
-// ────────────────────────────────────────────
-drawModeBtn.addEventListener('click', () => {
-  drawMode = !drawMode;
-  overlay.classList.toggle('draw-active', drawMode);
-  drawModeBtn.classList.toggle('active', drawMode);
-  drawModeBtn.textContent = drawMode ? '⏹ Selesai Tandai' : '✏️ Tandai Area';
-  drawNotice.hidden = !drawMode;
-});
-
-// ────────────────────────────────────────────
-// SINGLE — CANVAS ROI
-// ────────────────────────────────────────────
-function fitCanvas(vid, cvs) {
-  const w = vid.clientWidth, h = vid.clientHeight;
-  if (!w || !h) return;
-  cvs.width = w; cvs.height = h;
-  cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
-  cvs.style.left = '0'; cvs.style.top = '0';
+function post(url, body) {
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
-
-function drawRoi(cvs, r) {
-  const ctx = cvs.getContext('2d');
-  ctx.clearRect(0, 0, cvs.width, cvs.height);
-  if (!r) return;
-  const vid = cvs === overlay ? video : bRefVideo;
-  const sx = cvs.width / vid.videoWidth;
-  const sy = cvs.height / vid.videoHeight;
-  ctx.strokeStyle = '#6366f1';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 4]);
-  ctx.strokeRect(r.x * sx, r.y * sy, r.width * sx, r.height * sy);
-  ctx.fillStyle = 'rgba(99,102,241,0.13)';
-  ctx.fillRect(r.x * sx, r.y * sy, r.width * sx, r.height * sy);
-}
-
-window.addEventListener('resize', () => {
-  fitCanvas(video, overlay); drawRoi(overlay, roi);
-  if (!bRefVideo.paused || bRefVideo.src) { fitCanvas(bRefVideo, bOverlay); drawRoi(bOverlay, bulkRoi); }
-});
-
-video.addEventListener('loadedmetadata', () => { fitCanvas(video, overlay); });
-bRefVideo.addEventListener('loadedmetadata', () => { fitCanvas(bRefVideo, bOverlay); });
-
-// Single ROI drawing
-overlay.addEventListener('mousedown', e => {
-  if (!drawMode || !video.videoWidth) return;
-  isDrawing = true;
-  const p = pos(e, overlay);
-  startX = p.x; startY = p.y;
-  roi = null; drawRoi(overlay, null);
-});
-overlay.addEventListener('mousemove', e => {
-  if (!isDrawing) return;
-  const p = pos(e, overlay);
-  const sx = video.videoWidth / overlay.width;
-  const sy = video.videoHeight / overlay.height;
-  const x = Math.min(p.x, startX), y = Math.min(p.y, startY);
-  roi = {
-    x: Math.round(x * sx), y: Math.round(y * sy),
-    width: Math.round(Math.abs(p.x - startX) * sx),
-    height: Math.round(Math.abs(p.y - startY) * sy),
-  };
-  drawRoi(overlay, roi);
-});
-overlay.addEventListener('mouseup', () => {
-  isDrawing = false;
-  if (roi && roi.width > 0 && roi.height > 0) {
-    roiText.textContent = `x:${roi.x} y:${roi.y} w:${roi.width} h:${roi.height}`;
-    roiInfo.hidden = false;
-    // Auto exit draw mode
-    drawMode = false;
-    overlay.classList.remove('draw-active');
-    drawModeBtn.classList.remove('active');
-    drawModeBtn.textContent = '✏️ Tandai Area';
-    drawNotice.hidden = true;
-  }
-  updateProcessBtn();
-});
-
-function clearRoiFn() {
-  roi = null; drawRoi(overlay, null); roiInfo.hidden = true; updateProcessBtn();
-}
-clearRoi.addEventListener('click', clearRoiFn);
-clearRoiSmall.addEventListener('click', clearRoiFn);
-
-function pos(e, cvs) {
-  const r = cvs.getBoundingClientRect();
-  return { x: e.clientX - r.left, y: e.clientY - r.top };
-}
-
-// ────────────────────────────────────────────
-// SINGLE — OPERATIONS & PROCESS
-// ────────────────────────────────────────────
-[opWatermark, opUpscale, opFps].forEach(el => el.addEventListener('change', updateProcessBtn));
-
-function updateProcessBtn() {
-  const hasOp = opWatermark.checked || opUpscale.checked || opFps.checked;
-  const hasFile = !!uploadedFilename;
-  const roiOk = !opWatermark.checked || (roi && roi.width > 0);
-  processBtn.disabled = !hasFile || !hasOp || !roiOk;
-}
-
-processBtn.addEventListener('click', async () => {
-  if (!uploadedFilename) { toast('Upload video dulu', 'error'); return; }
-  if (opWatermark.checked && (!roi || roi.width <= 0)) { toast('Tandai area watermark dulu', 'error'); return; }
-
-  processBtn.disabled = true;
-  procProgress.hidden = false;
-  singleResult.hidden = true;
-
-  try {
-    const res = await fetch('/process', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filename: uploadedFilename,
-        roi: opWatermark.checked ? roi : null,
-        method: methodSel.value,
-        quality: qualitySel.value,
-        upscale: opUpscale.checked,
-        fps_boost: opFps.checked,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Gagal');
-    showSingleResult(data);
-    toast('Selesai! File tersimpan otomatis.', 'success');
-  } catch (e) {
-    toast(e.message || 'Terjadi kesalahan', 'error');
-  } finally {
-    procProgress.hidden = true;
-    processBtn.disabled = false;
-  }
-});
 
 function showSingleResult(data) {
   singleResult.innerHTML = `
@@ -296,272 +387,22 @@ function showSingleResult(data) {
   singleResult.hidden = false;
 }
 
-// ────────────────────────────────────────────
-// BULK — SOURCE SUB-TABS
-// ────────────────────────────────────────────
-srcTabFolder.addEventListener('click', () => {
-  bulkSrcMode = 'folder';
-  srcTabFolder.classList.add('active'); srcTabFiles.classList.remove('active');
-  srcFolderPanel.hidden = false; srcFilesPanel.hidden = true;
-  updateBulkBtn();
-});
-srcTabFiles.addEventListener('click', () => {
-  bulkSrcMode = 'files';
-  srcTabFiles.classList.add('active'); srcTabFolder.classList.remove('active');
-  srcFilesPanel.hidden = false; srcFolderPanel.hidden = true;
-  updateBulkBtn();
-});
-
-// ────────────────────────────────────────────
-// BULK — FOLDER SCAN
-// ────────────────────────────────────────────
-scanBtn.addEventListener('click', async () => {
-  const fp = folderPath.value.trim();
-  if (!fp) { toast('Masukkan path folder', 'error'); return; }
-  scanResult.textContent = 'Scanning…'; scanResult.className = 'scan-result';
-  try {
-    const res = await fetch('/scan-folder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder_path: fp }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    scanResult.textContent = `✓ ${data.count} video ditemukan`;
-    scanResult.className = 'scan-result ok';
-    updateBulkBtn();
-    toast(`${data.count} video ditemukan`, 'success');
-  } catch (e) {
-    scanResult.textContent = '✗ ' + (e.message || 'Folder tidak valid');
-    scanResult.className = 'scan-result err';
-    updateBulkBtn();
-  }
-});
-folderPath.addEventListener('keydown', e => { if (e.key === 'Enter') scanBtn.click(); });
-
-// ────────────────────────────────────────────
-// BULK — FILE PICKER (multiple)
-// ────────────────────────────────────────────
-['dragenter', 'dragover'].forEach(ev => bulkDropzone.addEventListener(ev, e => {
-  e.preventDefault(); e.stopPropagation(); bulkDropzone.classList.add('dragover');
-}));
-['dragleave', 'drop'].forEach(ev => bulkDropzone.addEventListener(ev, e => {
-  e.preventDefault(); e.stopPropagation(); bulkDropzone.classList.remove('dragover');
-}));
-bulkDropzone.addEventListener('drop', e => { addBulkFiles(e.dataTransfer.files); });
-bulkBrowseBtn.addEventListener('click', () => bulkFileInput.click());
-bulkFileInput.addEventListener('change', () => { if (bulkFileInput.files.length) addBulkFiles(bulkFileInput.files); });
-
-function addBulkFiles(files) {
-  const ALLOWED = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/x-msvideo', '.mkv', '.avi'];
-  for (const f of files) {
-    const ext = f.name.split('.').pop().toLowerCase();
-    if (!['mp4','mov','webm','mkv','avi','m4v'].includes(ext)) continue;
-    if (!bulkFiles.find(b => b.name === f.name && b.size === f.size)) {
-      bulkFiles.push(f);
-    }
-  }
-  renderBulkFileList();
-  updateBulkBtn();
-}
-
-function renderBulkFileList() {
-  if (!bulkFiles.length) { bulkFileList.innerHTML = ''; return; }
-  bulkFileList.innerHTML = bulkFiles.map((f, i) => `
-    <div class="bulk-file-item">
-      <span>${f.name}</span>
-      <button class="remove-btn" onclick="removeBulkFile(${i})">×</button>
-    </div>
-  `).join('');
-}
-
-window.removeBulkFile = function(i) {
-  bulkFiles.splice(i, 1);
-  renderBulkFileList();
-  updateBulkBtn();
-};
-
-// ────────────────────────────────────────────
-// BULK — WATERMARK ROI (reference video)
-// ────────────────────────────────────────────
-bOpWatermark.addEventListener('change', () => {
-  bulkRoiCard.hidden = !bOpWatermark.checked;
-  updateBulkBtn();
-});
-[bOpUpscale, bOpFps].forEach(el => el.addEventListener('change', updateBulkBtn));
-
-// Load reference video
-bRefBrowseBtn.addEventListener('click', () => bRefFileInput.click());
-bRefFileInput.addEventListener('change', async () => {
-  const f = bRefFileInput.files[0];
-  if (!f) return;
-  bRefStatus.textContent = 'Mengupload…';
-  try {
-    const form = new FormData();
-    form.append('video', f);
-    const data = await uploadWithProgress('/upload', form, () => {});
-    bulkRefFilename = data.filename;
-    bRefVideo.src = data.videoUrl;
-    bVideoWrap.hidden = false;
-    bDrawModeBtn.disabled = false;
-    bRefStatus.textContent = `✓ ${f.name}`;
-    toast('Video referensi dimuat', 'success');
-  } catch (e) {
-    bRefStatus.textContent = '✗ Upload gagal';
-    toast('Gagal upload referensi: ' + e.message, 'error');
-  }
-});
-
-// Bulk draw mode toggle
-bDrawModeBtn.addEventListener('click', () => {
-  bDrawMode = !bDrawMode;
-  bOverlay.classList.toggle('draw-active', bDrawMode);
-  bDrawModeBtn.classList.toggle('active', bDrawMode);
-  bDrawModeBtn.textContent = bDrawMode ? '⏹ Selesai Tandai' : '✏️ Tandai Area';
-  bDrawNotice.hidden = !bDrawMode;
-});
-
-// Bulk canvas drawing
-bOverlay.addEventListener('mousedown', e => {
-  if (!bDrawMode || !bRefVideo.videoWidth) return;
-  bIsDrawing = true;
-  const p = pos(e, bOverlay);
-  bStartX = p.x; bStartY = p.y;
-  bulkRoi = null; drawRoi(bOverlay, null);
-});
-bOverlay.addEventListener('mousemove', e => {
-  if (!bIsDrawing) return;
-  const p = pos(e, bOverlay);
-  const sx = bRefVideo.videoWidth / bOverlay.width;
-  const sy = bRefVideo.videoHeight / bOverlay.height;
-  const x = Math.min(p.x, bStartX), y = Math.min(p.y, bStartY);
-  bulkRoi = {
-    x: Math.round(x * sx), y: Math.round(y * sy),
-    width: Math.round(Math.abs(p.x - bStartX) * sx),
-    height: Math.round(Math.abs(p.y - bStartY) * sy),
-  };
-  drawRoi(bOverlay, bulkRoi);
-});
-bOverlay.addEventListener('mouseup', () => {
-  bIsDrawing = false;
-  if (bulkRoi && bulkRoi.width > 0 && bulkRoi.height > 0) {
-    bRoiText.textContent = `x:${bulkRoi.x} y:${bulkRoi.y} w:${bulkRoi.width} h:${bulkRoi.height}`;
-    bRoiInfo.hidden = false;
-    bDrawMode = false;
-    bOverlay.classList.remove('draw-active');
-    bDrawModeBtn.classList.remove('active');
-    bDrawModeBtn.textContent = '✏️ Tandai Area';
-    bDrawNotice.hidden = true;
-  }
-  updateBulkBtn();
-});
-
-function clearBulkRoiFn() {
-  bulkRoi = null; drawRoi(bOverlay, null); bRoiInfo.hidden = true; updateBulkBtn();
-}
-bClearRoi.addEventListener('click', clearBulkRoiFn);
-bClearRoiSmall.addEventListener('click', clearBulkRoiFn);
-
-// ────────────────────────────────────────────
-// BULK — VALIDATE & ENABLE BUTTON
-// ────────────────────────────────────────────
-function updateBulkBtn() {
-  const hasOp = bOpWatermark.checked || bOpUpscale.checked || bOpFps.checked;
-  const roiOk = !bOpWatermark.checked || (bulkRoi && bulkRoi.width > 0);
-
-  let srcOk = false;
-  if (bulkSrcMode === 'folder') {
-    srcOk = scanResult.classList.contains('ok');
-  } else {
-    srcOk = bulkFiles.length > 0;
-  }
-
-  bulkBtn.disabled = !hasOp || !roiOk || !srcOk;
-}
-
-// ────────────────────────────────────────────
-// BULK — PROCESS
-// ────────────────────────────────────────────
-bulkBtn.addEventListener('click', async () => {
-  const hasOp = bOpWatermark.checked || bOpUpscale.checked || bOpFps.checked;
-  if (!hasOp) { toast('Pilih minimal satu operasi', 'error'); return; }
-  if (bOpWatermark.checked && (!bulkRoi || bulkRoi.width <= 0)) {
-    toast('Tandai area watermark pada video referensi', 'error'); return;
-  }
-
-  bulkBtn.disabled = true;
-  bulkProgress.hidden = false;
-  bulkResults.innerHTML = '<p style="color:#64748b;font-size:13px;padding:12px 0">Memproses… harap tunggu</p>';
-
-  const commonPayload = {
-    roi: bOpWatermark.checked ? bulkRoi : null,
-    method: bMethodSel.value,
-    quality: bQualitySel.value,
-    upscale: bOpUpscale.checked,
-    fps_boost: bOpFps.checked,
-  };
-
-  try {
-    let data;
-    if (bulkSrcMode === 'folder') {
-      const res = await fetch('/process-folder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder_path: folderPath.value.trim(), ...commonPayload }),
-      });
-      data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-    } else {
-      // Upload files one by one, then process via /process-bulk
-      const uploaded = [];
-      for (const f of bulkFiles) {
-        const form = new FormData();
-        form.append('video', f);
-        const upData = await uploadWithProgress('/upload', form, () => {});
-        uploaded.push({ filename: upData.filename, originalBase: upData.originalBase });
-      }
-      const res = await fetch('/process-bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: uploaded, ...commonPayload }),
-      });
-      data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-    }
-    renderBulkResults(data);
-    toast(data.summary, 'success');
-  } catch (e) {
-    bulkResults.innerHTML = `<p style="color:#f87171;font-size:13px">${e.message}</p>`;
-    toast(e.message || 'Bulk processing gagal', 'error');
-  } finally {
-    bulkProgress.hidden = true;
-    bulkBtn.disabled = false;
-  }
-});
-
-function renderBulkResults(data) {
+function showBulkResults(data) {
   let html = `<div class="bulk-summary">${data.summary}</div>`;
   if (data.outputDir) html += `<div class="bulk-dir">📁 ${data.outputDir}</div>`;
   for (const r of (data.results || [])) {
     if (r.status === 'success') {
-      html += `
-        <div class="bulk-item">
-          <div class="bulk-status ok">✓</div>
-          <div>
-            <div class="bulk-fname">${r.file}</div>
-            <div class="bulk-out">→ ${r.output}</div>
-          </div>
-        </div>`;
+      html += `<div class="bulk-item">
+        <div class="bulk-status ok">✓</div>
+        <div><div class="bulk-fname">${r.file}</div><div class="bulk-out">→ ${r.output}</div></div>
+      </div>`;
     } else {
-      html += `
-        <div class="bulk-item">
-          <div class="bulk-status err">✗</div>
-          <div>
-            <div class="bulk-fname">${r.file}</div>
-            <div class="bulk-err">${r.error}</div>
-          </div>
-        </div>`;
+      html += `<div class="bulk-item">
+        <div class="bulk-status err">✗</div>
+        <div><div class="bulk-fname">${r.file}</div><div class="bulk-err">${r.error}</div></div>
+      </div>`;
     }
   }
   bulkResults.innerHTML = html;
+  bulkResultCard.hidden = false;
 }
