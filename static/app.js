@@ -33,6 +33,17 @@ const bulkResults    = $('bulkResults');
 const video          = $('video');
 const overlay        = $('overlay');
 const vpPlaceholder  = $('vpPlaceholder');
+
+const playBtn       = $('playBtn');
+const iconPlay      = $('iconPlay');
+const iconPause     = $('iconPause');
+const muteBtn       = $('muteBtn');
+const iconVol       = $('iconVol');
+const iconMute      = $('iconMute');
+const seekSlider    = $('seekSlider');
+const timeCurrent   = $('timeCurrent');
+const timeTotal     = $('timeTotal');
+
 const drawModeBtn    = $('drawModeBtn');
 const drawNotice     = $('drawNotice');
 const clearRoi       = $('clearRoi');
@@ -128,30 +139,18 @@ function setSource(newMode, files) {
   updateProcessBtn();
 }
 
-function showSourceInfo(icon, label, sub) {
-  srcIcon.textContent = icon;
-  srcLabel.textContent = label;
-  srcSub.textContent = sub;
-  sourceInfo.hidden = false;
-}
-
-clearSourceBtn.addEventListener('click', () => {
-  mode = 'none'; selectedFiles = [];
-  sourceInfo.hidden = true;
-  modeBadge.textContent = ''; modeBadge.className = 'header-badge';
-  video.src = ''; vpPlaceholder.style.display = '';
-  roi = null; drawRoi(null); roiInfo.hidden = true;
-  drawModeBtn.disabled = true;
-  singleResult.hidden = true; bulkResultCard.hidden = true;
-  procStatus.textContent = '';
-  updateProcessBtn();
-});
-
 function loadVideoBlob(file) {
   const url = URL.createObjectURL(file);
   video.src = url;
   vpPlaceholder.style.display = 'none';
   drawModeBtn.disabled = false;
+  
+  // reset controls
+  iconPlay.hidden = false;
+  iconPause.hidden = true;
+  seekSlider.value = 0;
+  timeCurrent.textContent = '0:00';
+  timeTotal.textContent = '0:00';
 }
 
 function formatSize(bytes) {
@@ -176,6 +175,54 @@ drawModeBtn.addEventListener('click', () => {
   drawModeBtn.classList.toggle('active', drawMode);
   drawModeBtn.textContent = drawMode ? '⏹ Selesai' : '✏️ Tandai Area';
   drawNotice.hidden = !drawMode;
+});
+
+// ── VIDEO CONTROLS ───────────────────────────────────────
+function formatTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60).toString().padStart(2, '0');
+  return `${m}:${sec}`;
+}
+
+video.addEventListener('loadedmetadata', () => { 
+  fitCanvas(); 
+  timeTotal.textContent = formatTime(video.duration);
+  seekSlider.max = video.duration || 100;
+});
+video.addEventListener('timeupdate', () => {
+  if (!isSeeking) seekSlider.value = video.currentTime;
+  timeCurrent.textContent = formatTime(video.currentTime);
+});
+
+let isSeeking = false;
+seekSlider.addEventListener('mousedown', () => isSeeking = true);
+seekSlider.addEventListener('mouseup', () => isSeeking = false);
+seekSlider.addEventListener('input', () => {
+  video.currentTime = seekSlider.value;
+  timeCurrent.textContent = formatTime(seekSlider.value);
+});
+
+playBtn.addEventListener('click', () => {
+  if (!video.src) return;
+  if (video.paused) {
+    video.play();
+    iconPlay.hidden = true;
+    iconPause.hidden = false;
+  } else {
+    video.pause();
+    iconPlay.hidden = false;
+    iconPause.hidden = true;
+  }
+});
+
+video.addEventListener('play', () => { iconPlay.hidden = true; iconPause.hidden = false; });
+video.addEventListener('pause', () => { iconPlay.hidden = false; iconPause.hidden = true; });
+
+muteBtn.addEventListener('click', () => {
+  video.muted = !video.muted;
+  iconVol.hidden = video.muted;
+  iconMute.hidden = !video.muted;
 });
 
 // ── CANVAS ROI ────────────────────────────────────────────
