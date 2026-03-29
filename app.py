@@ -72,21 +72,6 @@ def serve_video(filename):
     return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=False)
 
 
-@app.route('/preview-local')
-def preview_local():
-    """Stream a local file for in-browser preview (safe: local app only)."""
-    path = request.args.get('path', '').strip()
-    if not path or not os.path.isfile(path):
-        return jsonify({'error': 'File tidak ditemukan'}), 404
-    if not _allowed(os.path.basename(path)):
-        return jsonify({'error': 'Format tidak didukung'}), 400
-    return send_from_directory(
-        os.path.dirname(os.path.abspath(path)),
-        os.path.basename(path),
-        as_attachment=False,
-    )
-
-
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'video' not in request.files:
@@ -172,63 +157,6 @@ def process_bulk():
 
     ok = sum(1 for r in results if r['status'] == 'success')
     return jsonify({'outputDir': OUTPUT_FOLDER, 'results': results, 'summary': f'{ok}/{len(files)} berhasil diproses'})
-
-
-@app.route('/process-folder', methods=['POST'])
-def process_folder():
-    data        = request.get_json(force=True)
-    folder_path = data.get('folder_path', '').strip()
-    roi         = data.get('roi')
-    method      = data.get('method', 'telea')
-    quality     = data.get('quality', 'ultra')
-    upscale     = bool(data.get('upscale', False))
-    fps_boost   = bool(data.get('fps_boost', False))
-
-    if not folder_path or not os.path.isdir(folder_path):
-        return jsonify({'error': f'Folder tidak ditemukan: {folder_path}'}), 400
-    remove_wm = _has_roi(roi)
-    if not remove_wm and not upscale and not fps_boost:
-        return jsonify({'error': 'Pilih minimal satu operasi'}), 400
-
-    video_files = sorted(
-        f for f in os.listdir(folder_path)
-        if os.path.splitext(f.lower())[1] in ALLOWED_EXTENSIONS
-    )
-    if not video_files:
-        return jsonify({'error': 'Tidak ada video di folder'}), 400
-
-    suffix  = _make_suffix(remove_wm, upscale, fps_boost)
-    out_dir = os.path.join(folder_path, 'processed')
-    os.makedirs(out_dir, exist_ok=True)
-
-    results = []
-    for fname in video_files:
-        inp      = os.path.join(folder_path, fname)
-        base     = os.path.splitext(fname)[0]
-        out_name = f'{base}{suffix}.mp4'
-        out_path = os.path.join(out_dir, out_name)
-        try:
-            _do_process(inp, out_path, roi, method, quality, upscale, fps_boost)
-            results.append({'file': fname, 'status': 'success', 'output': out_name})
-        except Exception as e:
-            results.append({'file': fname, 'status': 'error', 'error': str(e)[:300]})
-
-    ok = sum(1 for r in results if r['status'] == 'success')
-    return jsonify({'outputDir': out_dir, 'results': results, 'summary': f'{ok}/{len(video_files)} berhasil diproses'})
-
-
-@app.route('/scan-folder', methods=['POST'])
-def scan_folder():
-    data        = request.get_json(force=True)
-    folder_path = data.get('folder_path', '').strip()
-    if not folder_path or not os.path.isdir(folder_path):
-        return jsonify({'error': 'Folder tidak valid'}), 400
-    files = sorted(
-        f for f in os.listdir(folder_path)
-        if os.path.splitext(f.lower())[1] in ALLOWED_EXTENSIONS
-    )
-    first_file = os.path.join(folder_path, files[0]) if files else None
-    return jsonify({'files': files, 'count': len(files), 'firstFile': first_file})
 
 
 if __name__ == '__main__':

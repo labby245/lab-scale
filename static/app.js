@@ -9,8 +9,6 @@ const fileInput      = $('fileInput');
 const folderInput    = $('folderInput');
 const browseFileBtn  = $('browseFileBtn');
 const browseFolderBtn = $('browseFolderBtn');
-const folderPath     = $('folderPath');
-const scanBtn        = $('scanBtn');
 const sourceInfo     = $('sourceInfo');
 const srcIcon        = $('srcIcon');
 const srcLabel       = $('srcLabel');
@@ -45,10 +43,9 @@ const roiText        = $('roiText');
 const toasts = $('toasts');
 
 // ── State ────────────────────────────────────────────────
-// mode: 'none' | 'single' | 'bulk-files' | 'bulk-folder'
+// mode: 'none' | 'single' | 'bulk-files'
 let mode = 'none';
 let selectedFiles   = [];   // File[] for single/multi
-let folderInfo      = null; // { path, files[], count }
 let roi             = null;
 let drawMode        = false;
 let isDrawing       = false;
@@ -101,27 +98,7 @@ folderInput.addEventListener('change', () => {
   setSource('bulk-files', files);
 });
 
-// Folder path scan
-scanBtn.addEventListener('click', doScan);
-folderPath.addEventListener('keydown', e => { if (e.key === 'Enter') doScan(); });
-
-async function doScan() {
-  const fp = folderPath.value.trim();
-  if (!fp) { toast('Masukkan path folder', 'error'); return; }
-  procStatus.textContent = 'Scanning folder…';
-  try {
-    const res = await post('/scan-folder', { folder_path: fp });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    if (data.count === 0) { toast('Tidak ada video di folder', 'error'); procStatus.textContent = ''; return; }
-    folderInfo = { path: fp, files: data.files, count: data.count, firstFile: data.firstFile };
-    setSource('bulk-folder', null);
-    toast(`${data.count} video ditemukan`, 'success');
-  } catch (e) {
-    procStatus.textContent = '';
-    toast(e.message || 'Folder tidak valid', 'error');
-  }
-}
+// Folder path scan removed
 
 // ── SET SOURCE ───────────────────────────────────────────
 function setSource(newMode, files) {
@@ -146,16 +123,6 @@ function setSource(newMode, files) {
     modeBadge.className = 'header-badge bulk';
     processBtnLabel.textContent = `Proses ${selectedFiles.length} Video`;
     loadVideoBlob(f);
-  } else if (mode === 'bulk-folder') {
-    showSourceInfo('📁', `${folderInfo.count} video di folder`, folderInfo.path);
-    modeBadge.textContent = `Bulk · ${folderInfo.count} file`;
-    modeBadge.className = 'header-badge bulk';
-    processBtnLabel.textContent = `Proses ${folderInfo.count} Video`;
-    if (folderInfo.firstFile) {
-      video.src = `/preview-local?path=${encodeURIComponent(folderInfo.firstFile)}`;
-      vpPlaceholder.style.display = 'none';
-      drawModeBtn.disabled = false;
-    }
   }
   procStatus.textContent = '';
   updateProcessBtn();
@@ -169,7 +136,7 @@ function showSourceInfo(icon, label, sub) {
 }
 
 clearSourceBtn.addEventListener('click', () => {
-  mode = 'none'; selectedFiles = []; folderInfo = null;
+  mode = 'none'; selectedFiles = [];
   sourceInfo.hidden = true;
   modeBadge.textContent = ''; modeBadge.className = 'header-badge';
   video.src = ''; vpPlaceholder.style.display = '';
@@ -291,7 +258,7 @@ function mousePos(e) {
 processBtn.addEventListener('click', doProcess);
 
 async function doProcess() {
-  if (mode === 'none') { toast('Pilih file atau folder dulu', 'error'); return; }
+  if (mode === 'none') { toast('Pilih file video dulu', 'error'); return; }
   const hasOp = opWatermark.checked || opUpscale.checked || opFps.checked;
   if (!hasOp) { toast('Pilih minimal satu operasi', 'error'); return; }
   if (opWatermark.checked && (!roi || roi.width <= 0)) {
@@ -331,14 +298,6 @@ async function doProcess() {
       }
       procStatus.textContent = `Memproses ${selectedFiles.length} video…`;
       const res = await post('/process-bulk', { files: uploaded, ...commonPayload });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      showBulkResults(data);
-      toast(data.summary, 'success');
-
-    } else if (mode === 'bulk-folder') {
-      procStatus.textContent = `Memproses ${folderInfo.count} video…`;
-      const res = await post('/process-folder', { folder_path: folderInfo.path, ...commonPayload });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       showBulkResults(data);
