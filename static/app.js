@@ -139,6 +139,25 @@ function setSource(newMode, files) {
   updateProcessBtn();
 }
 
+function showSourceInfo(icon, label, sub) {
+  srcIcon.textContent = icon;
+  srcLabel.textContent = label;
+  srcSub.textContent = sub;
+  sourceInfo.hidden = false;
+}
+
+clearSourceBtn.addEventListener('click', () => {
+  mode = 'none'; selectedFiles = [];
+  sourceInfo.hidden = true;
+  modeBadge.textContent = ''; modeBadge.className = 'header-badge';
+  video.src = ''; vpPlaceholder.style.display = '';
+  roi = null; drawRoi(null); roiInfo.hidden = true;
+  drawModeBtn.disabled = true;
+  singleResult.hidden = true; bulkResultCard.hidden = true;
+  procStatus.textContent = '';
+  updateProcessBtn();
+});
+
 function loadVideoBlob(file) {
   const url = URL.createObjectURL(file);
   video.src = url;
