@@ -13,14 +13,72 @@ QUALITY_PRESETS = {
     'ultra':    ['-preset', 'placebo',  '-crf', '0'],
 }
 
+# NVENC (NVIDIA GPU) quality presets — uses CQ mode (no -crf)
+QUALITY_PRESETS_NVENC = {
+    'fast':     ['-preset', 'fast',   '-rc:v', 'vbr', '-cq', '23', '-b:v', '0'],
+    'balanced': ['-preset', 'medium', '-rc:v', 'vbr', '-cq', '20', '-b:v', '0'],
+    'better':   ['-preset', 'slow',   '-rc:v', 'vbr', '-cq', '18', '-b:v', '0'],
+    'best':     ['-preset', 'slow',   '-rc:v', 'vbr', '-cq', '16', '-b:v', '0'],
+    'ultra':    ['-preset', 'slow',   '-rc:v', 'vbr', '-cq', '1',  '-b:v', '0'],
+}
+
 IMAGE_JPEG_QUALITY = {
     'fast': 75, 'balanced': 85, 'better': 92, 'best': 97, 'ultra': 97,
 }
 
 LogFn = Optional[Callable[[str], None]]
 
+# ── GPU detection ────────────────────────────────────────────────────────────
 
-# ── ESRGAN ─────────────────────────────────────────────────────────────────
+_GPU_ID: Optional[int] = None
+_FFMPEG_ENCODER: Optional[str] = None
+
+
+def _get_gpu_id() -> int:
+    """Return 0 if CUDA GPU is available, -1 for CPU-only."""
+    global _GPU_ID
+    if _GPU_ID is not None:
+        return _GPU_ID
+    try:
+        import torch
+        _GPU_ID = 0 if torch.cuda.is_available() else -1
+    except ImportError:
+        _GPU_ID = -1
+    return _GPU_ID
+
+
+def _get_ffmpeg_encoder(log_fn: LogFn = None) -> str:
+    """Return h264_nvenc if NVIDIA GPU encoder is available, else libx264."""
+    global _FFMPEG_ENCODER
+    if _FFMPEG_ENCODER is not None:
+        return _FFMPEG_ENCODER
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-hide_banner', '-encoders'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5,
+        )
+        if 'h264_nvenc' in result.stdout:
+            _FFMPEG_ENCODER = 'h264_nvenc'
+            if log_fn:
+                log_fn('GPU encoder terdeteksi: h264_nvenc (NVIDIA NVENC)')
+            return _FFMPEG_ENCODER
+    except Exception:
+        pass
+    _FFMPEG_ENCODER = 'libx264'
+    return _FFMPEG_ENCODER
+
+
+# ── Sharpness ────────────────────────────────────────────────────────────────
+
+def _apply_sharpness_cv(img_bgr: np.ndarray, strength: float) -> np.ndarray:
+    """Apply unsharp mask to a BGR image. strength: 0.0 = none, 1.0 = strong."""
+    if strength <= 0:
+        return img_bgr
+    blurred = cv2.GaussianBlur(img_bgr, (0, 0), 3)
+    return cv2.addWeighted(img_bgr, 1.0 + strength, blurred, -strength, 0)
+
+
+# ── ESRGAN ───────────────────────────────────────────────────────────────────
 
 def _patch_torchvision() -> None:
     """Compatibility shim for torchvision >= 0.16 (removed functional_tensor)."""
@@ -51,11 +109,8 @@ def _esrgan_available() -> bool:
         return False
 
 
-def _esrgan_upscale_image(img_bgr: np.ndarray, model_name: str, target_scale: int) -> np.ndarray:
-    """Upscale a BGR image with Real-ESRGAN (4x native, then Lanczos to target)."""
-    if not _esrgan_available():
-        raise RuntimeError('realesrgan tidak terinstal. Jalankan: pip install realesrgan basicsr')
-
+def _create_esrgan_upsampler(model_name: str, gpu_id: int = -1):
+    """Build and return a RealESRGANer instance (model loaded once)."""
     _patch_torchvision()
     from basicsr.archs.rrdbnet_arch import RRDBNet
     from realesrgan import RealESRGANer
@@ -79,43 +134,68 @@ def _esrgan_upscale_image(img_bgr: np.ndarray, model_name: str, target_scale: in
     else:
         raise RuntimeError(f'Unknown ESRGAN model: {model_name}')
 
-    upsampler = RealESRGANer(
-        scale=4, model_path=model_url, model=model,
-        tile=512, tile_pad=10, pre_pad=0, half=False,
+    use_half = gpu_id >= 0  # fp16 only on GPU (saves VRAM, faster)
+    return RealESRGANer(
+        scale=4,
+        model_path=model_url,
+        model=model,
+        tile=512, tile_pad=10, pre_pad=0,
+        half=use_half,
+        gpu_id=gpu_id if gpu_id >= 0 else None,
     )
+
+
+def _esrgan_upscale_image(img_bgr: np.ndarray, model_name: str, target_scale: int,
+                           upsampler=None, sharpness: float = 0.0) -> np.ndarray:
+    """Upscale a BGR image with Real-ESRGAN then optionally sharpen."""
+    if not _esrgan_available():
+        raise RuntimeError('realesrgan tidak terinstal. Jalankan: pip install realesrgan basicsr')
+
+    if upsampler is None:
+        upsampler = _create_esrgan_upsampler(model_name, _get_gpu_id())
+
     output, _ = upsampler.enhance(img_bgr, outscale=4)
 
-    if target_scale < 4:
+    if target_scale != 4:
         h0, w0 = img_bgr.shape[:2]
-        new_w = int(w0 * target_scale)
-        new_h = int(h0 * target_scale)
+        new_w = max(1, int(w0 * target_scale))
+        new_h = max(1, int(h0 * target_scale))
         output = cv2.resize(output, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-    elif target_scale == 1:
-        h0, w0 = img_bgr.shape[:2]
-        output = cv2.resize(output, (w0, h0), interpolation=cv2.INTER_LANCZOS4)
 
-    return output
+    return _apply_sharpness_cv(output, sharpness)
 
 
 def _esrgan_process_frames_dir(frames_dir: str, model_name: str, target_scale: int,
+                                sharpness: float = 0.0,
                                 log_fn: LogFn = None) -> None:
-    """Apply ESRGAN upscaling to every PNG frame in frames_dir (in-place)."""
+    """Apply ESRGAN upscaling (+ optional sharpness) to every PNG frame.
+    Model is loaded once and reused. Automatically uses GPU (CUDA) if available.
+    """
     fnames = sorted(f for f in os.listdir(frames_dir) if f.endswith('.png'))
     total = len(fnames)
+    if total == 0:
+        return
+
+    gpu_id = _get_gpu_id()
+    device_info = f'GPU (CUDA:{gpu_id})' if gpu_id >= 0 else 'CPU'
     if log_fn:
-        log_fn(f'ESRGAN: memuat model {model_name}…')
+        sharp_info = f', sharpness={sharpness:.2f}' if sharpness > 0 else ''
+        log_fn(f'ESRGAN: memuat model {model_name} di {device_info}{sharp_info}…')
+
+    upsampler = _create_esrgan_upsampler(model_name, gpu_id)
+
     for i, fname in enumerate(fnames):
         fpath = os.path.join(frames_dir, fname)
         img = cv2.imread(fpath, cv2.IMREAD_COLOR)
         if img is None:
             continue
-        upscaled = _esrgan_upscale_image(img, model_name, target_scale)
+        upscaled = _esrgan_upscale_image(img, model_name, target_scale, upsampler, sharpness)
         cv2.imwrite(fpath, upscaled)
-        if log_fn and (i % 5 == 0 or i == total - 1):
+        if log_fn and (i % 10 == 0 or i == total - 1):
             log_fn(f'ESRGAN: frame {i + 1}/{total}')
 
 
-# ── Frame extraction ────────────────────────────────────────────────────────
+# ── Frame extraction ──────────────────────────────────────────────────────────
 
 def remove_watermark_roi_to_frames(
     input_video_path: str,
@@ -201,11 +281,50 @@ def extract_frames_to_dir(input_video_path: str, output_frames_dir: str,
     return float(fps)
 
 
-# ── Image processing ────────────────────────────────────────────────────────
+# ── FPS Interpolation ─────────────────────────────────────────────────────────
+
+def interpolate_frames_dir(
+    frames_dir: str,
+    output_dir: str,
+    fps: float,
+    target_fps: float = 60.0,
+    log_fn: LogFn = None,
+) -> float:
+    """Interpolate PNG frames to target_fps using FFmpeg minterpolate.
+    Must be called BEFORE upscaling so interpolation runs on original-resolution frames.
+    Returns the new fps (target_fps).
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    if log_fn:
+        log_fn(f'Interpolasi frame {fps:.2f}fps → {target_fps:.0f}fps (bidir MCI)…')
+
+    pattern_in  = os.path.join(frames_dir, 'frame_%06d.png')
+    pattern_out = os.path.join(output_dir,  'frame_%06d.png')
+
+    vf = (
+        f'minterpolate=fps={target_fps}:mi_mode=mci:'
+        f'mc_mode=aobmc:me_mode=bidir:vsbmc=1'
+    )
+    cmd = [
+        'ffmpeg', '-y',
+        '-framerate', str(fps),
+        '-i', pattern_in,
+        '-vf', vf,
+        '-r', str(target_fps),
+        pattern_out,
+    ]
+    _run(cmd)
+
+    if log_fn:
+        n = len([f for f in os.listdir(output_dir) if f.endswith('.png')])
+        log_fn(f'Interpolasi selesai → {n} frame @ {target_fps:.0f}fps.')
+    return target_fps
+
+
+# ── Image processing ──────────────────────────────────────────────────────────
 
 def process_image_file(
     input_path: str,
-    orig_copy_path: str,
     output_path: str,
     roi,
     inpaint_method: str = 'telea',
@@ -213,9 +332,10 @@ def process_image_file(
     upscale_model: str = 'lanczos',
     upscale_scale: int = 2,
     quality: str = 'ultra',
+    sharpness: float = 0.0,
     log_fn: LogFn = None,
 ) -> None:
-    """Inpaint and/or upscale a single image. Saves original copy for comparison."""
+    """Inpaint and/or upscale a single image."""
     if log_fn:
         log_fn('Membaca gambar…')
     img = cv2.imread(input_path, cv2.IMREAD_COLOR)
@@ -224,8 +344,6 @@ def process_image_file(
     h0, w0 = img.shape[:2]
     if log_fn:
         log_fn(f'Gambar {w0}×{h0} dimuat.')
-
-    cv2.imwrite(orig_copy_path, img)
 
     if roi and int(roi.get('width', 0)) > 0 and int(roi.get('height', 0)) > 0:
         h_img, w_img = img.shape[:2]
@@ -252,10 +370,17 @@ def process_image_file(
                                  interpolation=cv2.INTER_LANCZOS4)
                 if log_fn:
                     log_fn(f'Upscale selesai → {w1 * upscale_scale}×{h1 * upscale_scale}.')
+            if sharpness > 0:
+                img = _apply_sharpness_cv(img, sharpness)
+                if log_fn:
+                    log_fn(f'Sharpness diterapkan ({sharpness:.2f}).')
         else:
             if log_fn:
-                log_fn(f'ESRGAN upscale ({upscale_model}) {upscale_scale}×…')
-            img = _esrgan_upscale_image(img, upscale_model, upscale_scale)
+                gpu_id = _get_gpu_id()
+                device = f'GPU (CUDA:{gpu_id})' if gpu_id >= 0 else 'CPU'
+                log_fn(f'ESRGAN upscale ({upscale_model}) {upscale_scale}× di {device}…')
+            img = _esrgan_upscale_image(img, upscale_model, upscale_scale,
+                                        sharpness=sharpness)
             h1, w1 = img.shape[:2]
             if log_fn:
                 log_fn(f'ESRGAN selesai → {w1}×{h1}.')
@@ -271,44 +396,7 @@ def process_image_file(
         log_fn('Gambar tersimpan.')
 
 
-# ── Comparison video ────────────────────────────────────────────────────────
-
-def generate_video_comparison(orig_path: str, processed_path: str, output_path: str,
-                               log_fn: LogFn = None) -> None:
-    """Create a side-by-side comparison video via FFmpeg hstack."""
-    if log_fn:
-        log_fn('Membuat video perbandingan before/after…')
-    info = probe_video_info(processed_path)
-    target_h = info['height']
-
-    filter_complex = (
-        f'[0:v]scale=-2:{target_h}[left];'
-        f'[1:v]scale=-2:{target_h}[right];'
-        f'[left][right]hstack=inputs=2[h];'
-        f"[h]drawtext=text='Sebelum':fontsize=24:fontcolor=white:"
-        f"box=1:boxcolor=black@0.5:x=10:y=10[h1];"
-        f"[h1]drawtext=text='Sesudah':fontsize=24:fontcolor=white:"
-        f"box=1:boxcolor=black@0.5:x=(W/2)+10:y=10[out]"
-    )
-    cmd = [
-        'ffmpeg', '-y',
-        '-i', orig_path,
-        '-i', processed_path,
-        '-filter_complex', filter_complex,
-        '-map', '[out]',
-        '-map', '1:a:0?',
-        '-c:v', 'libx264', '-crf', '18', '-preset', 'fast',
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
-        '-c:a', 'aac', '-b:a', '128k',
-        output_path,
-    ]
-    _run(cmd)
-    if log_fn:
-        log_fn('Video perbandingan selesai.')
-
-
-# ── FFmpeg helpers ──────────────────────────────────────────────────────────
+# ── FFmpeg helpers ────────────────────────────────────────────────────────────
 
 def probe_video_info(path: str) -> dict:
     """Return dict with width, height, fps via ffprobe."""
@@ -330,12 +418,12 @@ def probe_video_info(path: str) -> dict:
         return defaults
 
 
-def _build_vf(lanczos_scale: Optional[int], fps_boost: bool) -> Optional[str]:
+def _build_vf(lanczos_scale: Optional[int], fps_boost: bool,
+              sharpness: float = 0.0) -> Optional[str]:
     """Build FFmpeg video filter string.
 
-    FPS interpolation uses minterpolate with bidirectional ME (me_mode=bidir),
-    which gives significantly better motion accuracy vs the default unidirectional.
-    aobmc = Adaptive Overlapped Block MC for reduced block artefacts.
+    FPS interpolation uses minterpolate with bidirectional ME (me_mode=bidir).
+    Sharpness uses unsharp mask filter (luma only).
     """
     parts = []
     if lanczos_scale and lanczos_scale > 1:
@@ -344,6 +432,10 @@ def _build_vf(lanczos_scale: Optional[int], fps_boost: bool) -> Optional[str]:
         parts.append(
             'minterpolate=fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1'
         )
+    if sharpness > 0:
+        # unsharp: lx:ly:la:cx:cy:ca — la = luma amount (0.0–1.5 typical)
+        amt = round(sharpness * 1.5, 3)
+        parts.append(f'unsharp=5:5:{amt}:5:5:{amt}')
     return ','.join(parts) if parts else None
 
 
@@ -355,19 +447,33 @@ def encode_from_frames(
     quality: str = 'ultra',
     lanczos_scale: Optional[int] = None,
     fps_boost: bool = False,
+    sharpness: float = 0.0,
     log_fn: LogFn = None,
 ) -> None:
-    """Encode PNG frames to final video with optional Lanczos upscale / fps_boost."""
+    """Encode PNG frames to final video.
+
+    fps_boost=False when interpolation was already done at frame level.
+    sharpness is applied via FFmpeg unsharp filter (for Lanczos path);
+    for ESRGAN path sharpness is applied per-frame by _esrgan_process_frames_dir.
+    """
+    encoder = _get_ffmpeg_encoder(log_fn)
+    is_nvenc = encoder == 'h264_nvenc'
+
     if log_fn:
         extra = []
         if lanczos_scale and lanczos_scale > 1:
             extra.append(f'Lanczos {lanczos_scale}×')
         if fps_boost:
             extra.append('boost 60fps (bidir MCI)')
-        log_fn(f'Mengenkode video [{quality}]{" + " + ", ".join(extra) if extra else ""}…')
+        if sharpness > 0:
+            extra.append(f'sharpness {sharpness:.2f}')
+        device = 'NVENC' if is_nvenc else 'CPU'
+        log_fn(f'Mengenkode video [{quality}] via {device}{" + " + ", ".join(extra) if extra else ""}…')
 
-    q_args  = QUALITY_PRESETS.get(quality, QUALITY_PRESETS['ultra'])
-    vf      = _build_vf(lanczos_scale, fps_boost)
+    q_args  = (QUALITY_PRESETS_NVENC if is_nvenc else QUALITY_PRESETS).get(
+        quality, QUALITY_PRESETS_NVENC['ultra'] if is_nvenc else QUALITY_PRESETS['ultra']
+    )
+    vf      = _build_vf(lanczos_scale, fps_boost, sharpness)
     pattern = os.path.join(frames_dir, 'frame_%06d.png')
 
     cmd = [
@@ -375,7 +481,7 @@ def encode_from_frames(
         '-framerate', str(fps), '-i', pattern,
         '-i', source_audio,
         '-map', '0:v:0', '-map', '1:a:0?',
-        '-c:v', 'libx264', *q_args,
+        '-c:v', encoder, *q_args,
         '-pix_fmt', 'yuv420p',
         '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
         '-movflags', '+faststart',
@@ -395,24 +501,33 @@ def process_video_direct(
     quality: str = 'ultra',
     lanczos_scale: Optional[int] = None,
     fps_boost: bool = False,
+    sharpness: float = 0.0,
     log_fn: LogFn = None,
 ) -> None:
     """Re-encode video via FFmpeg only (no watermark removal, no ESRGAN)."""
+    encoder = _get_ffmpeg_encoder(log_fn)
+    is_nvenc = encoder == 'h264_nvenc'
+
     if log_fn:
         extra = []
         if lanczos_scale and lanczos_scale > 1:
             extra.append(f'Lanczos {lanczos_scale}×')
         if fps_boost:
             extra.append('boost 60fps (bidir MCI)')
-        log_fn(f'Mengenkode video langsung [{quality}]{" + " + ", ".join(extra) if extra else ""}…')
+        if sharpness > 0:
+            extra.append(f'sharpness {sharpness:.2f}')
+        device = 'NVENC' if is_nvenc else 'CPU'
+        log_fn(f'Mengenkode video langsung [{quality}] via {device}{" + " + ", ".join(extra) if extra else ""}…')
 
-    q_args = QUALITY_PRESETS.get(quality, QUALITY_PRESETS['ultra'])
-    vf     = _build_vf(lanczos_scale, fps_boost)
+    q_args = (QUALITY_PRESETS_NVENC if is_nvenc else QUALITY_PRESETS).get(
+        quality, QUALITY_PRESETS_NVENC['ultra'] if is_nvenc else QUALITY_PRESETS['ultra']
+    )
+    vf     = _build_vf(lanczos_scale, fps_boost, sharpness)
 
     cmd = [
         'ffmpeg', '-y',
         '-i', input_path,
-        '-c:v', 'libx264', *q_args,
+        '-c:v', encoder, *q_args,
         '-pix_fmt', 'yuv420p',
         '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
         '-movflags', '+faststart',

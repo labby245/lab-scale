@@ -117,10 +117,10 @@
               <div class="sel-group" style="margin-bottom:8px">
                 <label class="sel-label">Model Upscale</label>
                 <select id="esrganModel">
-                  <option value="lanczos">Lanczos — cepat, tanpa AI (semua jenis)</option>
-                  <option value="realesrgan-x4plus">Real-ESRGAN x4+ — foto nyata / umum</option>
-                  <option value="realesrgan-x4plus-anime">Real-ESRGAN x4+ Anime — ilustrasi &amp; anime</option>
-                  <option value="realesr-animevideov3">RealESR AnimevideV3 — video anime</option>
+                  <option value="lanczos">Lanczos — cepat, tanpa AI</option>
+                  <option value="realesrgan-x4plus">ESRGAN x4+ — foto / umum</option>
+                  <option value="realesrgan-x4plus-anime">ESRGAN x4+ Anime — ilustrasi</option>
+                  <option value="realesr-animevideov3">ESRGAN AnimevideV3 — video anime</option>
                 </select>
               </div>
               <div class="scale-row">
@@ -133,6 +133,13 @@
                 </div>
               </div>
               <div class="dim-estimate" id="dimEstimate">Pilih file untuk melihat estimasi dimensi</div>
+
+              <!-- Sharpness -->
+              <div class="sharp-row">
+                <label class="sel-label">Sharpness &nbsp;<span id="sharpnessVal">30</span>% <span id="sharpnessDefault" class="hint-default">(default)</span></label>
+                <input type="range" id="sharpness" min="0" max="100" value="30" />
+              </div>
+
               <div class="esrgan-warn" id="esrganWarn" hidden>
                 ⚠️ Real-ESRGAN pada video memproses per-frame dan sangat lambat. Gunakan untuk video pendek.
               </div>
@@ -151,18 +158,6 @@
                 </div>
               </div>
               <div class="toggle"><input type="checkbox" id="opFps" /><span class="knob"></span></div>
-            </label>
-
-            <!-- Before/After comparison -->
-            <label class="op-row op-row-secondary" for="opComparison">
-              <div class="op-meta">
-                <span class="op-emoji">↔️</span>
-                <div>
-                  <div class="op-name">Before / After</div>
-                  <div class="op-desc">Slider interaktif (foto) atau video perbandingan</div>
-                </div>
-              </div>
-              <div class="toggle"><input type="checkbox" id="opComparison" /><span class="knob"></span></div>
             </label>
 
           </div>
@@ -253,28 +248,6 @@
             <span class="log-spinner" id="logSpinner"></span>
           </div>
           <div class="log-body" id="logBody"></div>
-        </div>
-
-        <!-- BEFORE / AFTER COMPARISON -->
-        <div class="card" id="comparisonCard" hidden>
-          <div class="card-title">↔️ Before / After</div>
-          <!-- Photo slider -->
-          <div class="comparison-wrap" id="comparisonWrap" hidden>
-            <div class="cmp-before" id="cmpBefore">
-              <img id="cmpOrigImg" src="" alt="Sebelum" />
-              <span class="cmp-label before-label">Sebelum</span>
-            </div>
-            <div class="cmp-after" id="cmpAfter">
-              <img id="cmpProcImg" src="" alt="Sesudah" />
-              <span class="cmp-label after-label">Sesudah</span>
-            </div>
-            <div class="cmp-divider" id="cmpDivider">
-              <span class="cmp-handle">↔</span>
-            </div>
-            <input type="range" class="cmp-slider" id="cmpSlider" min="0" max="100" value="50" />
-          </div>
-          <!-- Video side-by-side -->
-          <video id="cmpVideo" controls hidden style="width:100%;border-radius:10px;"></video>
         </div>
 
         <!-- BULK RESULTS (shown after bulk processing) -->

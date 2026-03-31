@@ -1,6 +1,13 @@
 @echo off
 cd /d "%~dp0"
 
+:: Re-launch minimized if not already
+if not "%MINIMIZED%"=="1" (
+    set MINIMIZED=1
+    start /min "" "%~f0"
+    exit
+)
+
 :: Try virtual environment first
 if exist ".venv\Scripts\python.exe" (
     echo Starting with .venv...

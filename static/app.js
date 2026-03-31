@@ -6,13 +6,6 @@ const isVideo = name => VIDEO_EXTS.includes(name.split('.').pop().toLowerCase())
 const isImage = name => IMAGE_EXTS.includes(name.split('.').pop().toLowerCase());
 const isMedia = name => isVideo(name) || isImage(name);
 
-// ── Session ID (for cleanup-preview on tab close) ────────
-let sessionId = sessionStorage.getItem('forge_session');
-if (!sessionId) {
-  sessionId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-  sessionStorage.setItem('forge_session', sessionId);
-}
-
 // ── Elements ─────────────────────────────────────────────
 const dropzone        = $('dropzone');
 const fileInput       = $('fileInput');
@@ -29,7 +22,6 @@ const modeBadge       = $('modeBadge');
 const opWatermark     = $('opWatermark');
 const opUpscale       = $('opUpscale');
 const opFps           = $('opFps');
-const opComparison    = $('opComparison');
 const methodSel       = $('method');
 const qualitySel      = $('quality');
 const wmSubSettings   = $('wmSubSettings');
@@ -39,6 +31,11 @@ const esrganModel     = $('esrganModel');
 const esrganWarn      = $('esrganWarn');
 const esrganInstall   = $('esrganInstall');
 const dimEstimate     = $('dimEstimate');
+const sharpnessInput   = $('sharpness');
+const sharpnessVal     = $('sharpnessVal');
+const sharpnessDefault = $('sharpnessDefault');
+
+const SHARPNESS_DEFAULT = 30;
 
 const processBtn      = $('processBtn');
 const processBtnLabel = $('processBtnLabel');
@@ -71,15 +68,6 @@ const clearRoiSmall   = $('clearRoiSmall');
 const roiInfo         = $('roiInfo');
 const roiText         = $('roiText');
 
-const comparisonCard  = $('comparisonCard');
-const comparisonWrap  = $('comparisonWrap');
-const cmpOrigImg      = $('cmpOrigImg');
-const cmpProcImg      = $('cmpProcImg');
-const cmpAfter        = $('cmpAfter');
-const cmpDivider      = $('cmpDivider');
-const cmpSlider       = $('cmpSlider');
-const cmpVideo        = $('cmpVideo');
-
 const logCard    = $('logCard');
 const logBody    = $('logBody');
 const logSpinner = $('logSpinner');
@@ -106,6 +94,9 @@ function toast(msg, type = 'info', ms = 3200) {
   toasts.appendChild(t);
   setTimeout(() => t.remove(), ms);
 }
+
+// ── Heartbeat — keep server alive; server shuts down when pings stop ─────────
+setInterval(() => fetch('/heartbeat', { method: 'POST' }).catch(() => {}), 5000);
 
 // ── ESRGAN check on load ─────────────────────────────────
 fetch('/esrgan-check')
@@ -164,38 +155,27 @@ function setSource(newMode, files) {
   roiInfo.hidden       = true;
   singleResult.hidden  = true;
   bulkResultCard.hidden = true;
-  comparisonCard.hidden = true;
 
-  // Detect media type from first file
   const firstFile = selectedFiles[0];
   mediaType = firstFile ? (isImage(firstFile.name) ? 'image' : 'video') : 'none';
 
-  // Show/hide FPS boost (video only)
   opFpsRow.hidden = (mediaType === 'image');
-  if (mediaType === 'image' && opFps.checked) {
-    opFps.checked = false;
-  }
+  if (mediaType === 'image' && opFps.checked) opFps.checked = false;
 
   if (mode === 'single') {
     showSourceInfo(mediaType === 'image' ? '🖼️' : '🎬', firstFile.name, formatSize(firstFile.size));
     modeBadge.textContent = 'Single File';
     modeBadge.className   = 'header-badge';
     processBtnLabel.textContent = 'Proses File';
-    if (mediaType === 'image') {
-      loadImageBlob(firstFile);
-    } else {
-      loadVideoBlob(firstFile);
-    }
+    if (mediaType === 'image') loadImageBlob(firstFile);
+    else loadVideoBlob(firstFile);
   } else if (mode === 'bulk-files') {
     showSourceInfo('🗂️', `${selectedFiles.length} file dipilih`, `Referensi: ${firstFile.name}`);
     modeBadge.textContent = `Bulk · ${selectedFiles.length} file`;
     modeBadge.className   = 'header-badge bulk';
     processBtnLabel.textContent = `Proses ${selectedFiles.length} File`;
-    if (mediaType === 'image') {
-      loadImageBlob(firstFile);
-    } else {
-      loadVideoBlob(firstFile);
-    }
+    if (mediaType === 'image') loadImageBlob(firstFile);
+    else loadVideoBlob(firstFile);
   }
 
   procStatus.textContent = '';
@@ -218,22 +198,15 @@ clearSourceBtn.addEventListener('click', () => {
   modeBadge.textContent = '';
   modeBadge.className  = 'header-badge';
 
-  // Clear video
-  video.src    = '';
-  video.hidden = true;
+  video.src    = ''; video.hidden = true;
   customControls.hidden = true;
-
-  // Clear image
-  previewImg.src    = '';
-  previewImg.hidden = true;
-
+  previewImg.src    = ''; previewImg.hidden = true;
   vpPlaceholder.style.display = '';
 
   roi = null; drawRoi(null); roiInfo.hidden = true;
   drawModeBtn.disabled = true;
   singleResult.hidden   = true;
   bulkResultCard.hidden = true;
-  comparisonCard.hidden = true;
   logCard.hidden        = true;
   procStatus.textContent = '';
   updateDimEstimate();
@@ -248,7 +221,6 @@ function loadVideoBlob(file) {
   customControls.hidden = false;
   vpPlaceholder.style.display = 'none';
   drawModeBtn.disabled = false;
-
   iconPlay.hidden  = false;
   iconPause.hidden = true;
   seekSlider.value = 0;
@@ -260,16 +232,11 @@ function loadImageBlob(file) {
   const url = URL.createObjectURL(file);
   previewImg.src    = url;
   previewImg.hidden = false;
-  video.src         = '';
-  video.hidden      = true;
+  video.src         = ''; video.hidden = true;
   customControls.hidden = true;
   vpPlaceholder.style.display = 'none';
   drawModeBtn.disabled = false;
-
-  previewImg.onload = () => {
-    fitCanvas();
-    updateDimEstimate();
-  };
+  previewImg.onload = () => { fitCanvas(); updateDimEstimate(); };
 }
 
 function formatSize(bytes) {
@@ -289,6 +256,11 @@ opWatermark.addEventListener('change', () => {
 
 opUpscale.addEventListener('change', () => {
   esrganOptions.hidden = !opUpscale.checked;
+  if (opUpscale.checked) {
+    // Force thumb re-render when panel first becomes visible
+    sharpnessInput.value = sharpnessInput.value;
+    updateSharpnessLabel();
+  }
   updateDimEstimate();
   updateProcessBtn();
 });
@@ -309,6 +281,18 @@ document.querySelectorAll('.scale-btn').forEach(btn => {
     updateDimEstimate();
   });
 });
+
+// Sharpness slider
+function updateSharpnessLabel() {
+  const v = parseInt(sharpnessInput.value, 10);
+  sharpnessVal.textContent = v;
+  sharpnessDefault.hidden  = (v !== SHARPNESS_DEFAULT);
+}
+sharpnessInput.addEventListener('input', updateSharpnessLabel);
+
+// Force correct thumb position — range inputs in hidden divs don't render until visible
+sharpnessInput.value = SHARPNESS_DEFAULT;
+updateSharpnessLabel();
 
 [opFps].forEach(el => el.addEventListener('change', updateProcessBtn));
 
@@ -501,6 +485,7 @@ async function doProcess() {
   }
 
   const jobId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+  const sharpness = parseFloat(sharpnessInput.value) / 100;
 
   const commonPayload = {
     roi:           opWatermark.checked ? roi : null,
@@ -510,8 +495,7 @@ async function doProcess() {
     upscale_model: esrganModel.value,
     upscale_scale: selectedScale,
     fps_boost:     opFps.checked && mediaType === 'video',
-    comparison:    opComparison.checked,
-    session_id:    sessionId,
+    sharpness,
     job_id:        jobId,
   };
 
@@ -519,7 +503,6 @@ async function doProcess() {
   procProgress.hidden  = false;
   singleResult.hidden  = true;
   bulkResultCard.hidden = true;
-  comparisonCard.hidden = true;
   startLogPolling(jobId);
 
   try {
@@ -528,27 +511,15 @@ async function doProcess() {
       const upData = await uploadFile(selectedFiles[0]);
       procStatus.textContent = 'Memproses…';
 
-      let res, data;
+      let res;
       if (upData.isImage) {
-        res  = await post('/process-image', { filename: upData.filename, ...commonPayload });
+        res = await post('/process-image', { filename: upData.filename, ...commonPayload });
       } else {
-        res  = await post('/process', { filename: upData.filename, ...commonPayload });
+        res = await post('/process', { filename: upData.filename, ...commonPayload });
       }
-      data = await res.json();
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
       showSingleResult(data);
-
-      if (opComparison.checked) {
-        if (upData.isImage && data.originalUrl && data.processedUrl) {
-          showImageComparison(data.originalUrl, data.processedUrl);
-        } else if (!upData.isImage && data.comparisonFilename) {
-          showVideoComparison(data.comparisonFilename);
-        } else if (data.comparisonError) {
-          toast('Comparison gagal: ' + data.comparisonError, 'error');
-        }
-      }
-
       toast('Selesai! File tersimpan.', 'success');
 
     } else if (mode === 'bulk-files') {
@@ -653,41 +624,3 @@ function showBulkResults(data) {
   }
   bulkResultCard.hidden = false;
 }
-
-// ── Comparison ────────────────────────────────────────────
-cmpSlider.addEventListener('input', () => {
-  const val = cmpSlider.value;
-  cmpAfter.style.clipPath = `inset(0 ${100 - val}% 0 0)`;
-  cmpDivider.style.left   = val + '%';
-});
-
-function showImageComparison(origUrl, processedUrl) {
-  cmpOrigImg.src  = origUrl;
-  cmpProcImg.src  = processedUrl;
-  cmpVideo.hidden = true;
-
-  cmpOrigImg.onload = () => {
-    const ratio = cmpOrigImg.naturalHeight / cmpOrigImg.naturalWidth;
-    comparisonWrap.style.paddingBottom = (ratio * 100) + '%';
-  };
-
-  // Reset slider to 50%
-  cmpSlider.value = 50;
-  cmpAfter.style.clipPath = 'inset(0 50% 0 0)';
-  cmpDivider.style.left   = '50%';
-
-  comparisonWrap.hidden = false;
-  comparisonCard.hidden = false;
-}
-
-function showVideoComparison(cmpFilename) {
-  cmpVideo.src     = '/output/' + cmpFilename;
-  cmpVideo.hidden  = false;
-  comparisonWrap.hidden = true;
-  comparisonCard.hidden = false;
-}
-
-// ── Cleanup on tab close ──────────────────────────────────
-window.addEventListener('beforeunload', () => {
-  navigator.sendBeacon('/cleanup-preview', JSON.stringify({ session_id: sessionId }));
-});
