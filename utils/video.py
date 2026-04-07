@@ -332,227 +332,157 @@ def _corner_signals(
     )
     _, morph_bin = cv2.threshold(morph, 15, 255, cv2.THRESH_BINARY)
     canny_bin = cv2.Canny(cv2.GaussianBlur(gray_crop, (3, 3), 0), 20, 80)
-    sat_thr   = max(float(np.mean(sat_crop)) + 20.0, 45.0)
+    # Saturation anomaly: detects vivid colour logos (Gemini gradient: sat ≈ 200+).
+    # Threshold = mean + 40 (not +20) so that moderately-saturated backgrounds
+    # with sensor/compression noise stay below the threshold.  Near-white or
+    # near-grey watermarks (Veo text, Gemini sparkle) rely on tophat/Canny instead.
+    sat_thr   = max(float(np.mean(sat_crop)) + 40.0, 60.0)
     sat_bin   = (sat_crop > sat_thr).astype(np.uint8) * 255
     return cv2.max(cv2.max(morph_bin, canny_bin), sat_bin)
 
 
 def _detect_watermark_spatial(image: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
-    """Single-image watermark detection using multi-scale corner analysis.
+    """Single-image watermark detection using tight corner-edge analysis only.
 
-    Two passes per corner:
+    Strategy: analyse only the 4 tight corner zones (10 % × 8 % of the frame
+    from each corner).  Real AI-generator watermarks (Veo "Veo" text, Gemini ✦)
+    sit at the very edge of the frame — within this tight zone.  Complex image
+    content (mountains, buildings) that happens to be in a corner never reaches
+    the tightest corner-edge zone with this geometry.
 
-    Pass 1 — TIGHT zones (10 % × 8 % of the image from each corner).
-              Designed to catch small logos like the Gemini sparkle (✦) that
-              occupy only ~0.02 % of the frame. Uses an absolute-pixel
-              threshold (≥ 8 detected pixels) instead of a fill-ratio.
+    NO wide-zone fallback: wide zones cause false positives on highly-textured
+    content (mountains, foliage) whose Canny edge density exceeds the watermark.
+    If the tight zone finds nothing, return None and let the user draw manually.
 
-    Pass 2 — WIDE zones (30 % × 30 %) for larger watermarks (e.g. "Veo" text).
-              Uses a lenient fill-ratio threshold.
-
-    Both passes combine three detection signals:
-      1. Tophat/Blackhat   — text strokes and logo outlines
-      2. Canny edges       — gradient logo outlines (Gemini star / sparkle)
+    Signals combined per zone:
+      1. Tophat/Blackhat — text strokes, logo outlines
+      2. Canny edges     — gradient logo outlines (Gemini star / sparkle)
       3. Saturation anomaly — coloured logos invisible in grayscale
+
+    Scoring: roi_fill (density inside bounding box) + edge_proximity (distance
+    from image boundary — smaller = closer to real corner = better).
     """
     h, w = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     sat  = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[:, :, 1]
 
-    best_score = -1.0
-    best_roi: Optional[Tuple[int, int, int, int]] = None
-
-    # ── Pass 1: TIGHT corner zones — Gemini sparkle and small logos ──────────
-    tw = max(30, int(w * 0.10))
+    # Tight zones: 10 % width × 8 % height from each corner
+    tw  = max(30, int(w * 0.10))
     tzh = max(20, int(h * 0.08))
-    tight_corners = [
-        (0,      0,       tw, tzh),          # TL
-        (w - tw, 0,       tw, tzh),          # TR
-        (0,      h - tzh, tw, tzh),          # BL
-        (w - tw, h - tzh, tw, tzh),          # BR
+    corners = [
+        (0,      0,       tw, tzh),   # TL
+        (w - tw, 0,       tw, tzh),   # TR
+        (0,      h - tzh, tw, tzh),   # BL
+        (w - tw, h - tzh, tw, tzh),   # BR
     ]
     tkw = max(2, tw // 15)
     tkh = max(2, tzh // 8)
 
-    for cx, cy, crw, crh in tight_corners:
+    best_score = -1.0
+    best_roi: Optional[Tuple[int, int, int, int]] = None
+
+    # How close the ROI must be to the image edge in each axis
+    # (both horizontal AND vertical edge must be within this many pixels)
+    edge_limit = max(8, int(min(w, h) * 0.03))
+
+    for cx, cy, crw, crh in corners:
         combined = _corner_signals(
             gray[cy:cy + crh, cx:cx + crw],
             sat[cy:cy + crh,  cx:cx + crw],
             tkw, tkh,
         )
-        if int(np.count_nonzero(combined)) < 8:
+        # Minimum absolute pixel count — ratio misleads for tiny logos
+        n_sig = int(np.count_nonzero(combined))
+        if n_sig < 8:
             continue
 
-        ck = cv2.getStructuringElement(cv2.MORPH_RECT, (max(3, tkw * 2), max(3, tkh * 2)))
+        ck     = cv2.getStructuringElement(cv2.MORPH_RECT, (max(3, tkw * 2), max(3, tkh * 2)))
         closed = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, ck)
-        pad = max(4, min(crw, crh) // 10)
+
+        pad = max(4, min(crw, crh) // 14)
         roi = _tight_roi_from_mask(closed, cx, cy, w, h, pad)
         if roi is None:
             continue
 
         rx, ry, rw, rh = roi
+
+        # ── Filter 1: compactness ─────────────────────────────────────────
+        # Watermark is a small discrete overlay, NOT content that fills the
+        # whole corner zone.  Reject if ROI covers > 50 % of the tight zone.
+        if rw * rh > crw * crh * 0.50:
+            continue
+
+        # ── Filter 2: edge touch ──────────────────────────────────────────
+        # Real watermarks sit at the extreme corner — they must be within
+        # `edge_limit` px of BOTH a horizontal AND a vertical image edge.
+        near_h = (ry <= edge_limit) or ((h - (ry + rh)) <= edge_limit)
+        near_v = (rx <= edge_limit) or ((w - (rx + rw)) <= edge_limit)
+        if not (near_h and near_v):
+            continue
+
+        # ── Score ─────────────────────────────────────────────────────────
         roi_fill = np.count_nonzero(
             combined[ry - cy:ry - cy + rh, rx - cx:rx - cx + rw]
         ) / max(rw * rh, 1)
-        # How close to the actual image edge (0 = at edge, 1 = at corner centre)
-        edge_frac = 1.0 - (min(cx, w - cx - crw) / w + min(cy, h - cy - crh) / h)
-        score = roi_fill * 0.55 + edge_frac * 0.45 + 0.5   # +0.5 bias over wide pass
+        # Distance of the ROI from the image boundary (lower = better)
+        dist_h = min(ry, h - (ry + rh))
+        dist_v = min(rx, w - (rx + rw))
+        prox   = 1.0 - (dist_h / max(h, 1) + dist_v / max(w, 1))
+        score  = roi_fill * 0.50 + prox * 0.50
 
         if score > best_score:
             best_score = score
             best_roi   = roi
 
-    # ── Pass 2: WIDE corner zones (30 % × 30 %) — Veo text and larger logos ──
-    qw = max(60, int(w * 0.30))
-    qh = max(60, int(h * 0.30))
-    wide_corners = [
-        (0,      0,      qw, qh),   # TL
-        (w - qw, 0,      qw, qh),   # TR
-        (0,      h - qh, qw, qh),   # BL
-        (w - qw, h - qh, qw, qh),   # BR
-    ]
-    kw = max(3, qw // 25)
-    kh = max(3, qh // 12)
-
-    for cx, cy, crw, crh in wide_corners:
-        combined = _corner_signals(
-            gray[cy:cy + crh, cx:cx + crw],
-            sat[cy:cy + crh,  cx:cx + crw],
-            kw, kh,
-        )
-        fill = np.count_nonzero(combined) / max(crw * crh, 1)
-        if fill < 0.0015:
-            continue
-
-        ck = cv2.getStructuringElement(cv2.MORPH_RECT, (max(5, kw * 3), max(5, kh * 3)))
-        closed = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, ck)
-        pad = max(6, min(crw, crh) // 12)
-        roi = _tight_roi_from_mask(closed, cx, cy, w, h, pad)
-        if roi is None:
-            continue
-
-        rx, ry, rw, rh = roi
-        roi_fill = np.count_nonzero(
-            combined[ry - cy:ry - cy + rh, rx - cx:rx - cx + rw]
-        ) / max(rw * rh, 1)
-        score = roi_fill * 0.7 + fill * 10.0 * 0.3
-
-        if score > best_score:
-            best_score = score
-            best_roi   = roi
-
-    return best_roi if best_score >= 0.01 else None
+    return best_roi if best_score >= 0.05 else None
 
 
 def _detect_watermark_temporal(
     frames: list,
 ) -> Optional[Tuple[int, int, int, int]]:
-    """Video watermark detection via temporal consistency + saturation analysis.
+    """Video watermark detection using a median composite frame.
 
-    A watermark pixel is one that is simultaneously:
-      (a) STATIC   — low temporal variance across frames
-      (b) DETAILED — has local detail (Laplacian) OR is part of a coloured logo
-                     (stable high saturation, e.g. Gemini gradient).
+    Approach:
+    - Compute the per-channel median frame across all supplied frames.  This
+      naturally suppresses per-frame noise (compression artifacts, sensor noise)
+      and ghost-blends moving foreground objects, making static overlays (logos,
+      text watermarks) stand out more clearly against the noise-smoothed background.
+    - Run the identical corner-signal analysis as _detect_watermark_spatial on
+      this denoised median frame.  The same proven tophat/blackhat + Canny +
+      saturation signals and compactness / edge-touch filters are used.
 
-    Key design choices:
-    - Threshold at 25th percentile of variance (not 10%) so that semi-transparent
-      logos (alpha ~0.5 → variance ~25 % of background) are captured.
-    - Saturation channel: the Gemini logo gradient (blue→teal→purple→pink) shows
-      up as high, STABLE saturation even when the Laplacian on the smooth fill
-      is near zero.
-    - wm_map threshold lowered to 0.04 (was 0.12) to capture weak signals.
+    Why not a more complex temporal algorithm?
+    - A Laplacian-based "detail map" over the whole frame saturates to 1 on noisy
+      flat backgrounds, producing thousands of false positive pixels.
+    - A variance-threshold "static map" fails for tiny watermarks (Gemini sparkle:
+      34×26 px) whose zone variance is indistinguishable from background by chance.
+    - The median frame is simple, noise-robust, and produces cleaner spatial
+      signals than any single video frame.
     """
     if len(frames) < 2:
         return _detect_watermark_spatial(frames[0]) if frames else None
 
     h, w = frames[0].shape[:2]
-    target = (w, h)
 
-    # Build both grayscale and saturation stacks in a single pass
-    grays = []
-    sats  = []
-    bgrs  = []
+    # Align all frames to the first frame's resolution
+    aligned: list = []
     for f in frames:
         if f.shape[:2] != (h, w):
-            f = cv2.resize(f, target)
-        bgrs.append(f)
-        grays.append(cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32))
-        hsv = cv2.cvtColor(f, cv2.COLOR_BGR2HSV)
-        sats.append(hsv[:, :, 1].astype(np.float32))
+            f = cv2.resize(f, (w, h))
+        aligned.append(f.astype(np.float32))
 
-    gray_stack = np.stack(grays, axis=0)   # (N, H, W)
-    sat_stack  = np.stack(sats,  axis=0)   # (N, H, W)
+    # Per-channel median frame (denoised, ghosts moving objects)
+    bgr_stack  = np.stack(aligned, axis=0)           # (N, H, W, 3)
+    median_bgr = np.median(bgr_stack, axis=0).astype(np.uint8)
 
-    # ── (a) Static map ────────────────────────────────────────────────────────
-    var_map = np.var(gray_stack, axis=0)
-    # Use 25th-percentile threshold (not 10%):
-    #   A 50 %-transparent logo has ~25 % of background temporal variance.
-    #   The 25th percentile captures it even in moderately dynamic scenes.
-    thresh_static = np.percentile(var_map, 25)
-    static_m = (var_map <= thresh_static).astype(np.float32)
+    # Run the proven spatial algorithm on the denoised frame.
+    result = _detect_watermark_spatial(median_bgr)
+    if result is not None:
+        return result
 
-    # ── (b1) Detail map — Laplacian (text, outlines) ─────────────────────────
-    median_g  = np.median(gray_stack, axis=0).astype(np.uint8)
-    lap       = np.abs(cv2.Laplacian(median_g, cv2.CV_32F))
-    d85       = max(np.percentile(lap, 85), 1.0)
-    detail_lap = np.clip(lap / d85, 0.0, 1.0)
-
-    # ── (b2) Colour-logo signal — stable saturation (Gemini / Veo) ───────────
-    mean_sat = np.mean(sat_stack, axis=0)
-    var_sat  = np.var(sat_stack,  axis=0)
-    # "Stable colour": saturation that stays consistent across all sampled frames
-    sat_stable = (var_sat <= np.percentile(var_sat, 30)).astype(np.float32)
-    # "Rich colour": moderately saturated (≥60 on 0-255 scale)
-    sat_rich   = np.clip(mean_sat / 60.0, 0.0, 1.0)
-    color_sig  = sat_stable * sat_rich   # high score = consistent coloured region
-
-    # ── Combined confidence map ───────────────────────────────────────────────
-    # Take the stronger of the two detail signals so gradient logos (colour) and
-    # text watermarks (Laplacian) are both captured.
-    detail_combined = np.maximum(detail_lap, color_sig * 0.9)
-    wm_map = static_m * detail_combined
-
-    # ── Binarise + morphological close ───────────────────────────────────────
-    wm_bin = (wm_map > 0.04).astype(np.uint8) * 255   # lowered from 0.12
-    ksize  = max(20, min(w, h) // 25)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksize, ksize))
-    closed = cv2.morphologyEx(wm_bin, cv2.MORPH_CLOSE, kernel)
-
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    img_area   = max(w * h, 1)
-    candidates = []
-
-    for cnt in contours:
-        x, y, cw, ch = cv2.boundingRect(cnt)
-        area  = cw * ch
-        ratio = area / img_area
-        # Allow very small logos (Gemini ✦ ~0.0002 of frame) up to 45 % of image
-        if ratio < 0.0001 or ratio > 0.45:
-            continue
-
-        mean_wm = float(np.mean(wm_map[y:y + ch, x:x + cw]))
-        c_score = _corner_score((x + cw / 2) / w, (y + ch / 2) / h)
-        # Boost score for very-corner regions (watermarks are always at corners)
-        score   = mean_wm * 0.60 + c_score * 0.40
-        candidates.append((score, (x, y, cw, ch)))
-
-    mid_frame = bgrs[len(bgrs) // 2]
-
-    if not candidates:
-        return _detect_watermark_spatial(mid_frame)
-
-    candidates.sort(reverse=True)
-    best_score, best = candidates[0]
-
-    if best_score < 0.03:   # lowered from 0.06
-        return _detect_watermark_spatial(mid_frame)
-
-    bx, by, bw, bh = best
-    pad = max(5, min(w, h) // 50)
-    return (max(0, bx - pad), max(0, by - pad),
-            min(w - max(0, bx - pad), bw + 2 * pad),
-            min(h - max(0, by - pad), bh + 2 * pad))
+    # Fallback: try the middle frame (median may still be noisy in some content).
+    mid_bgr = aligned[len(aligned) // 2].astype(np.uint8)
+    return _detect_watermark_spatial(mid_bgr)
 
 
 def detect_watermark_roi(
