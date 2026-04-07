@@ -440,49 +440,162 @@ def _detect_watermark_spatial(image: np.ndarray) -> Optional[Tuple[int, int, int
 def _detect_watermark_temporal(
     frames: list,
 ) -> Optional[Tuple[int, int, int, int]]:
-    """Video watermark detection using a median composite frame.
+    """Video watermark detection: temporal variance + corner-contour selection.
 
-    Approach:
-    - Compute the per-channel median frame across all supplied frames.  This
-      naturally suppresses per-frame noise (compression artifacts, sensor noise)
-      and ghost-blends moving foreground objects, making static overlays (logos,
-      text watermarks) stand out more clearly against the noise-smoothed background.
-    - Run the identical corner-signal analysis as _detect_watermark_spatial on
-      this denoised median frame.  The same proven tophat/blackhat + Canny +
-      saturation signals and compactness / edge-touch filters are used.
+    Strategy (handles both simple and complex corner backgrounds):
 
-    Why not a more complex temporal algorithm?
-    - A Laplacian-based "detail map" over the whole frame saturates to 1 on noisy
-      flat backgrounds, producing thousands of false positive pixels.
-    - A variance-threshold "static map" fails for tiny watermarks (Gemini sparkle:
-      34×26 px) whose zone variance is indistinguishable from background by chance.
-    - The median frame is simple, noise-robust, and produces cleaner spatial
-      signals than any single video frame.
+    1. Build the pixel-wise temporal VARIANCE map and the MEDIAN frame.
+       - Variance → distinguish static watermark from moving scene content.
+       - Median → denoise compression artifacts; ghost-blends moving objects.
+
+    2. For each of the 4 tight corner zones, extract spatial signals (tophat /
+       Canny / saturation) from the median frame — same as the spatial detector.
+
+    3. Intersect spatial signals with a TEMPORAL STATIC MASK: keep only pixels
+       whose frame-to-frame variance is in the bottom 5th percentile of the
+       zone.  In a dynamic scene (moving cars, camera shake) the watermark
+       pixels stand out as the most static; in a fully-static scene the filter
+       passes many pixels and the fallback handles it.
+
+    4. Instead of taking the bounding box of ALL filtered signals (which spans
+       the whole zone when the background is complex), find INDIVIDUAL CONTOURS
+       in the dilated filter result and select the one that is:
+         (a) Compact — area < 25 % of the corner zone area.
+         (b) Nearest to the extreme image corner (right+bottom edge for BR).
+         (c) Passes the edge-touch filter (within edge_limit of BOTH image edges).
+
+    5. Fallback: spatial detection on the median frame, then on the middle frame.
     """
     if len(frames) < 2:
         return _detect_watermark_spatial(frames[0]) if frames else None
 
     h, w = frames[0].shape[:2]
 
-    # Align all frames to the first frame's resolution
     aligned: list = []
     for f in frames:
         if f.shape[:2] != (h, w):
             f = cv2.resize(f, (w, h))
-        aligned.append(f.astype(np.float32))
+        aligned.append(f)
 
-    # Per-channel median frame (denoised, ghosts moving objects)
-    bgr_stack  = np.stack(aligned, axis=0)           # (N, H, W, 3)
-    median_bgr = np.median(bgr_stack, axis=0).astype(np.uint8)
+    grays_f32 = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32) for f in aligned]
+    gray_stack  = np.stack(grays_f32, axis=0)                        # (N, H, W)
+    var_map     = np.var(gray_stack, axis=0)
+    median_bgr  = np.median(
+        np.stack([f.astype(np.float32) for f in aligned], axis=0), axis=0
+    ).astype(np.uint8)
 
-    # Run the proven spatial algorithm on the denoised frame.
+    # Corner zones: same 10 % × 8 % geometry as _detect_watermark_spatial
+    tw  = max(30, int(w * 0.10))
+    tzh = max(20, int(h * 0.08))
+    corners = [
+        (0,      0,       tw, tzh, 0,   0  ),   # TL — extreme corner at (0,0) of zone
+        (w - tw, 0,       tw, tzh, tw,  0  ),   # TR — extreme corner at (tw,0)
+        (0,      h - tzh, tw, tzh, 0,   tzh),   # BL — extreme corner at (0,tzh)
+        (w - tw, h - tzh, tw, tzh, tw,  tzh),   # BR — extreme corner at (tw,tzh)
+    ]
+    tkw = max(2, tw // 15)
+    tkh = max(2, tzh // 8)
+    edge_limit = max(8, int(min(w, h) * 0.03))
+
+    best_score = -1.0
+    best_roi: Optional[Tuple[int, int, int, int]] = None
+
+    for cx, cy, crw, crh, corner_rx, corner_ry in corners:
+        # Spatial signals from the denoised median frame
+        med_crop = median_bgr[cy:cy + crh, cx:cx + crw]
+        gray_z   = cv2.cvtColor(med_crop, cv2.COLOR_BGR2GRAY)
+        sat_z    = cv2.cvtColor(med_crop, cv2.COLOR_BGR2HSV)[:, :, 1]
+        spatial  = _corner_signals(gray_z, sat_z, tkw, tkh)
+
+        if np.count_nonzero(spatial) < 8:
+            continue
+
+        # Temporal static filter: keep the 5th-percentile most-static pixels
+        zone_var   = var_map[cy:cy + crh, cx:cx + crw]
+        var_thresh = max(float(np.percentile(zone_var, 5)), 0.3)
+        static_m   = (zone_var <= var_thresh).astype(np.uint8) * 255
+        filtered   = cv2.bitwise_and(spatial, static_m)
+
+        if np.count_nonzero(filtered) < 8:
+            continue
+
+        # Small dilation only (3×3) to connect directly adjacent pixels — NOT
+        # the large close kernel that previously merged the entire zone into one blob.
+        dil_k   = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        dilated = cv2.dilate(filtered, dil_k, iterations=1)
+
+        contours, _ = cv2.findContours(
+            dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        pad = max(4, min(crw, crh) // 14)
+
+        for cnt in contours:
+            bx, by, bw2, bh2 = cv2.boundingRect(cnt)
+            area = bw2 * bh2
+
+            # Compact: must be smaller than 25 % of zone (watermark is a small overlay)
+            if area < 16 or area >= crw * crh * 0.25:
+                continue
+
+            # Minimum signal density: watermark text/logo has dense strokes.
+            # Scene edges (building outlines, noise artefacts) produce sparse,
+            # scattered pixels — density typically ≤ 0.20.
+            density_pre = (
+                np.count_nonzero(filtered[by:by + bh2, bx:bx + bw2])
+                / max(area, 1)
+            )
+            if density_pre < 0.25:
+                continue
+
+            # Convert to image-absolute ROI
+            rx = max(0,     cx + bx       - pad)
+            ry = max(0,     cy + by       - pad)
+            rw = min(w - rx, bw2 + 2 * pad)
+            rh = min(h - ry, bh2 + 2 * pad)
+
+            # Edge-touch: must be within edge_limit of BOTH a horizontal and a
+            # vertical image boundary (watermarks live at the extreme corner).
+            near_h = (ry <= edge_limit) or ((h - (ry + rh)) <= edge_limit)
+            near_v = (rx <= edge_limit) or ((w - (rx + rw)) <= edge_limit)
+            if not (near_h and near_v):
+                continue
+
+            # Proximity to the extreme image corner of this zone.
+            # Use the NEAREST EDGE of the bbox to the zone corner (not the
+            # centre), so large watermarks that span from the edge inward
+            # are not penalised for having their centre far from the corner.
+            if corner_rx == 0:
+                edge_dist_x = bx / max(crw, 1)               # TL / BL — left edge
+            else:
+                edge_dist_x = (crw - (bx + bw2)) / max(crw, 1)  # TR / BR — right edge
+            if corner_ry == 0:
+                edge_dist_y = by / max(crh, 1)               # TL / TR — top edge
+            else:
+                edge_dist_y = (crh - (by + bh2)) / max(crh, 1)  # BL / BR — bottom edge
+            corner_prox = max(0.0, 1.0 - (edge_dist_x + edge_dist_y))
+
+            # Signal density within the bbox
+            density = (
+                np.count_nonzero(filtered[by:by + bh2, bx:bx + bw2])
+                / max(area, 1)
+            )
+
+            score = corner_prox * 0.60 + density * 0.40
+            if score > best_score:
+                best_score = score
+                best_roi   = (rx, ry, rw, rh)
+
+    if best_score >= 0.10:
+        return best_roi
+
+    # Fallback 1: spatial on the denoised median frame
     result = _detect_watermark_spatial(median_bgr)
     if result is not None:
         return result
 
-    # Fallback: try the middle frame (median may still be noisy in some content).
-    mid_bgr = aligned[len(aligned) // 2].astype(np.uint8)
-    return _detect_watermark_spatial(mid_bgr)
+    # Fallback 2: spatial on the middle source frame
+    return _detect_watermark_spatial(aligned[len(aligned) // 2])
 
 
 def detect_watermark_roi(
