@@ -315,74 +315,117 @@ def _tight_roi_from_mask(
     return (x1, y1, x2 - x1, y2 - y1) if x2 > x1 and y2 > y1 else None
 
 
+def _corner_signals(
+    gray_crop: np.ndarray,
+    sat_crop: np.ndarray,
+    kw: int,
+    kh: int,
+) -> np.ndarray:
+    """Merge tophat/blackhat + Canny + saturation into one binary mask."""
+    k_h = cv2.getStructuringElement(cv2.MORPH_RECT, (kw, kh))
+    k_v = cv2.getStructuringElement(cv2.MORPH_RECT, (kh, kw))
+    morph = cv2.max(
+        cv2.max(cv2.morphologyEx(gray_crop, cv2.MORPH_TOPHAT,   k_h),
+                cv2.morphologyEx(gray_crop, cv2.MORPH_TOPHAT,   k_v)),
+        cv2.max(cv2.morphologyEx(gray_crop, cv2.MORPH_BLACKHAT, k_h),
+                cv2.morphologyEx(gray_crop, cv2.MORPH_BLACKHAT, k_v)),
+    )
+    _, morph_bin = cv2.threshold(morph, 15, 255, cv2.THRESH_BINARY)
+    canny_bin = cv2.Canny(cv2.GaussianBlur(gray_crop, (3, 3), 0), 20, 80)
+    sat_thr   = max(float(np.mean(sat_crop)) + 20.0, 45.0)
+    sat_bin   = (sat_crop > sat_thr).astype(np.uint8) * 255
+    return cv2.max(cv2.max(morph_bin, canny_bin), sat_bin)
+
+
 def _detect_watermark_spatial(image: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
-    """Single-image watermark detection using three complementary signals per corner.
+    """Single-image watermark detection using multi-scale corner analysis.
 
-    Each of the 4 corner quadrants (30 % of each dimension) is analysed with:
-      1. Tophat / Blackhat morphology   — text strokes, logo outlines (bright or dark)
-      2. Canny edges                    — catches outlines of gradient logos that have
-                                          smooth fills (e.g. Gemini star shape)
-      3. Saturation anomaly             — detects coloured logos (Gemini blue/teal/purple)
-                                          that are invisible in grayscale
+    Two passes per corner:
 
-    The corner whose merged signal has the highest content density wins.
+    Pass 1 — TIGHT zones (10 % × 8 % of the image from each corner).
+              Designed to catch small logos like the Gemini sparkle (✦) that
+              occupy only ~0.02 % of the frame. Uses an absolute-pixel
+              threshold (≥ 8 detected pixels) instead of a fill-ratio.
+
+    Pass 2 — WIDE zones (30 % × 30 %) for larger watermarks (e.g. "Veo" text).
+              Uses a lenient fill-ratio threshold.
+
+    Both passes combine three detection signals:
+      1. Tophat/Blackhat   — text strokes and logo outlines
+      2. Canny edges       — gradient logo outlines (Gemini star / sparkle)
+      3. Saturation anomaly — coloured logos invisible in grayscale
     """
     h, w = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    hsv  = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    sat  = hsv[:, :, 1]   # saturation channel (0-255)
+    sat  = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[:, :, 1]
 
+    best_score = -1.0
+    best_roi: Optional[Tuple[int, int, int, int]] = None
+
+    # ── Pass 1: TIGHT corner zones — Gemini sparkle and small logos ──────────
+    tw = max(30, int(w * 0.10))
+    tzh = max(20, int(h * 0.08))
+    tight_corners = [
+        (0,      0,       tw, tzh),          # TL
+        (w - tw, 0,       tw, tzh),          # TR
+        (0,      h - tzh, tw, tzh),          # BL
+        (w - tw, h - tzh, tw, tzh),          # BR
+    ]
+    tkw = max(2, tw // 15)
+    tkh = max(2, tzh // 8)
+
+    for cx, cy, crw, crh in tight_corners:
+        combined = _corner_signals(
+            gray[cy:cy + crh, cx:cx + crw],
+            sat[cy:cy + crh,  cx:cx + crw],
+            tkw, tkh,
+        )
+        if int(np.count_nonzero(combined)) < 8:
+            continue
+
+        ck = cv2.getStructuringElement(cv2.MORPH_RECT, (max(3, tkw * 2), max(3, tkh * 2)))
+        closed = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, ck)
+        pad = max(4, min(crw, crh) // 10)
+        roi = _tight_roi_from_mask(closed, cx, cy, w, h, pad)
+        if roi is None:
+            continue
+
+        rx, ry, rw, rh = roi
+        roi_fill = np.count_nonzero(
+            combined[ry - cy:ry - cy + rh, rx - cx:rx - cx + rw]
+        ) / max(rw * rh, 1)
+        # How close to the actual image edge (0 = at edge, 1 = at corner centre)
+        edge_frac = 1.0 - (min(cx, w - cx - crw) / w + min(cy, h - cy - crh) / h)
+        score = roi_fill * 0.55 + edge_frac * 0.45 + 0.5   # +0.5 bias over wide pass
+
+        if score > best_score:
+            best_score = score
+            best_roi   = roi
+
+    # ── Pass 2: WIDE corner zones (30 % × 30 %) — Veo text and larger logos ──
     qw = max(60, int(w * 0.30))
     qh = max(60, int(h * 0.30))
-
-    # Stroke-sized structuring element
-    kw = max(3, qw // 25)
-    kh = max(3, qh // 12)
-    k_horiz = cv2.getStructuringElement(cv2.MORPH_RECT, (kw, kh))
-    k_vert  = cv2.getStructuringElement(cv2.MORPH_RECT, (kh, kw))
-
-    corners = [
+    wide_corners = [
         (0,      0,      qw, qh),   # TL
         (w - qw, 0,      qw, qh),   # TR
         (0,      h - qh, qw, qh),   # BL
         (w - qw, h - qh, qw, qh),   # BR
     ]
+    kw = max(3, qw // 25)
+    kh = max(3, qh // 12)
 
-    best_score = -1.0
-    best_roi: Optional[Tuple[int, int, int, int]] = None
-
-    for cx, cy, crw, crh in corners:
-        region_gray = gray[cy:cy + crh, cx:cx + crw]
-        region_sat  = sat[cy:cy + crh, cx:cx + crw]
-
-        # ── Signal 1: tophat + blackhat (text/outline strokes) ────────────
-        th_h = cv2.morphologyEx(region_gray, cv2.MORPH_TOPHAT,  k_horiz)
-        th_v = cv2.morphologyEx(region_gray, cv2.MORPH_TOPHAT,  k_vert)
-        bh_h = cv2.morphologyEx(region_gray, cv2.MORPH_BLACKHAT, k_horiz)
-        bh_v = cv2.morphologyEx(region_gray, cv2.MORPH_BLACKHAT, k_vert)
-        morph = cv2.max(cv2.max(th_h, th_v), cv2.max(bh_h, bh_v))
-        _, morph_bin = cv2.threshold(morph, 18, 255, cv2.THRESH_BINARY)
-
-        # ── Signal 2: Canny edges (gradient logo outlines, e.g. Gemini) ──
-        blurred   = cv2.GaussianBlur(region_gray, (3, 3), 0)
-        canny_bin = cv2.Canny(blurred, 20, 80)
-
-        # ── Signal 3: saturation anomaly (coloured logos invisible in gray)
-        # Pixels with saturation significantly above the corner's own mean
-        sat_mean  = float(np.mean(region_sat))
-        sat_thr   = max(sat_mean + 20.0, 45.0)   # at least 45 to ignore near-grey
-        sat_bin   = (region_sat > sat_thr).astype(np.uint8) * 255
-
-        # ── Merge all three signals ───────────────────────────────────────
-        combined = cv2.max(cv2.max(morph_bin, canny_bin), sat_bin)
-        fill     = np.count_nonzero(combined) / max(crw * crh, 1)
-        if fill < 0.002:   # almost nothing found (was 0.004)
+    for cx, cy, crw, crh in wide_corners:
+        combined = _corner_signals(
+            gray[cy:cy + crh, cx:cx + crw],
+            sat[cy:cy + crh,  cx:cx + crw],
+            kw, kh,
+        )
+        fill = np.count_nonzero(combined) / max(crw * crh, 1)
+        if fill < 0.0015:
             continue
 
-        # Merge scattered pixels into blobs
-        close_k = cv2.getStructuringElement(cv2.MORPH_RECT, (max(5, kw * 3), max(5, kh * 3)))
-        closed  = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, close_k)
-
+        ck = cv2.getStructuringElement(cv2.MORPH_RECT, (max(5, kw * 3), max(5, kh * 3)))
+        closed = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, ck)
         pad = max(6, min(crw, crh) // 12)
         roi = _tight_roi_from_mask(closed, cx, cy, w, h, pad)
         if roi is None:
@@ -398,7 +441,7 @@ def _detect_watermark_spatial(image: np.ndarray) -> Optional[Tuple[int, int, int
             best_score = score
             best_roi   = roi
 
-    return best_roi if best_score >= 0.02 else None   # lowered from 0.04
+    return best_roi if best_score >= 0.01 else None
 
 
 def _detect_watermark_temporal(
@@ -484,12 +527,14 @@ def _detect_watermark_temporal(
         x, y, cw, ch = cv2.boundingRect(cnt)
         area  = cw * ch
         ratio = area / img_area
-        if ratio < 0.001 or ratio > 0.45:   # allow smaller logos (was 0.002)
+        # Allow very small logos (Gemini ✦ ~0.0002 of frame) up to 45 % of image
+        if ratio < 0.0001 or ratio > 0.45:
             continue
 
         mean_wm = float(np.mean(wm_map[y:y + ch, x:x + cw]))
         c_score = _corner_score((x + cw / 2) / w, (y + ch / 2) / h)
-        score   = mean_wm * 0.65 + c_score * 0.35
+        # Boost score for very-corner regions (watermarks are always at corners)
+        score   = mean_wm * 0.60 + c_score * 0.40
         candidates.append((score, (x, y, cw, ch)))
 
     mid_frame = bgrs[len(bgrs) // 2]
