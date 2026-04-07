@@ -195,6 +195,185 @@ def _esrgan_process_frames_dir(frames_dir: str, model_name: str, target_scale: i
             log_fn(f'ESRGAN: frame {i + 1}/{total}')
 
 
+# ── rembg (Background Removal) ───────────────────────────────────────────────
+
+def _rembg_available() -> bool:
+    """Return True if rembg is installed."""
+    try:
+        import rembg  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _get_rembg_session():
+    """Create a rembg u2net session (cached per-process via rembg internals)."""
+    try:
+        from rembg import new_session
+        return new_session('u2net')
+    except ImportError:
+        raise RuntimeError('rembg tidak terinstal. Jalankan: pip install rembg')
+
+
+def _remove_bg_frame_rgba(img_bgr: np.ndarray, session) -> np.ndarray:
+    """Remove background from one BGR frame. Returns RGBA numpy array."""
+    try:
+        from rembg import remove
+        import PIL.Image
+    except ImportError:
+        raise RuntimeError('rembg tidak terinstal. Jalankan: pip install rembg')
+    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    pil_img = PIL.Image.fromarray(img_rgb)
+    result_pil = remove(pil_img, session=session)
+    return np.array(result_pil)  # RGBA
+
+
+def remove_background_image(
+    img_bgr: np.ndarray,
+    session=None,
+    log_fn: LogFn = None,
+) -> np.ndarray:
+    """Remove background from a BGR image. Returns BGRA (PNG-ready) array."""
+    if session is None:
+        if log_fn:
+            log_fn('rembg: memuat model u2net (pertama kali mungkin perlu unduh ~170MB)…')
+        session = _get_rembg_session()
+    rgba = _remove_bg_frame_rgba(img_bgr, session)
+    bgra = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGRA)
+    return bgra
+
+
+def remove_background_frames_dir(
+    frames_dir: str,
+    log_fn: LogFn = None,
+) -> None:
+    """Remove background from every PNG frame in-place.
+    Result is composited on black background (H.264 compatible).
+    """
+    fnames = sorted(f for f in os.listdir(frames_dir) if f.endswith('.png'))
+    total = len(fnames)
+    if total == 0:
+        return
+
+    if log_fn:
+        log_fn(f'rembg: memuat model u2net untuk {total} frame (pertama kali mungkin unduh model)…')
+    session = _get_rembg_session()
+
+    for i, fname in enumerate(fnames):
+        fpath = os.path.join(frames_dir, fname)
+        img = cv2.imread(fpath, cv2.IMREAD_COLOR)
+        if img is None:
+            continue
+        rgba = _remove_bg_frame_rgba(img, session)
+        # Composite on black background for H.264 compatibility
+        alpha = rgba[:, :, 3:4].astype(np.float32) / 255.0
+        rgb   = rgba[:, :, :3].astype(np.float32)
+        comp  = (rgb * alpha).astype(np.uint8)
+        bgr   = cv2.cvtColor(comp, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(fpath, bgr)
+        if log_fn and (i % 10 == 0 or i == total - 1):
+            log_fn(f'rembg: frame {i + 1}/{total}')
+
+    if log_fn:
+        log_fn(f'rembg: selesai — {total} frame diproses.')
+
+
+# ── Watermark Auto-Detection ──────────────────────────────────────────────────
+
+def detect_watermark_roi(
+    image: np.ndarray,
+) -> Optional[Tuple[int, int, int, int]]:
+    """Auto-detect probable watermark region using edge-density + corner heuristics.
+
+    Returns (x, y, w, h) of the most likely watermark region, or None if no
+    convincing candidate is found.
+
+    Strategy:
+    1. CLAHE → Canny edges to find detail-dense regions
+    2. Morphological dilation to group nearby edges into blobs
+    3. Score each blob by: edge density + corner proximity + aspect ratio
+    4. Return top-scoring candidate with padding
+    """
+    h, w = image.shape[:2]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray  = clahe.apply(gray)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges   = cv2.Canny(blurred, 30, 100)
+
+    # Dilation kernel size: adaptive to image size
+    ksize  = max(15, min(w, h) // 30)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksize, ksize))
+    dilated = cv2.dilate(edges, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+
+    img_area   = max(w * h, 1)
+    candidates = []
+
+    for cnt in contours:
+        x, y, cw, ch = cv2.boundingRect(cnt)
+        area  = cw * ch
+        ratio = area / img_area
+
+        if ratio < 0.003 or ratio > 0.35:
+            continue
+
+        region_edges = edges[y:y + ch, x:x + cw]
+        density = np.count_nonzero(region_edges) / max(area, 1)
+
+        # Corner proximity (watermarks almost always sit near a corner)
+        cx_n = (x + cw / 2) / w
+        cy_n = (y + ch / 2) / h
+        corner_d = min(
+            cx_n ** 2 + cy_n ** 2,
+            (1 - cx_n) ** 2 + cy_n ** 2,
+            cx_n ** 2 + (1 - cy_n) ** 2,
+            (1 - cx_n) ** 2 + (1 - cy_n) ** 2,
+        )
+        corner_score = max(0.0, 1.0 - corner_d * 5.0)
+
+        # Penalise very elongated shapes (likely scan lines, not logos)
+        aspect       = max(cw, ch) / max(min(cw, ch), 1)
+        aspect_score = max(0.0, 1.0 - max(0.0, aspect - 8.0) / 10.0)
+
+        score = density * 0.5 + corner_score * 0.35 + aspect_score * 0.15
+        candidates.append((score, (x, y, cw, ch)))
+
+    if not candidates:
+        return None
+
+    candidates.sort(reverse=True)
+    best_score, best = candidates[0]
+
+    if best_score < 0.01:
+        return None
+
+    bx, by, bw, bh = best
+    pad = max(4, min(w, h) // 60)
+    bx  = max(0, bx - pad)
+    by  = max(0, by - pad)
+    bw  = min(w - bx, bw + 2 * pad)
+    bh  = min(h - by, bh + 2 * pad)
+    return (bx, by, bw, bh)
+
+
+def get_representative_frame(video_path: str) -> Optional[np.ndarray]:
+    """Extract a representative frame (~25% into video) for analysis."""
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    if total > 4:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, total // 4)
+    ret, frame = cap.read()
+    cap.release()
+    return frame if ret else None
+
+
 # ── Frame extraction ──────────────────────────────────────────────────────────
 
 def remove_watermark_roi_to_frames(
@@ -333,9 +512,16 @@ def process_image_file(
     upscale_scale: int = 2,
     quality: str = 'ultra',
     sharpness: float = 0.0,
+    remove_bg: bool = False,
     log_fn: LogFn = None,
 ) -> None:
-    """Inpaint and/or upscale a single image."""
+    """Inpaint and/or remove background and/or upscale a single image.
+
+    Pipeline order:
+      1. Inpaint watermark (if roi provided)
+      2. Remove background (if remove_bg) — always saves as PNG with alpha
+      3. Upscale (if enabled)
+    """
     if log_fn:
         log_fn('Membaca gambar…')
     img = cv2.imread(input_path, cv2.IMREAD_COLOR)
@@ -345,6 +531,7 @@ def process_image_file(
     if log_fn:
         log_fn(f'Gambar {w0}×{h0} dimuat.')
 
+    # Step 1: Inpaint watermark
     if roi and int(roi.get('width', 0)) > 0 and int(roi.get('height', 0)) > 0:
         h_img, w_img = img.shape[:2]
         x  = max(0, min(int(roi['x']), w_img - 1))
@@ -360,18 +547,43 @@ def process_image_file(
         if log_fn:
             log_fn('Inpaint selesai.')
 
+    # Step 2: Remove background (returns BGRA; subsequent ops keep BGRA or strip alpha)
+    has_alpha = False
+    if remove_bg:
+        if not _rembg_available():
+            raise RuntimeError('rembg tidak terinstal. Jalankan: pip install rembg')
+        if log_fn:
+            log_fn('Menghapus background (rembg u2net)…')
+        session = _get_rembg_session()
+        bgra    = remove_background_image(img, session, log_fn=None)
+        img     = bgra
+        has_alpha = True
+        if log_fn:
+            log_fn('Background berhasil dihapus.')
+
+    # Step 3: Upscale
     if upscale and upscale_scale > 0:
+        # ESRGAN works on BGR only — composite alpha onto black before upscale
+        img_for_upscale = img
+        if has_alpha:
+            alpha_ch = img[:, :, 3:4].astype(np.float32) / 255.0
+            bgr_ch   = img[:, :, :3].astype(np.float32)
+            img_for_upscale = (bgr_ch * alpha_ch).astype(np.uint8)
+
         if upscale_model == 'lanczos':
             if upscale_scale > 1:
                 if log_fn:
                     log_fn(f'Upscale Lanczos {upscale_scale}×…')
-                h1, w1 = img.shape[:2]
-                img = cv2.resize(img, (w1 * upscale_scale, h1 * upscale_scale),
-                                 interpolation=cv2.INTER_LANCZOS4)
+                h1, w1 = img_for_upscale.shape[:2]
+                img_for_upscale = cv2.resize(
+                    img_for_upscale,
+                    (w1 * upscale_scale, h1 * upscale_scale),
+                    interpolation=cv2.INTER_LANCZOS4,
+                )
                 if log_fn:
                     log_fn(f'Upscale selesai → {w1 * upscale_scale}×{h1 * upscale_scale}.')
             if sharpness > 0:
-                img = _apply_sharpness_cv(img, sharpness)
+                img_for_upscale = _apply_sharpness_cv(img_for_upscale, sharpness)
                 if log_fn:
                     log_fn(f'Sharpness diterapkan ({sharpness:.2f}).')
         else:
@@ -379,15 +591,32 @@ def process_image_file(
                 gpu_id = _get_gpu_id()
                 device = f'GPU (CUDA:{gpu_id})' if gpu_id >= 0 else 'CPU'
                 log_fn(f'ESRGAN upscale ({upscale_model}) {upscale_scale}× di {device}…')
-            img = _esrgan_upscale_image(img, upscale_model, upscale_scale,
-                                        sharpness=sharpness)
-            h1, w1 = img.shape[:2]
+            img_for_upscale = _esrgan_upscale_image(
+                img_for_upscale, upscale_model, upscale_scale, sharpness=sharpness,
+            )
+            h1, w1 = img_for_upscale.shape[:2]
             if log_fn:
                 log_fn(f'ESRGAN selesai → {w1}×{h1}.')
 
+        # Upscale alpha mask too and re-composite
+        if has_alpha:
+            orig_alpha = img[:, :, 3]
+            h1, w1 = img_for_upscale.shape[:2]
+            upscaled_alpha = cv2.resize(orig_alpha, (w1, h1), interpolation=cv2.INTER_LANCZOS4)
+            img = cv2.merge([
+                img_for_upscale[:, :, 0],
+                img_for_upscale[:, :, 1],
+                img_for_upscale[:, :, 2],
+                upscaled_alpha,
+            ])
+        else:
+            img = img_for_upscale
+
     if log_fn:
         log_fn(f'Menyimpan hasil ({quality})…')
-    if quality == 'ultra':
+
+    # Always use PNG when we have alpha transparency
+    if has_alpha or output_path.lower().endswith('.png'):
         cv2.imwrite(output_path, img, [cv2.IMWRITE_PNG_COMPRESSION, 1])
     else:
         q = IMAGE_JPEG_QUALITY.get(quality, 85)

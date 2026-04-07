@@ -18,8 +18,12 @@ from utils.video import (
     encode_from_frames,
     process_video_direct,
     process_image_file,
+    remove_background_frames_dir,
+    detect_watermark_roi,
+    get_representative_frame,
     _esrgan_available,
     _esrgan_process_frames_dir,
+    _rembg_available,
 )
 
 APP_ROOT       = os.path.dirname(os.path.abspath(__file__))
@@ -110,11 +114,13 @@ def _has_roi(roi) -> bool:
     return bool(roi) and int(roi.get('width', 0)) > 0 and int(roi.get('height', 0)) > 0
 
 
-def _make_suffix(remove_wm: bool, upscale: bool, upscale_model: str,
+def _make_suffix(remove_wm: bool, remove_bg: bool, upscale: bool, upscale_model: str,
                  upscale_scale: int, fps_boost: bool, sharpness: float = 0.0) -> str:
     p = []
     if remove_wm:
         p.append('nowm')
+    if remove_bg:
+        p.append('nobg')
     if upscale:
         model_short = {
             'lanczos':                  'lanczos',
@@ -132,14 +138,15 @@ def _make_suffix(remove_wm: bool, upscale: bool, upscale_model: str,
 
 def _do_process(input_path, output_path, roi, method, quality,
                 upscale, upscale_model, upscale_scale, fps_boost,
-                sharpness=0.0, log_fn=None):
-    """Core video processing: watermark removal and/or upscale/fps boost.
+                sharpness=0.0, remove_bg=False, log_fn=None):
+    """Core video processing pipeline.
 
-    Workflow (frame-level pipeline):
+    Frame-level pipeline order:
       1. Extract frames  (+ optional watermark inpaint)
-      2. Interpolate to 60fps  (fps_boost — BEFORE upscale, cheaper on original res)
-      3. ESRGAN upscale  (on interpolated frames)
-      4. Encode final video
+      2. Interpolate to 60fps  (fps_boost — BEFORE heavier ops, cheaper on orig res)
+      3. Remove background per-frame  (rembg, composited on black for H.264)
+      4. ESRGAN upscale
+      5. Encode final video
 
     When no frame-level ops are needed (direct FFmpeg path):
       fps_boost/sharpness applied via FFmpeg filters in process_video_direct.
@@ -152,7 +159,7 @@ def _do_process(input_path, output_path, roi, method, quality,
         else None
     )
 
-    need_frames = remove_wm or use_esrgan
+    need_frames = remove_wm or use_esrgan or remove_bg
 
     if need_frames:
         frames_dir = os.path.join(TEMP_FOLDER, f'frm_{uuid.uuid4().hex}')
@@ -174,13 +181,16 @@ def _do_process(input_path, output_path, roi, method, quality,
                 shutil.rmtree(frames_dir, ignore_errors=True)
                 frames_dir = interp_dir
 
-            # Step 3: ESRGAN upscale AFTER interpolation (with sharpness)
+            # Step 3: Remove background per-frame (composite on black, H.264 compatible)
+            if remove_bg:
+                remove_background_frames_dir(frames_dir, log_fn=log_fn)
+
+            # Step 4: ESRGAN upscale AFTER bg removal (with sharpness)
             if use_esrgan:
                 _esrgan_process_frames_dir(frames_dir, upscale_model, upscale_scale,
                                            sharpness=sharpness, log_fn=log_fn)
 
-            # Step 4: Encode — fps_boost already handled at frame level
-            # For ESRGAN: sharpness already applied per-frame, pass 0.0 to avoid double
+            # Step 5: Encode — fps_boost already handled at frame level
             encode_from_frames(frames_dir, fps, input_path, output_path,
                                quality,
                                lanczos_scale if not use_esrgan else None,
@@ -238,6 +248,7 @@ def process():
     upscale_scale = int(data.get('upscale_scale', 2))
     fps_boost     = bool(data.get('fps_boost', False))
     sharpness     = float(data.get('sharpness', 0.0))
+    remove_bg     = bool(data.get('remove_bg', False))
 
     if not filename:
         return jsonify({'error': 'filename required'}), 400
@@ -246,15 +257,17 @@ def process():
         return jsonify({'error': 'File tidak ditemukan'}), 404
 
     remove_wm = _has_roi(roi)
-    if not remove_wm and not upscale and not fps_boost:
+    if not remove_wm and not upscale and not fps_boost and not remove_bg:
         return jsonify({'error': 'Pilih minimal satu operasi'}), 400
 
     use_esrgan = upscale and upscale_model not in ('lanczos', '', None)
     if use_esrgan and not _esrgan_available():
         return jsonify({'error': 'realesrgan tidak terinstal. Jalankan: pip install realesrgan basicsr'}), 400
+    if remove_bg and not _rembg_available():
+        return jsonify({'error': 'rembg tidak terinstal. Jalankan: pip install rembg'}), 400
 
     orig_base = _name_map.get(filename, os.path.splitext(filename)[0])
-    suffix    = _make_suffix(remove_wm, upscale, upscale_model, upscale_scale, fps_boost, sharpness)
+    suffix    = _make_suffix(remove_wm, remove_bg, upscale, upscale_model, upscale_scale, fps_boost, sharpness)
     out_name  = f'{orig_base}{suffix}.mp4'
     out_path  = os.path.join(OUTPUT_FOLDER, out_name)
 
@@ -267,7 +280,7 @@ def process():
         t0 = time.time()
         _do_process(input_path, out_path, roi, method, quality,
                     upscale, upscale_model, upscale_scale, fps_boost,
-                    sharpness, log_fn=log_fn)
+                    sharpness, remove_bg=remove_bg, log_fn=log_fn)
         elapsed = time.time() - t0
         if log_fn: log_fn(f'Selesai! Total waktu: {elapsed:.1f} detik.')
     except Exception as e:
@@ -293,6 +306,7 @@ def process_image():
     upscale_model = data.get('upscale_model', 'lanczos')
     upscale_scale = int(data.get('upscale_scale', 2))
     sharpness     = float(data.get('sharpness', 0.0))
+    remove_bg     = bool(data.get('remove_bg', False))
 
     if not filename:
         return jsonify({'error': 'filename required'}), 400
@@ -301,16 +315,19 @@ def process_image():
         return jsonify({'error': 'File tidak ditemukan'}), 404
 
     remove_wm = _has_roi(roi)
-    if not remove_wm and not upscale:
+    if not remove_wm and not upscale and not remove_bg:
         return jsonify({'error': 'Pilih minimal satu operasi'}), 400
 
     use_esrgan = upscale and upscale_model not in ('lanczos', '', None)
     if use_esrgan and not _esrgan_available():
         return jsonify({'error': 'realesrgan tidak terinstal. Jalankan: pip install realesrgan basicsr'}), 400
+    if remove_bg and not _rembg_available():
+        return jsonify({'error': 'rembg tidak terinstal. Jalankan: pip install rembg'}), 400
 
     orig_base = _name_map.get(filename, os.path.splitext(filename)[0])
-    suffix    = _make_suffix(remove_wm, upscale, upscale_model, upscale_scale, False, sharpness)
-    out_ext   = '.png' if quality == 'ultra' else '.jpg'
+    suffix    = _make_suffix(remove_wm, remove_bg, upscale, upscale_model, upscale_scale, False, sharpness)
+    # remove_bg always outputs PNG (alpha transparency); otherwise respect quality setting
+    out_ext   = '.png' if (remove_bg or quality == 'ultra') else '.jpg'
     out_name  = f'{orig_base}{suffix}{out_ext}'
     out_path  = os.path.join(OUTPUT_FOLDER, out_name)
 
@@ -324,7 +341,7 @@ def process_image():
         process_image_file(
             input_path, out_path,
             roi, method, upscale, upscale_model, upscale_scale, quality,
-            sharpness, log_fn=log_fn,
+            sharpness, remove_bg=remove_bg, log_fn=log_fn,
         )
         elapsed = time.time() - t0
         if log_fn: log_fn(f'Selesai! Total waktu: {elapsed:.1f} detik.')
@@ -352,40 +369,57 @@ def process_bulk():
     upscale_scale = int(data.get('upscale_scale', 2))
     fps_boost     = bool(data.get('fps_boost', False))
     sharpness     = float(data.get('sharpness', 0.0))
+    remove_bg     = bool(data.get('remove_bg', False))
 
     if not files:
         return jsonify({'error': 'Tidak ada file'}), 400
     remove_wm = _has_roi(roi)
-    if not remove_wm and not upscale and not fps_boost:
+    if not remove_wm and not upscale and not fps_boost and not remove_bg:
         return jsonify({'error': 'Pilih minimal satu operasi'}), 400
 
     use_esrgan = upscale and upscale_model not in ('lanczos', '', None)
     if use_esrgan and not _esrgan_available():
         return jsonify({'error': 'realesrgan tidak terinstal. Jalankan: pip install realesrgan basicsr'}), 400
+    if remove_bg and not _rembg_available():
+        return jsonify({'error': 'rembg tidak terinstal. Jalankan: pip install rembg'}), 400
 
     job_id = data.get('job_id', '')
     _job_start(job_id)
     log_fn = (lambda msg: _job_log(job_id, msg)) if job_id else None
 
-    suffix  = _make_suffix(remove_wm, upscale, upscale_model, upscale_scale, fps_boost, sharpness)
+    suffix  = _make_suffix(remove_wm, remove_bg, upscale, upscale_model, upscale_scale, fps_boost, sharpness)
     results = []
 
     t0_bulk = time.time()
     for idx, item in enumerate(files, 1):
         stored    = item.get('filename', '')
         orig_base = item.get('originalBase') or _name_map.get(stored) or os.path.splitext(stored)[0]
+        is_img    = item.get('isImage', _is_image(stored))
         inp       = os.path.join(UPLOAD_FOLDER, stored)
         if not os.path.exists(inp):
             results.append({'file': orig_base, 'status': 'error', 'error': 'File tidak ditemukan'})
             continue
-        out_name = f'{orig_base}{suffix}.mp4'
+
+        if is_img:
+            out_ext  = '.png' if (remove_bg or quality == 'ultra') else '.jpg'
+            out_name = f'{orig_base}{suffix}{out_ext}'
+        else:
+            out_name = f'{orig_base}{suffix}.mp4'
         out_path = os.path.join(OUTPUT_FOLDER, out_name)
+
         if log_fn: log_fn(f'[{idx}/{len(files)}] Memproses {orig_base}…')
         t0 = time.time()
         try:
-            _do_process(inp, out_path, roi, method, quality,
-                        upscale, upscale_model, upscale_scale, fps_boost,
-                        sharpness, log_fn=log_fn)
+            if is_img:
+                process_image_file(
+                    inp, out_path, roi, method,
+                    upscale, upscale_model, upscale_scale, quality,
+                    sharpness, remove_bg=remove_bg, log_fn=log_fn,
+                )
+            else:
+                _do_process(inp, out_path, roi, method, quality,
+                            upscale, upscale_model, upscale_scale, fps_boost,
+                            sharpness, remove_bg=remove_bg, log_fn=log_fn)
             elapsed = time.time() - t0
             results.append({'file': orig_base, 'status': 'success', 'output': out_name, 'outputPath': out_path})
             if log_fn: log_fn(f'[{idx}/{len(files)}] {orig_base} — selesai ✓ ({elapsed:.1f}s)')
@@ -450,6 +484,48 @@ def heartbeat():
 @app.route('/esrgan-check')
 def esrgan_check():
     return jsonify({'available': _esrgan_available()})
+
+
+@app.route('/rembg-check')
+def rembg_check():
+    return jsonify({'available': _rembg_available()})
+
+
+@app.route('/detect-watermark', methods=['POST'])
+def detect_watermark():
+    """Auto-detect watermark region in an uploaded image or video frame.
+
+    Accepts: { filename: str }
+    Returns: { roi: {x, y, width, height} | null }
+    """
+    import cv2 as _cv2
+
+    data     = request.get_json(force=True)
+    filename = data.get('filename', '')
+    if not filename:
+        return jsonify({'error': 'filename required'}), 400
+
+    input_path = os.path.join(UPLOAD_FOLDER, filename)
+    if not os.path.exists(input_path):
+        return jsonify({'error': 'File tidak ditemukan'}), 404
+
+    try:
+        if _is_image(filename):
+            frame = _cv2.imread(input_path, _cv2.IMREAD_COLOR)
+        else:
+            frame = get_representative_frame(input_path)
+
+        if frame is None:
+            return jsonify({'roi': None, 'message': 'Tidak dapat membaca frame'}), 200
+
+        result = detect_watermark_roi(frame)
+        if result is None:
+            return jsonify({'roi': None, 'message': 'Watermark tidak terdeteksi secara otomatis'}), 200
+
+        x, y, w, h = result
+        return jsonify({'roi': {'x': x, 'y': y, 'width': w, 'height': h}})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

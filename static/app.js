@@ -22,18 +22,23 @@ const modeBadge       = $('modeBadge');
 const opWatermark     = $('opWatermark');
 const opUpscale       = $('opUpscale');
 const opFps           = $('opFps');
+const opRemoveBg      = $('opRemoveBg');
 const methodSel       = $('method');
 const qualitySel      = $('quality');
 const wmSubSettings   = $('wmSubSettings');
 const esrganOptions   = $('esrganOptions');
+const removeBgSettings = $('removeBgSettings');
 const opFpsRow        = $('opFpsRow');
 const esrganModel     = $('esrganModel');
 const esrganWarn      = $('esrganWarn');
 const esrganInstall   = $('esrganInstall');
+const rembgVideoWarn  = $('rembgVideoWarn');
+const rembgInstall    = $('rembgInstall');
 const dimEstimate     = $('dimEstimate');
 const sharpnessInput   = $('sharpness');
 const sharpnessVal     = $('sharpnessVal');
 const sharpnessDefault = $('sharpnessDefault');
+const autoDetectBtn   = $('autoDetectBtn');
 
 const SHARPNESS_DEFAULT = 30;
 
@@ -84,8 +89,23 @@ let isDrawing     = false;
 let startX = 0, startY = 0;
 let selectedScale = 2;
 let esrganAvailable = false;
+let rembgAvailable  = false;
 let _logPollTimer = null;
 let _seenLogCount = 0;
+// Cache uploaded file data to avoid re-uploading when auto-detect already did it
+const _uploadCache = new Map();
+
+function _uploadCacheKey(file) {
+  return `${file.name}|${file.size}|${file.lastModified}`;
+}
+
+async function uploadFileOnce(file) {
+  const key = _uploadCacheKey(file);
+  if (_uploadCache.has(key)) return _uploadCache.get(key);
+  const data = await uploadFile(file);
+  _uploadCache.set(key, data);
+  return data;
+}
 
 // ── Toast ───────────────────────────────────────────────
 function toast(msg, type = 'info', ms = 3200) {
@@ -98,12 +118,20 @@ function toast(msg, type = 'info', ms = 3200) {
 // ── Heartbeat — keep server alive; server shuts down when pings stop ─────────
 setInterval(() => fetch('/heartbeat', { method: 'POST' }).catch(() => {}), 5000);
 
-// ── ESRGAN check on load ─────────────────────────────────
+// ── ESRGAN + rembg availability check on load ────────────
 fetch('/esrgan-check')
   .then(r => r.json())
   .then(d => {
     esrganAvailable = d.available;
     esrganInstall.hidden = esrganAvailable;
+  })
+  .catch(() => {});
+
+fetch('/rembg-check')
+  .then(r => r.json())
+  .then(d => {
+    rembgAvailable = d.available;
+    rembgInstall.hidden = rembgAvailable;
   })
   .catch(() => {});
 
@@ -151,6 +179,7 @@ function setSource(newMode, files) {
   mode          = newMode;
   selectedFiles = files || [];
   roi           = null;
+  _uploadCache.clear();
   drawRoi(null);
   roiInfo.hidden       = true;
   singleResult.hidden  = true;
@@ -161,6 +190,9 @@ function setSource(newMode, files) {
 
   opFpsRow.hidden = (mediaType === 'image');
   if (mediaType === 'image' && opFps.checked) opFps.checked = false;
+
+  // Update rembg video warning
+  rembgVideoWarn.hidden = !(opRemoveBg.checked && mediaType === 'video');
 
   if (mode === 'single') {
     showSourceInfo(mediaType === 'image' ? '🖼️' : '🎬', firstFile.name, formatSize(firstFile.size));
@@ -177,6 +209,8 @@ function setSource(newMode, files) {
     if (mediaType === 'image') loadImageBlob(firstFile);
     else loadVideoBlob(firstFile);
   }
+
+  autoDetectBtn.disabled = (mode === 'none');
 
   procStatus.textContent = '';
   updateDimEstimate();
@@ -204,7 +238,8 @@ clearSourceBtn.addEventListener('click', () => {
   vpPlaceholder.style.display = '';
 
   roi = null; drawRoi(null); roiInfo.hidden = true;
-  drawModeBtn.disabled = true;
+  drawModeBtn.disabled  = true;
+  autoDetectBtn.disabled = true;
   singleResult.hidden   = true;
   bulkResultCard.hidden = true;
   logCard.hidden        = true;
@@ -254,6 +289,13 @@ opWatermark.addEventListener('change', () => {
   updateProcessBtn();
 });
 
+opRemoveBg.addEventListener('change', () => {
+  removeBgSettings.hidden = !opRemoveBg.checked;
+  rembgVideoWarn.hidden   = !(opRemoveBg.checked && mediaType === 'video');
+  rembgInstall.hidden     = rembgAvailable || !opRemoveBg.checked;
+  updateProcessBtn();
+});
+
 opUpscale.addEventListener('change', () => {
   esrganOptions.hidden = !opUpscale.checked;
   if (opUpscale.checked) {
@@ -298,10 +340,43 @@ updateSharpnessLabel();
 
 function updateProcessBtn() {
   const hasSource = mode !== 'none';
-  const hasOp     = opWatermark.checked || opUpscale.checked || opFps.checked;
+  const hasOp     = opWatermark.checked || opUpscale.checked || opFps.checked || opRemoveBg.checked;
   const roiOk     = !opWatermark.checked || (roi && roi.width > 0);
   processBtn.disabled = !hasSource || !hasOp || !roiOk;
 }
+
+// ── AUTO DETECT WATERMARK ────────────────────────────────
+autoDetectBtn.addEventListener('click', async () => {
+  if (mode === 'none' || !selectedFiles.length) return;
+
+  autoDetectBtn.disabled  = true;
+  autoDetectBtn.textContent = '🔍 Mendeteksi…';
+
+  try {
+    // Upload first file (cached so processing won't re-upload)
+    const upData = await uploadFileOnce(selectedFiles[0]);
+    const res    = await post('/detect-watermark', { filename: upData.filename });
+    const data   = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Deteksi gagal');
+
+    if (data.roi) {
+      roi = data.roi;
+      drawRoi(roi);
+      roiText.textContent = `x:${roi.x} y:${roi.y} w:${roi.width} h:${roi.height}`;
+      roiInfo.hidden = false;
+      updateProcessBtn();
+      toast('Watermark terdeteksi! Koreksi manual jika perlu.', 'success', 4000);
+    } else {
+      toast(data.message || 'Watermark tidak terdeteksi — tandai manual.', 'info', 4000);
+    }
+  } catch (e) {
+    toast('Deteksi gagal: ' + (e.message || 'Error tidak diketahui'), 'error');
+  } finally {
+    autoDetectBtn.disabled  = false;
+    autoDetectBtn.textContent = '🔍 Auto Deteksi';
+  }
+});
 
 // ── Dim estimate ─────────────────────────────────────────
 function updateDimEstimate() {
@@ -478,13 +553,13 @@ processBtn.addEventListener('click', doProcess);
 
 async function doProcess() {
   if (mode === 'none') { toast('Pilih file dulu', 'error'); return; }
-  const hasOp = opWatermark.checked || opUpscale.checked || opFps.checked;
+  const hasOp = opWatermark.checked || opUpscale.checked || opFps.checked || opRemoveBg.checked;
   if (!hasOp) { toast('Pilih minimal satu operasi', 'error'); return; }
   if (opWatermark.checked && (!roi || roi.width <= 0)) {
-    toast('Klik ✏️ Tandai Area lalu gambar kotak pada watermark', 'error'); return;
+    toast('Klik ✏️ Tandai Area atau 🔍 Auto Deteksi untuk menentukan area watermark', 'error'); return;
   }
 
-  const jobId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+  const jobId    = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
   const sharpness = parseFloat(sharpnessInput.value) / 100;
 
   const commonPayload = {
@@ -495,20 +570,23 @@ async function doProcess() {
     upscale_model: esrganModel.value,
     upscale_scale: selectedScale,
     fps_boost:     opFps.checked && mediaType === 'video',
+    remove_bg:     opRemoveBg.checked,
     sharpness,
     job_id:        jobId,
   };
 
-  processBtn.disabled  = true;
-  procProgress.hidden  = false;
-  singleResult.hidden  = true;
-  bulkResultCard.hidden = true;
+  processBtn.disabled   = true;
+  autoDetectBtn.disabled = true;
+  procProgress.hidden   = false;
+  singleResult.hidden   = true;
+  bulkResultCard.hidden  = true;
   startLogPolling(jobId);
 
   try {
     if (mode === 'single') {
       procStatus.textContent = 'Mengupload…';
-      const upData = await uploadFile(selectedFiles[0]);
+      // Reuse cached upload if auto-detect already uploaded this file
+      const upData = await uploadFileOnce(selectedFiles[0]);
       procStatus.textContent = 'Memproses…';
 
       let res;
@@ -526,7 +604,7 @@ async function doProcess() {
       const uploaded = [];
       for (let i = 0; i < selectedFiles.length; i++) {
         procStatus.textContent = `Mengupload ${i + 1}/${selectedFiles.length}…`;
-        const up = await uploadFile(selectedFiles[i]);
+        const up = await uploadFileOnce(selectedFiles[i]);
         uploaded.push(up);
       }
       procStatus.textContent = `Memproses ${selectedFiles.length} file…`;
@@ -540,9 +618,10 @@ async function doProcess() {
     toast(e.message || 'Terjadi kesalahan', 'error');
   } finally {
     stopLogPolling();
-    procProgress.hidden = true;
+    procProgress.hidden    = true;
     procStatus.textContent = '';
-    processBtn.disabled = false;
+    processBtn.disabled    = false;
+    autoDetectBtn.disabled = (mode === 'none');
     updateProcessBtn();
   }
 }

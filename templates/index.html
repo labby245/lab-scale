@@ -148,6 +148,29 @@
               </div>
             </div>
 
+            <!-- Remove Background -->
+            <label class="op-row" for="opRemoveBg">
+              <div class="op-meta">
+                <span class="op-emoji">🪄</span>
+                <div>
+                  <div class="op-name">Hapus Background</div>
+                  <div class="op-desc">Pisahkan objek dari latar (AI rembg)</div>
+                </div>
+              </div>
+              <div class="toggle"><input type="checkbox" id="opRemoveBg" /><span class="knob"></span></div>
+            </label>
+            <div class="sub-settings" id="removeBgSettings" hidden>
+              <div class="rembg-info">
+                Foto: hasil PNG transparan &nbsp;·&nbsp; Video: background hitam (H.264)
+              </div>
+              <div class="rembg-warn" id="rembgVideoWarn" hidden>
+                ⚠️ Hapus background pada video sangat lambat (AI per-frame). Gunakan untuk klip pendek.
+              </div>
+              <div class="rembg-install" id="rembgInstall" hidden>
+                ❌ rembg belum terinstal. Jalankan: <code>pip install rembg</code>
+              </div>
+            </div>
+
             <!-- FPS Boost (video only) -->
             <label class="op-row" id="opFpsRow" for="opFps">
               <div class="op-meta">
@@ -200,6 +223,7 @@
           <div class="card-title">
             <span class="badge">3</span> Preview &amp; Area Watermark (ROI)
             <div class="roi-header-btns">
+              <button id="autoDetectBtn" class="btn-auto-detect" disabled title="Deteksi otomatis posisi watermark">🔍 Auto Deteksi</button>
               <button id="drawModeBtn" class="btn-draw" disabled>✏️ Tandai Area</button>
               <button id="clearRoi" class="btn-ghost">Reset ROI</button>
             </div>

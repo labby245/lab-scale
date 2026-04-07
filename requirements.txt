@@ -5,9 +5,11 @@ numpy==1.26.4
 ffmpeg-python==0.2.0
 itsdangerous==2.2.0
 Jinja2==3.1.4
+Pillow
+rembg[gpu]
 realesrgan
 basicsr
-# PyTorch — diperlukan untuk ESRGAN.
+# PyTorch — diperlukan untuk ESRGAN dan rembg.
 # Untuk GPU (NVIDIA CUDA), install versi CUDA dari https://pytorch.org/get-started/locally/
 # Contoh CUDA 12.1: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 # Untuk CPU saja:
