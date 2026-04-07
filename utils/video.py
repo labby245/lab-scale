@@ -279,37 +279,161 @@ def remove_background_frames_dir(
 
 
 # ── Watermark Auto-Detection ──────────────────────────────────────────────────
+#
+# Dual-strategy detection:
+#   Video  → temporal consistency: watermark = pixel region that is STATIC across
+#            frames (low variance) AND locally DETAILED (high Laplacian response).
+#            Pure static flat regions (sky, walls) are filtered out by the detail mask.
+#
+#   Image  → corner morphological analysis: divide image into 4 corner quadrants
+#            (30 % of each dimension), detect text/logo strokes with tophat+blackhat
+#            transforms, return the corner with the densest detected content.
 
-def detect_watermark_roi(
-    image: np.ndarray,
+def _corner_score(cx: float, cy: float, weight: float = 4.0) -> float:
+    """Return 1.0 at a corner, falling off toward the centre."""
+    d = min(cx**2 + cy**2,
+            (1 - cx)**2 + cy**2,
+            cx**2 + (1 - cy)**2,
+            (1 - cx)**2 + (1 - cy)**2)
+    return max(0.0, 1.0 - d * weight)
+
+
+def _tight_roi_from_mask(
+    mask: np.ndarray,
+    offset_x: int, offset_y: int,
+    img_w: int, img_h: int,
+    pad: int,
 ) -> Optional[Tuple[int, int, int, int]]:
-    """Auto-detect probable watermark region using edge-density + corner heuristics.
+    """Bounding box of nonzero pixels in mask, with padding, clipped to image."""
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
+        return None
+    x1 = max(0, int(xs.min()) + offset_x - pad)
+    y1 = max(0, int(ys.min()) + offset_y - pad)
+    x2 = min(img_w, int(xs.max()) + offset_x + pad + 1)
+    y2 = min(img_h, int(ys.max()) + offset_y + pad + 1)
+    return (x1, y1, x2 - x1, y2 - y1) if x2 > x1 and y2 > y1 else None
 
-    Returns (x, y, w, h) of the most likely watermark region, or None if no
-    convincing candidate is found.
 
-    Strategy:
-    1. CLAHE → Canny edges to find detail-dense regions
-    2. Morphological dilation to group nearby edges into blobs
-    3. Score each blob by: edge density + corner proximity + aspect ratio
-    4. Return top-scoring candidate with padding
+def _detect_watermark_spatial(image: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    """Single-image watermark detection via corner tophat/blackhat morphology.
+
+    Each of the 4 corner quadrants (30 % × 30 % of image) is analysed
+    independently.  Text strokes and logo shapes appear as bright structures
+    in the tophat transform (bright on dark bg) or blackhat transform (dark on
+    light bg).  The corner with the highest content density wins.
     """
     h, w = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    gray  = clahe.apply(gray)
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-    edges   = cv2.Canny(blurred, 30, 100)
+    qw = max(60, int(w * 0.30))
+    qh = max(60, int(h * 0.30))
 
-    # Dilation kernel size: adaptive to image size
-    ksize  = max(15, min(w, h) // 30)
+    # Stroke-sized kernel: 1/25 of the shorter quadrant dimension, at least 3px
+    kw = max(3, qw // 25)
+    kh = max(3, qh // 12)
+    k_horiz = cv2.getStructuringElement(cv2.MORPH_RECT, (kw, kh))
+    k_vert  = cv2.getStructuringElement(cv2.MORPH_RECT, (kh, kw))
+
+    corners = [
+        (0,      0,      qw, qh),   # TL
+        (w - qw, 0,      qw, qh),   # TR
+        (0,      h - qh, qw, qh),   # BL
+        (w - qw, h - qh, qw, qh),   # BR
+    ]
+
+    best_score = -1.0
+    best_roi: Optional[Tuple[int, int, int, int]] = None
+
+    for cx, cy, crw, crh in corners:
+        region = gray[cy:cy + crh, cx:cx + crw]
+
+        # Top-hat: bright text / logo on darker background
+        th_h = cv2.morphologyEx(region, cv2.MORPH_TOPHAT, k_horiz)
+        th_v = cv2.morphologyEx(region, cv2.MORPH_TOPHAT, k_vert)
+        # Black-hat: dark text / logo on lighter background
+        bh_h = cv2.morphologyEx(region, cv2.MORPH_BLACKHAT, k_horiz)
+        bh_v = cv2.morphologyEx(region, cv2.MORPH_BLACKHAT, k_vert)
+
+        combined = cv2.max(cv2.max(th_h, th_v), cv2.max(bh_h, bh_v))
+        _, bin_mask = cv2.threshold(combined, 18, 255, cv2.THRESH_BINARY)
+
+        fill = np.count_nonzero(bin_mask) / max(crw * crh, 1)
+        if fill < 0.004:   # almost nothing detected in this corner
+            continue
+
+        # Merge scattered pixels into blobs
+        close_k = cv2.getStructuringElement(cv2.MORPH_RECT, (max(5, kw * 3), max(5, kh * 3)))
+        closed = cv2.morphologyEx(bin_mask, cv2.MORPH_CLOSE, close_k)
+
+        pad = max(6, min(crw, crh) // 12)
+        roi = _tight_roi_from_mask(closed, cx, cy, w, h, pad)
+        if roi is None:
+            continue
+
+        rx, ry, rw, rh = roi
+        # Density of detected strokes *inside* the tight bounding box
+        roi_fill = np.count_nonzero(bin_mask[ry - cy:ry - cy + rh, rx - cx:rx - cx + rw]) / max(rw * rh, 1)
+        score = roi_fill * 0.7 + fill * 10 * 0.3   # density inside + overall fill
+
+        if score > best_score:
+            best_score = score
+            best_roi   = roi
+
+    return best_roi if best_score >= 0.04 else None
+
+
+def _detect_watermark_temporal(
+    frames: list,
+) -> Optional[Tuple[int, int, int, int]]:
+    """Video watermark detection via temporal consistency.
+
+    Watermark pixels are both:
+      (a) STATIC  — low variance across frames (they don't move)
+      (b) DETAILED — high Laplacian response on the median frame (text / logo detail)
+
+    Pure flat static regions (sky, walls) pass criterion (a) but fail (b),
+    so they are suppressed.  Moving content passes (b) but fails (a).
+    """
+    if len(frames) < 2:
+        return _detect_watermark_spatial(frames[0]) if frames else None
+
+    h, w = frames[0].shape[:2]
+
+    # Resize all frames to the same size (safety measure)
+    target = (w, h)
+    grays = []
+    for f in frames:
+        g = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        if g.shape[:2] != (h, w):
+            g = cv2.resize(g, target).astype(np.float32)
+        grays.append(g)
+
+    stack = np.stack(grays, axis=0)            # (N, H, W)
+
+    # Temporal variance map — low = static
+    var_map  = np.var(stack, axis=0)
+    p95      = max(np.percentile(var_map, 95), 1.0)
+    var_norm = np.clip(var_map / p95, 0.0, 1.0)
+    static_m = (var_norm < 0.10).astype(np.float32)  # strict: top 10% variance only
+
+    # Detail map on the median frame (Laplacian magnitude)
+    median_g = np.median(stack, axis=0).astype(np.uint8)
+    lap      = cv2.Laplacian(median_g, cv2.CV_32F)
+    detail   = np.abs(lap)
+    d95      = max(np.percentile(detail, 90), 1.0)
+    detail_n = np.clip(detail / d95, 0.0, 1.0)
+
+    # Watermark confidence map
+    wm_map = static_m * detail_n
+
+    # Binarise and group
+    wm_bin = (wm_map > 0.12).astype(np.uint8) * 255
+    ksize  = max(20, min(w, h) // 25)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksize, ksize))
-    dilated = cv2.dilate(edges, kernel, iterations=2)
+    closed = cv2.morphologyEx(wm_bin, cv2.MORPH_CLOSE, kernel)
 
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return None
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     img_area   = max(w * h, 1)
     candidates = []
@@ -318,60 +442,65 @@ def detect_watermark_roi(
         x, y, cw, ch = cv2.boundingRect(cnt)
         area  = cw * ch
         ratio = area / img_area
-
-        if ratio < 0.003 or ratio > 0.35:
+        if ratio < 0.002 or ratio > 0.45:
             continue
 
-        region_edges = edges[y:y + ch, x:x + cw]
-        density = np.count_nonzero(region_edges) / max(area, 1)
-
-        # Corner proximity (watermarks almost always sit near a corner)
-        cx_n = (x + cw / 2) / w
-        cy_n = (y + ch / 2) / h
-        corner_d = min(
-            cx_n ** 2 + cy_n ** 2,
-            (1 - cx_n) ** 2 + cy_n ** 2,
-            cx_n ** 2 + (1 - cy_n) ** 2,
-            (1 - cx_n) ** 2 + (1 - cy_n) ** 2,
-        )
-        corner_score = max(0.0, 1.0 - corner_d * 5.0)
-
-        # Penalise very elongated shapes (likely scan lines, not logos)
-        aspect       = max(cw, ch) / max(min(cw, ch), 1)
-        aspect_score = max(0.0, 1.0 - max(0.0, aspect - 8.0) / 10.0)
-
-        score = density * 0.5 + corner_score * 0.35 + aspect_score * 0.15
+        mean_wm = float(np.mean(wm_map[y:y + ch, x:x + cw]))
+        c_score = _corner_score((x + cw / 2) / w, (y + ch / 2) / h)
+        score   = mean_wm * 0.65 + c_score * 0.35
         candidates.append((score, (x, y, cw, ch)))
 
+    # Fall back to spatial method when temporal gives nothing useful
     if not candidates:
-        return None
+        return _detect_watermark_spatial(frames[len(frames) // 2])
 
     candidates.sort(reverse=True)
     best_score, best = candidates[0]
 
-    if best_score < 0.01:
-        return None
+    if best_score < 0.06:
+        return _detect_watermark_spatial(frames[len(frames) // 2])
 
     bx, by, bw, bh = best
-    pad = max(4, min(w, h) // 60)
-    bx  = max(0, bx - pad)
-    by  = max(0, by - pad)
-    bw  = min(w - bx, bw + 2 * pad)
-    bh  = min(h - by, bh + 2 * pad)
-    return (bx, by, bw, bh)
+    pad = max(5, min(w, h) // 50)
+    return (max(0, bx - pad), max(0, by - pad),
+            min(w - max(0, bx - pad), bw + 2 * pad),
+            min(h - max(0, by - pad), bh + 2 * pad))
 
 
-def get_representative_frame(video_path: str) -> Optional[np.ndarray]:
-    """Extract a representative frame (~25% into video) for analysis."""
+def detect_watermark_roi(
+    image: np.ndarray,
+    extra_frames: Optional[list] = None,
+) -> Optional[Tuple[int, int, int, int]]:
+    """Auto-detect watermark ROI. Returns (x, y, w, h) or None.
+
+    For video: pass extra_frames (list of BGR arrays from other positions in the clip).
+               Temporal consistency strategy is used — static+detailed = watermark.
+    For image: extra_frames=None → corner tophat/blackhat morphology strategy.
+    """
+    if extra_frames and len(extra_frames) >= 2:
+        return _detect_watermark_temporal([image] + extra_frames)
+    return _detect_watermark_spatial(image)
+
+
+def get_sample_frames(video_path: str, n: int = 6) -> list:
+    """Extract n evenly-spaced frames from a video for watermark detection."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        return None
+        return []
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-    if total > 4:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, total // 4)
-    ret, frame = cap.read()
+    if total == 0:
+        cap.release()
+        return []
+    # Spread samples across 10%–90% of the video (avoid intros / outros)
+    positions = [int(total * (0.10 + 0.80 * i / max(n - 1, 1))) for i in range(n)]
+    frames = []
+    for pos in positions:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, pos))
+        ret, frame = cap.read()
+        if ret:
+            frames.append(frame)
     cap.release()
-    return frame if ret else None
+    return frames
 
 
 # ── Frame extraction ──────────────────────────────────────────────────────────

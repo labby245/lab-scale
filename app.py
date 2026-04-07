@@ -20,7 +20,7 @@ from utils.video import (
     process_image_file,
     remove_background_frames_dir,
     detect_watermark_roi,
-    get_representative_frame,
+    get_sample_frames,
     _esrgan_available,
     _esrgan_process_frames_dir,
     _rembg_available,
@@ -512,15 +512,18 @@ def detect_watermark():
     try:
         if _is_image(filename):
             frame = _cv2.imread(input_path, _cv2.IMREAD_COLOR)
+            if frame is None:
+                return jsonify({'roi': None, 'message': 'Tidak dapat membaca gambar'}), 200
+            result = detect_watermark_roi(frame)
         else:
-            frame = get_representative_frame(input_path)
+            frames = get_sample_frames(input_path, n=6)
+            if not frames:
+                return jsonify({'roi': None, 'message': 'Tidak dapat membaca frame video'}), 200
+            # First frame is the reference; the rest supply temporal consistency data
+            result = detect_watermark_roi(frames[0], extra_frames=frames[1:])
 
-        if frame is None:
-            return jsonify({'roi': None, 'message': 'Tidak dapat membaca frame'}), 200
-
-        result = detect_watermark_roi(frame)
         if result is None:
-            return jsonify({'roi': None, 'message': 'Watermark tidak terdeteksi secara otomatis'}), 200
+            return jsonify({'roi': None, 'message': 'Watermark tidak terdeteksi — tandai manual'}), 200
 
         x, y, w, h = result
         return jsonify({'roi': {'x': x, 'y': y, 'width': w, 'height': h}})
