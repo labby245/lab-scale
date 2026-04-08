@@ -142,17 +142,44 @@ fetch('/rembg-check')
 ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover');
 }));
-dropzone.addEventListener('drop', e => {
+// Enumerate all files inside a dropped directory entry (FileSystem API)
+async function readDirAllFiles(dirEntry) {
+  const files = [];
+  const reader = dirEntry.createReader();
+  const allEntries = await new Promise(resolve => {
+    const results = [];
+    const read = () => reader.readEntries(entries => {
+      if (!entries.length) { resolve(results); return; }
+      results.push(...entries);
+      read(); // may return up to 100 per call; keep reading
+    });
+    read();
+  });
+  for (const entry of allEntries) {
+    if (entry.isFile) {
+      const file = await new Promise(res => entry.file(res));
+      files.push(file);
+    } else if (entry.isDirectory) {
+      const sub = await readDirAllFiles(entry);
+      files.push(...sub);
+    }
+  }
+  return files;
+}
+
+dropzone.addEventListener('drop', async e => {
   const items = e.dataTransfer.items;
   if (!items) return;
   const entry = items[0]?.webkitGetAsEntry?.();
   if (entry && entry.isDirectory) {
-    const files = Array.from(e.dataTransfer.files).filter(f => isMedia(f.name));
-    if (files.length === 0) { toast('Tidak ada file yang didukung di folder tersebut', 'error'); return; }
+    // Use FileSystem API — e.dataTransfer.files is empty for dropped folders
+    const all = await readDirAllFiles(entry);
+    const files = all.filter(f => isMedia(f.name));
+    if (!files.length) { toast('Tidak ada file yang didukung di folder tersebut', 'error'); return; }
     setSource('bulk-files', files);
   } else {
     const files = Array.from(e.dataTransfer.files).filter(f => isMedia(f.name));
-    if (files.length === 0) { toast('Format file tidak didukung', 'error'); return; }
+    if (!files.length) { toast('Format file tidak didukung', 'error'); return; }
     setSource(files.length === 1 ? 'single' : 'bulk-files', files);
   }
 });

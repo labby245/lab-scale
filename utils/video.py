@@ -740,10 +740,7 @@ def interpolate_frames_dir(
     pattern_in  = os.path.join(frames_dir, 'frame_%06d.png')
     pattern_out = os.path.join(output_dir,  'frame_%06d.png')
 
-    vf = (
-        f'minterpolate=fps={target_fps}:mi_mode=mci:'
-        f'mc_mode=aobmc:me_mode=bidir:vsbmc=1'
-    )
+    vf = f'minterpolate=fps={target_fps}:mi_mode=blend:scd=none'
     cmd = [
         'ffmpeg', '-y',
         '-framerate', str(fps),
