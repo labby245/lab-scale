@@ -27,6 +27,15 @@ temp/
 logs/
 cache/
 
+# Self-improving detector — labeled samples + trained weights + RIFE binary
+labels/
+models/
+bin/
+yolo_runs/
+
+# Stray ultralytics auto-downloads (yolov8n.pt etc. land in cwd during training)
+/*.pt
+
 # FFmpeg intermediates
 *.log
 *.tmp

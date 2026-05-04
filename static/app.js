@@ -25,6 +25,18 @@ const opFps           = $('opFps');
 const opRemoveBg      = $('opRemoveBg');
 const methodSel       = $('method');
 const qualitySel      = $('quality');
+const codecSel        = $('codec');
+const codecHint       = $('codecHint');
+const rembgModelSel   = $('rembgModel');
+const interpEngineSel = $('interpEngine');
+const interpHint      = $('interpHint');
+const methodHint      = $('methodHint');
+const detectorBadge   = $('detectorBadge');
+const methodLamaOpt   = $('methodLamaOpt');
+const interpRifeOpt   = $('interpRifeOpt');
+const fpsSubSettings  = $('fpsSubSettings');
+const labelOptInToggle = $('labelOptInToggle');
+const labelStats       = $('labelStats');
 const wmSubSettings   = $('wmSubSettings');
 const esrganOptions   = $('esrganOptions');
 const removeBgSettings = $('removeBgSettings');
@@ -92,6 +104,7 @@ let esrganAvailable = false;
 let rembgAvailable  = false;
 let _logPollTimer = null;
 let _seenLogCount = 0;
+let currentUploadFilename = null;     // last successfully uploaded filename, for save-label
 // Cache uploaded file data to avoid re-uploading when auto-detect already did it
 const _uploadCache = new Map();
 
@@ -118,22 +131,223 @@ function toast(msg, type = 'info', ms = 3200) {
 // ── Heartbeat — keep server alive; server shuts down when pings stop ─────────
 setInterval(() => fetch('/heartbeat', { method: 'POST' }).catch(() => {}), 5000);
 
-// ── ESRGAN + rembg availability check on load ────────────
-fetch('/esrgan-check')
-  .then(r => r.json())
-  .then(d => {
-    esrganAvailable = d.available;
-    esrganInstall.hidden = esrganAvailable;
-  })
-  .catch(() => {});
+// ── Smart defaults: best-available with localStorage persistence ─────────────
+const PREF_KEYS = {
+  method:        'pref_method',
+  upscale_model: 'pref_upscale_model',
+  codec:         'pref_codec',
+  rembg_model:   'pref_rembg_model',
+  interp_engine: 'pref_interp_engine',
+  quality:       'pref_quality',
+  sharpness:     'pref_sharpness',
+};
 
-fetch('/rembg-check')
+function _setSelectValue(el, prefKey, bestDefault) {
+  if (!el) return;
+  const stored = localStorage.getItem(prefKey);
+  const candidates = [stored, bestDefault].filter(v => v !== null && v !== undefined);
+  for (const val of candidates) {
+    const opt = el.querySelector(`option[value="${val}"]`);
+    if (opt && !opt.disabled) {
+      el.value = val;
+      return;
+    }
+  }
+  const first = el.querySelector('option:not([disabled])');
+  if (first) el.value = first.value;
+}
+
+function applyCapabilityDefaults(caps) {
+  _setSelectValue(methodSel,       PREF_KEYS.method,        caps.lama   ? 'lama'              : 'ns');
+  _setSelectValue(esrganModel,     PREF_KEYS.upscale_model, caps.esrgan ? 'realesrgan-x4plus' : 'lanczos');
+  _setSelectValue(rembgModelSel,   PREF_KEYS.rembg_model,   caps.rembg  ? 'birefnet-general'  : 'u2net');
+  _setSelectValue(interpEngineSel, PREF_KEYS.interp_engine, caps.rife   ? 'rife'              : 'ffmpeg');
+  _setSelectValue(qualitySel,      PREF_KEYS.quality,       'ultra');
+  if (sharpnessInput) {
+    const stored = localStorage.getItem(PREF_KEYS.sharpness);
+    sharpnessInput.value = stored !== null ? stored : '30';
+    if (typeof updateSharpnessLabel === 'function') updateSharpnessLabel();
+  }
+}
+
+function applyCodecDefault(encInfo) {
+  _setSelectValue(codecSel, PREF_KEYS.codec, encInfo.hevc_nvenc ? 'hevc' : 'h264');
+}
+
+function attachPrefPersistence() {
+  const pairs = [
+    [methodSel,       PREF_KEYS.method],
+    [esrganModel,     PREF_KEYS.upscale_model],
+    [codecSel,        PREF_KEYS.codec],
+    [rembgModelSel,   PREF_KEYS.rembg_model],
+    [interpEngineSel, PREF_KEYS.interp_engine],
+    [qualitySel,      PREF_KEYS.quality],
+  ];
+  for (const [el, key] of pairs) {
+    if (!el) continue;
+    el.addEventListener('change', () => localStorage.setItem(key, el.value));
+  }
+  if (sharpnessInput) {
+    sharpnessInput.addEventListener('change',
+      () => localStorage.setItem(PREF_KEYS.sharpness, sharpnessInput.value));
+  }
+}
+attachPrefPersistence();
+
+// ── Self-improving detector: opt-in label collection ─────────────────────────
+function isLabelOptIn() {
+  const v = localStorage.getItem('labelOptIn');
+  return v === null ? true : v === '1';   // default: opt-in
+}
+
+if (labelOptInToggle) {
+  labelOptInToggle.checked = isLabelOptIn();
+  labelOptInToggle.addEventListener('change', () => {
+    localStorage.setItem('labelOptIn', labelOptInToggle.checked ? '1' : '0');
+  });
+}
+
+async function saveLabel(source) {
+  if (!isLabelOptIn()) return;
+  if (!currentUploadFilename) return;
+  if (!roi || roi.width <= 0 || roi.height <= 0) return;
+  try {
+    const frameIndex = mediaType === 'video' && video.duration && video.videoWidth
+      ? Math.round((video.currentTime || 0) * 30)   // approx 30fps reference
+      : null;
+    const res = await fetch('/save-label', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: currentUploadFilename,
+        roi: { x: roi.x, y: roi.y, width: roi.width, height: roi.height },
+        source,
+        ...(frameIndex !== null ? { frame_index: frameIndex } : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.total !== undefined) {
+      updateLabelStats(data.total, data.unique_images);
+    }
+  } catch { /* silent — labeling is best-effort background work */ }
+}
+
+function updateLabelStats(total, unique) {
+  if (!labelStats) return;
+  if (!total) {
+    labelStats.textContent =
+      'Setiap ROI yang Anda konfirmasi disimpan lokal sebagai data training. Tidak ada yang dikirim ke cloud.';
+    return;
+  }
+  const NEEDED = 100;
+  const remaining = Math.max(0, NEEDED - (unique || 0));
+  if (remaining > 0) {
+    labelStats.textContent =
+      `Anda sudah berkontribusi ${unique} gambar (${total} ROI). ${remaining} lagi sampai dataset training siap.`;
+  } else {
+    labelStats.textContent =
+      `Anda sudah berkontribusi ${unique} gambar (${total} ROI). Cukup untuk training. Jalankan: python scripts/train_watermark_yolo.py`;
+  }
+}
+
+async function refreshLabelStats() {
+  try {
+    const res = await fetch('/label-stats');
+    const d = await res.json();
+    updateLabelStats(d.total || 0, d.unique_images || 0);
+  } catch { /* ignore */ }
+}
+refreshLabelStats();
+
+// ── Unified capabilities probe — populates Setup panel + UI states ──────
+let _caps = {};
+function populateSetupPanel(caps) {
+  const summary = $('setupSummary');
+  const setupStatus = $('setupStatus');
+  if (!setupStatus) return;
+  const all = ['esrgan', 'rembg', 'lama', 'rife', 'yolo'];
+  const ready = all.filter(k => caps[k]).length;
+  if (summary) {
+    summary.textContent = ready === all.length
+      ? `✓ semua fitur AI aktif`
+      : `${ready}/${all.length} fitur AI aktif — klik untuk lihat`;
+  }
+  setupStatus.querySelectorAll('.cap-row[data-cap]').forEach(row => {
+    const cap = row.dataset.cap;
+    if (cap === 'encoder') return;
+    const dot = row.querySelector('[data-status]');
+    const cmd = row.querySelector('.cap-cmd');
+    const ok = !!caps[cap];
+    if (dot) {
+      dot.textContent = ok ? '✓' : '✗';
+      dot.className = 'cap-status ' + (ok ? 'ok' : 'off');
+    }
+    if (cmd) {
+      cmd.hidden = ok;
+      if (!ok) cmd.textContent = '📋 ' + cmd.dataset.cmd;
+    }
+  });
+}
+
+document.querySelectorAll('.cap-cmd').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const cmd = btn.dataset.cmd || '';
+    try {
+      await navigator.clipboard.writeText(cmd);
+      const orig = btn.textContent;
+      btn.textContent = '✓ disalin ke clipboard';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch {
+      toast('Tidak bisa akses clipboard — salin manual', 'error');
+    }
+  });
+});
+
+fetch('/capabilities')
   .then(r => r.json())
   .then(d => {
-    rembgAvailable = d.available;
-    rembgInstall.hidden = rembgAvailable;
+    _caps = d;
+    esrganAvailable = !!d.esrgan;
+    rembgAvailable  = !!d.rembg;
+    if (esrganInstall) esrganInstall.hidden = esrganAvailable;
+    if (rembgInstall)  rembgInstall.hidden  = rembgAvailable;
+    if (methodLamaOpt && !d.lama) methodLamaOpt.disabled = true;
+    if (methodHint) methodHint.textContent = d.lama ? '✓ LaMa AI tersedia' : '⚠ LaMa belum aktif — pakai Telea/NS';
+    if (interpRifeOpt && !d.rife) interpRifeOpt.disabled = true;
+    if (interpHint) interpHint.textContent = d.rife ? '✓ RIFE aktif' : '⚠ RIFE belum aktif — pakai FFmpeg';
+    if (detectorBadge) {
+      detectorBadge.textContent = d.yolo ? '🤖 YOLO' : '⚙ heuristic';
+      detectorBadge.title = d.yolo ? 'Auto-detect pakai YOLO model' : 'Auto-detect pakai heuristic OpenCV';
+    }
+    populateSetupPanel(d);
+    applyCapabilityDefaults(d);
   })
-  .catch(() => {});
+  .catch(() => applyCapabilityDefaults({}));
+
+// ── Encoder probe — show NVENC availability under codec selector + Setup panel
+fetch('/encoder-info')
+  .then(r => r.json())
+  .then(d => {
+    const parts = [];
+    if (d.gpu) parts.push(`GPU ${d.vram_gb}GB`);
+    const enc = [];
+    if (d.h264_nvenc) enc.push('H.264 NVENC');
+    if (d.hevc_nvenc) enc.push('HEVC NVENC');
+    if (d.av1_nvenc)  enc.push('AV1 NVENC');
+    if (enc.length) parts.push(enc.join(' · '));
+    else parts.push('encoder CPU saja');
+    const txt = parts.join(' · ');
+    if (codecHint) codecHint.textContent = txt;
+    const encoderDetail = $('encoderDetail');
+    if (encoderDetail) encoderDetail.textContent = txt;
+    applyCodecDefault(d);
+  })
+  .catch(() => {
+    if (codecHint) codecHint.textContent = '';
+    const encoderDetail = $('encoderDetail');
+    if (encoderDetail) encoderDetail.textContent = '—';
+    applyCodecDefault({});
+  });
 
 // ── DROP ZONE ────────────────────────────────────────────
 ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
@@ -206,6 +420,7 @@ function setSource(newMode, files) {
   mode          = newMode;
   selectedFiles = files || [];
   roi           = null;
+  currentUploadFilename = null;
   _uploadCache.clear();
   drawRoi(null);
   roiInfo.hidden       = true;
@@ -363,7 +578,10 @@ sharpnessInput.addEventListener('input', updateSharpnessLabel);
 sharpnessInput.value = SHARPNESS_DEFAULT;
 updateSharpnessLabel();
 
-[opFps].forEach(el => el.addEventListener('change', updateProcessBtn));
+opFps.addEventListener('change', () => {
+  if (fpsSubSettings) fpsSubSettings.hidden = !opFps.checked;
+  updateProcessBtn();
+});
 
 function updateProcessBtn() {
   const hasSource = mode !== 'none';
@@ -382,6 +600,7 @@ autoDetectBtn.addEventListener('click', async () => {
   try {
     // Upload first file (cached so processing won't re-upload)
     const upData = await uploadFileOnce(selectedFiles[0]);
+    currentUploadFilename = upData.filename;
     const res    = await post('/detect-watermark', { filename: upData.filename });
     const data   = await res.json();
 
@@ -393,6 +612,7 @@ autoDetectBtn.addEventListener('click', async () => {
       roiText.textContent = `x:${roi.x} y:${roi.y} w:${roi.width} h:${roi.height}`;
       roiInfo.hidden = false;
       updateProcessBtn();
+      saveLabel('auto');                                // collect training sample
       toast('Watermark terdeteksi! Koreksi manual jika perlu.', 'success', 4000);
     } else {
       toast(data.message || 'Watermark tidak terdeteksi — tandai manual.', 'info', 4000);
@@ -520,7 +740,7 @@ overlay.addEventListener('mousemove', e => {
   };
   drawRoi(roi);
 });
-overlay.addEventListener('mouseup', () => {
+overlay.addEventListener('mouseup', async () => {
   isDrawing = false;
   if (roi && roi.width > 2 && roi.height > 2) {
     roiText.textContent = `x:${roi.x} y:${roi.y} w:${roi.width} h:${roi.height}`;
@@ -530,6 +750,14 @@ overlay.addEventListener('mouseup', () => {
     drawModeBtn.classList.remove('active');
     drawModeBtn.textContent = '✏️ Tandai Area';
     drawNotice.hidden = true;
+    // Ensure we have a filename to associate the manual ROI with
+    if (!currentUploadFilename && selectedFiles.length) {
+      try {
+        const up = await uploadFileOnce(selectedFiles[0]);
+        currentUploadFilename = up.filename;
+      } catch { /* labeling is best-effort */ }
+    }
+    saveLabel('manual');                              // collect training sample
   }
   updateProcessBtn();
 });
@@ -593,11 +821,14 @@ async function doProcess() {
     roi:           opWatermark.checked ? roi : null,
     method:        methodSel.value,
     quality:       qualitySel.value,
+    codec:         codecSel ? codecSel.value : 'h264',
     upscale:       opUpscale.checked,
     upscale_model: esrganModel.value,
     upscale_scale: selectedScale,
     fps_boost:     opFps.checked && mediaType === 'video',
+    interp_engine: interpEngineSel ? interpEngineSel.value : 'ffmpeg',
     remove_bg:     opRemoveBg.checked,
+    rembg_model:   rembgModelSel ? rembgModelSel.value : 'u2net',
     sharpness,
     job_id:        jobId,
   };
@@ -614,6 +845,7 @@ async function doProcess() {
       procStatus.textContent = 'Mengupload…';
       // Reuse cached upload if auto-detect already uploaded this file
       const upData = await uploadFileOnce(selectedFiles[0]);
+      currentUploadFilename = upData.filename;
       procStatus.textContent = 'Memproses…';
 
       let res;

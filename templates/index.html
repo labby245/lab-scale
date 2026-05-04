@@ -95,9 +95,11 @@
               <div class="sel-group">
                 <label class="sel-label">Metode Inpaint</label>
                 <select id="method">
-                  <option value="telea">Telea (cepat)</option>
-                  <option value="ns">Navier-Stokes (kualitas lebih baik)</option>
+                  <option value="telea">Telea — cepat, OpenCV</option>
+                  <option value="ns">Navier-Stokes — OpenCV, hasil lebih halus</option>
+                  <option value="lama" id="methodLamaOpt">LaMa AI — terbaik untuk wajah/teks</option>
                 </select>
+                <div class="hint-sm" id="methodHint"></div>
               </div>
             </div>
 
@@ -141,10 +143,10 @@
               </div>
 
               <div class="esrgan-warn" id="esrganWarn" hidden>
-                ⚠️ Real-ESRGAN pada video memproses per-frame dan sangat lambat. Gunakan untuk video pendek.
+                ⚠️ Real-ESRGAN pada video diproses per-frame — gunakan untuk klip pendek.
               </div>
-              <div class="esrgan-install" id="esrganInstall" hidden>
-                ❌ realesrgan belum terinstal. Jalankan: <code>pip install realesrgan basicsr</code>
+              <div class="install-hint" id="esrganInstall" hidden>
+                Belum terinstal — buka <strong>⚙️ Setup</strong> di bawah.
               </div>
             </div>
 
@@ -160,14 +162,24 @@
               <div class="toggle"><input type="checkbox" id="opRemoveBg" /><span class="knob"></span></div>
             </label>
             <div class="sub-settings" id="removeBgSettings" hidden>
+              <div class="sel-group" style="margin-bottom:8px">
+                <label class="sel-label">Model Background</label>
+                <select id="rembgModel">
+                  <option value="u2net" selected>U²-Net (umum, cepat)</option>
+                  <option value="u2netp">U²-Net (lite)</option>
+                  <option value="u2net_human_seg">U²-Net Human (orang)</option>
+                  <option value="isnet-general-use">ISNet (edge tajam)</option>
+                  <option value="birefnet-general">BiRefNet (kualitas terbaik)</option>
+                </select>
+              </div>
               <div class="rembg-info">
                 Foto: hasil PNG transparan &nbsp;·&nbsp; Video: background hitam (H.264)
               </div>
               <div class="rembg-warn" id="rembgVideoWarn" hidden>
-                ⚠️ Hapus background pada video sangat lambat (AI per-frame). Gunakan untuk klip pendek.
+                ⚠️ Hapus background pada video diproses per-frame — gunakan untuk klip pendek.
               </div>
-              <div class="rembg-install" id="rembgInstall" hidden>
-                ❌ rembg belum terinstal. Jalankan: <code>pip install rembg</code>
+              <div class="install-hint" id="rembgInstall" hidden>
+                Belum terinstal — buka <strong>⚙️ Setup</strong> di bawah.
               </div>
             </div>
 
@@ -182,10 +194,20 @@
               </div>
               <div class="toggle"><input type="checkbox" id="opFps" /><span class="knob"></span></div>
             </label>
+            <div class="sub-settings" id="fpsSubSettings" hidden>
+              <div class="sel-group">
+                <label class="sel-label">Engine Interpolasi</label>
+                <select id="interpEngine">
+                  <option value="ffmpeg" selected>FFmpeg (MCI bidir) — bawaan, lambat</option>
+                  <option value="rife" id="interpRifeOpt">RIFE AI — 5–10× lebih cepat &amp; halus</option>
+                </select>
+                <div class="hint-sm" id="interpHint"></div>
+              </div>
+            </div>
 
           </div>
 
-          <!-- Quality (global, always visible) -->
+          <!-- Quality + Codec (global, always visible) -->
           <div class="settings-row">
             <div class="sel-group">
               <label class="sel-label">Kualitas Output</label>
@@ -196,6 +218,15 @@
                 <option value="best">Best</option>
                 <option value="ultra" selected>Ultra (lossless)</option>
               </select>
+            </div>
+            <div class="sel-group" id="codecGroup">
+              <label class="sel-label">Codec Video</label>
+              <select id="codec">
+                <option value="h264" selected>H.264 (kompatibel)</option>
+                <option value="hevc">HEVC / H.265 (file lebih kecil)</option>
+                <option value="av1">AV1 (terkecil — perlu HW/SW)</option>
+              </select>
+              <div class="hint-sm" id="codecHint"></div>
             </div>
           </div>
         </div>
@@ -224,6 +255,7 @@
             <span class="badge">3</span> Preview &amp; Area Watermark (ROI)
             <div class="roi-header-btns">
               <button id="autoDetectBtn" class="btn-auto-detect" disabled title="Deteksi otomatis posisi watermark">🔍 Auto Deteksi</button>
+              <span id="detectorBadge" class="hint-sm" style="margin-left:6px"></span>
               <button id="drawModeBtn" class="btn-draw" disabled>✏️ Tandai Area</button>
               <button id="clearRoi" class="btn-ghost">Reset ROI</button>
             </div>
@@ -284,6 +316,72 @@
 
     </div>
   </main>
+
+  <!-- Setup Status — collapsed by default; expand to see capability availability -->
+  <details id="setupStatus" class="setup-status">
+    <summary>
+      <span class="setup-icon">⚙️</span>
+      <span class="setup-title">Setup &amp; Status</span>
+      <span class="setup-summary" id="setupSummary">cek ketersediaan fitur AI</span>
+    </summary>
+    <div class="setup-grid">
+      <div class="cap-row" data-cap="esrgan">
+        <span class="cap-status" data-status>•</span>
+        <span class="cap-name">Upscale AI (ESRGAN)</span>
+        <span class="cap-detail">Real-ESRGAN x4 — model foto/anime</span>
+        <button class="cap-cmd" data-cmd="pip install realesrgan basicsr" hidden></button>
+      </div>
+      <div class="cap-row" data-cap="rembg">
+        <span class="cap-status" data-status>•</span>
+        <span class="cap-name">Hapus Background (rembg)</span>
+        <span class="cap-detail">5 model — u2net, BiRefNet, dst.</span>
+        <button class="cap-cmd" data-cmd="pip install rembg onnxruntime" hidden></button>
+      </div>
+      <div class="cap-row" data-cap="lama">
+        <span class="cap-status" data-status>•</span>
+        <span class="cap-name">Inpaint AI (LaMa)</span>
+        <span class="cap-detail">Hasil terbaik untuk watermark di wajah/teks</span>
+        <button class="cap-cmd" data-cmd="pip install simple-lama-inpainting" hidden></button>
+      </div>
+      <div class="cap-row" data-cap="rife">
+        <span class="cap-status" data-status>•</span>
+        <span class="cap-name">Interpolasi AI (RIFE)</span>
+        <span class="cap-detail">5–10× lebih cepat &amp; halus dari FFmpeg</span>
+        <button class="cap-cmd" data-cmd="python scripts/install_rife.py" hidden></button>
+      </div>
+      <div class="cap-row" data-cap="yolo">
+        <span class="cap-status" data-status>•</span>
+        <span class="cap-name">Auto-Detect AI (YOLOv8)</span>
+        <span class="cap-detail">Bootstrap sintetis lalu auto-refine via opt-in</span>
+        <button class="cap-cmd" data-cmd="python scripts/install_yolo.py" hidden></button>
+      </div>
+      <div class="cap-row" data-cap="encoder">
+        <span class="cap-status">⚙</span>
+        <span class="cap-name">Video Encoder</span>
+        <span class="cap-detail" id="encoderDetail">memuat…</span>
+      </div>
+    </div>
+    <div class="setup-footnote">
+      Klik tombol install untuk salin command ke clipboard. Restart app setelah install.
+    </div>
+  </details>
+
+  <!-- Self-improving detector: opt-in label collection -->
+  <div id="labelOptIn" class="card label-optin">
+    <label class="optin-row" for="labelOptInToggle">
+      <span class="optin-meta">
+        <span class="optin-emoji">🤖</span>
+        <span>
+          <span class="optin-name">Bantu tingkatkan auto-detect</span>
+          <span class="optin-desc" id="labelStats">
+            Setiap ROI yang Anda konfirmasi disimpan lokal sebagai data training.
+            Tidak ada yang dikirim ke cloud.
+          </span>
+        </span>
+      </span>
+      <span class="toggle"><input type="checkbox" id="labelOptInToggle" checked /><span class="knob"></span></span>
+    </label>
+  </div>
 
   <div id="toasts" class="toasts"></div>
 
