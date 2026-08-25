@@ -41,7 +41,7 @@ fetch_zip() {
   local url="$1" name="$2"
   local archive="$STAGING/$name.zip"
   local out="$STAGING/$name"
-  printf '  downloading %s ...\n' "$name"
+  printf '  downloading %s ...\n' "$name" >&2
   curl -fsSL "$url" -o "$archive"
   mkdir -p "$out"
   unzip -qo "$archive" -d "$out"

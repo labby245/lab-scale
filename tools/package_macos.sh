@@ -80,20 +80,42 @@ for name in "${PAYLOAD_DIRS[@]}"; do
 done
 
 # ── Sign ─────────────────────────────────────────────────────────────────────
+#
+# Signed inside-out, deepest code first. `codesign --deep` is deliberately NOT
+# used: Apple documents it as unsuitable for distribution signing because it
+# re-signs nested code (FlutterMacOS.framework, the media_kit libmpv dylibs)
+# with the enclosing bundle's options rather than their own, which is a routine
+# cause of notarization rejections. --deep on *--verify* is fine and is used
+# below.
 if [[ -n "$SIGN_IDENTITY" ]]; then
   info "codesign"
   ENTITLEMENTS="$ROOT/macos/Runner/Release.entitlements"
 
-  # Nested executables must be signed before the enclosing bundle.
+  sign_one() {
+    codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" "$1"
+    echo "  signed $(basename "$1")"
+  }
+
+  # Stale extended attributes make codesign fail with "resource fork ... not allowed".
+  xattr -cr "$BUILD_APP"
+
+  # 1. Dylibs and frameworks, deepest path first.
+  while IFS= read -r item; do
+    sign_one "$item"
+  done < <(find "$BUILD_APP/Contents/Frameworks" \
+             \( -name '*.dylib' -o -name '*.framework' \) -depth 2>/dev/null | awk '{ print length, $0 }' \
+           | sort -rn | cut -d' ' -f2-)
+
+  # 2. The bundled CLI helpers.
   while IFS= read -r binary; do
-    codesign --force --timestamp --options runtime \
-      --sign "$SIGN_IDENTITY" "$binary"
-    echo "  signed $(basename "$binary")"
+    sign_one "$binary"
   done < <(find "$RESOURCE_BIN" -type f -perm -u+x)
 
-  codesign --force --deep --timestamp --options runtime \
+  # 3. The app bundle itself — the only place entitlements apply.
+  codesign --force --timestamp --options runtime \
     --entitlements "$ENTITLEMENTS" \
     --sign "$SIGN_IDENTITY" "$BUILD_APP"
+
   codesign --verify --deep --strict --verbose=2 "$BUILD_APP"
   ok "app ditandatangani"
 else
