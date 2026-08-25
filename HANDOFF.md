@@ -108,7 +108,7 @@ Pelajaran umum dari jebakan kedua: `flutter analyze` + `flutter test` + `flutter
 | Item | Catatan |
 |---|---|
 | Signing + notarisasi | Butuh sertifikat Developer ID. Semua langkah lain sudah terbukti. |
-| Uji interaksi manual | Drag & drop, batch berjalan, dan slider pembanding belum pernah disentuh tangan manusia. Grid terverifikasi lewat tangkapan layar app sungguhan; overlay progress dan slider lewat 11 widget test. |
+| Uji interaksi manual | Drag & drop, batch berjalan, viewer, dan slider pembanding belum pernah disentuh tangan manusia. Grid terverifikasi lewat tangkapan layar app sungguhan; sisanya lewat 22 widget test. Klik sintetis berhenti bekerja di mesin ini di tengah sesi — gejala *secure input* — jadi otomasi GUI bukan jalan yang bisa diandalkan di sini. |
 | Ikon Windows | `.ico` sudah diganti tapi belum di-build ulang di Windows. |
 | Rilis | Belum ada tag maupun GitHub Release. `dist/` gitignored. |
 
@@ -134,6 +134,8 @@ Bentuknya menyusul FreeScaler dalam dua hal yang diminta: **satu area besar yang
 
 - `FileStage` (`lib/ui/widgets/file_stage.dart`) adalah kolom kiri. Kosong ia jadi undangan drop; terisi, rectangle yang sama berubah jadi grid. Drop target-nya membungkus seluruh kartu, jadi menjatuhkan file ke grid yang sudah terisi tetap bekerja. Ini menggantikan kartu "Pilih File" lama yang jadi mati begitu tugasnya selesai.
 - `FileGrid` memberi tiap file satu tile dengan poster, nama, ukuran, dan statusnya. Saat batch jalan, tile yang tidak sedang dikerjakan meredup ke opacity 0,45 dan tile aktif memakai overlay progress + persentase. Bar-nya *indeterminate* selama tahap yang tidak melaporkan progres (ekstraksi frame), lalu jadi terukur.
+- `CompareView` (`lib/ui/compare_view.dart`) adalah viewer setinggi jendela penuh, dibuka dengan mengklik tile. Sempat ada panel preview inline di dalam workspace, tapi bentuk kolomnya membatasi tingginya ke beberapa ratus piksel — terlalu kecil untuk menilai hasil upscale, yang justru satu-satunya alasan pembanding itu ada. Sekarang grid memegang seluruh kolom dan perbandingan memakai seluruh jendela (tombol hijau macOS bikin satu layar penuh). ←/→ berpindah antar file dan membungkus di ujung, Esc menutup.
+- `MediaStage` dipisah dari kartu mana pun supaya viewer dan (kalau nanti dibutuhkan lagi) panel apa pun bisa menampilkan hal yang sama pada ukuran berbeda. Ia yang memegang state pemutar media_kit dan pilihan Banding/Putar.
 - `CompareSlider` menempatkan hasil di atas aslinya dan meng-clip sisi "sebelum" ke kiri pembatas. Keduanya digambar `BoxFit.contain` di kotak yang sama, dan karena upscale mempertahankan rasio aspek, keduanya jatuh tepat bertindihan — jadi apa pun yang bergerak saat digeser adalah perbedaan nyata, bukan artefak layout.
 - Poster dibuat `Thumbnailer` lewat FFmpeg, bukan decoder Flutter. Mahal satu subprocess per file, tapi TIFF jadi ikut jalan (Flutter tidak bisa mendekodenya sama sekali), sumber 6000px tidak pernah didekode penuh hanya untuk mengisi tile 170px, dan video serta foto lewat jalur yang sama.
 
@@ -147,7 +149,7 @@ Workspace-nya dirancang muat dalam satu jendela tanpa scroll halaman:
 - `_NarrowWorkspace` (< 1040pt) — kembali bertumpuk dan seluruh halaman men-scroll. `contentMinSize` 940×640 sengaja di bawah breakpoint, jadi jendela terkecil memang mendarat di mode ini.
 - Panel Setup & Status yang dulu kartu selebar halaman kini jadi status bar tipis yang selalu terlihat, dengan rincian pindah ke dialog. Kartu lamanya yang mendorong halaman melewati satu layar demi panel yang cuma dilirik sekali.
 
-`PreviewCard(expand: true)` memakai `Expanded`, jadi **hanya aman di parent yang tingginya terbatas**. Jangan pakai di jalur `_NarrowWorkspace` yang men-scroll.
+`FileGrid(expand: true)` dan `FileStage(expand: true)` memakai `Expanded`, jadi **hanya aman di parent yang tingginya terbatas**. Jalur `_NarrowWorkspace` yang men-scroll memakai varian shrink-wrap-nya.
 
 ## Sisa di disk mesin Windows
 

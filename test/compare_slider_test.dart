@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labscale/core/pipeline.dart';
 import 'package:labscale/models/media_file.dart';
 import 'package:labscale/ui/widgets/compare_slider.dart';
-import 'package:labscale/ui/widgets/preview_card.dart';
+import 'package:labscale/ui/widgets/media_stage.dart';
 
 /// Reads back the clip the "before" side is drawn through.
 double _revealedWidth(WidgetTester tester, {required double of}) {
@@ -66,31 +66,26 @@ void main() {
     expect(_revealedWidth(tester, of: 200), 200);
   });
 
-  testWidgets('preview offers no comparison until a result exists',
+  testWidgets('the stage offers no comparison until a result exists',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: Scaffold(
-          body: PreviewCard(
-            file: MediaFile(
-              path: '/tmp/a.png',
-              sizeBytes: 10,
-              isImage: true,
-            ),
+          body: MediaStage(
+            file: MediaFile(path: '/tmp/a.png', sizeBytes: 10, isImage: true),
           ),
         ),
       ),
     );
 
     expect(find.byType(CompareSlider), findsNothing);
-    expect(find.text('Preview'), findsOneWidget);
   });
 
   testWidgets('a failed job is not offered as a comparison', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: Scaffold(
-          body: PreviewCard(
+          body: MediaStage(
             file: MediaFile(path: '/tmp/a.png', sizeBytes: 10, isImage: true),
             result: JobResult(
               sourceName: 'a.png',
@@ -103,5 +98,18 @@ void main() {
     );
 
     expect(find.byType(CompareSlider), findsNothing);
+  });
+
+  testWidgets('an output that was never written is not a comparison either',
+      (tester) async {
+    // canCompare checks the file exists, not merely that the job claimed
+    // success — a pruned or moved output must not blank half the slider.
+    expect(
+      canCompare(
+        const MediaFile(path: '/tmp/a.png', sizeBytes: 10, isImage: true),
+        const JobResult(sourceName: 'a.png', outputPath: '/tmp/gone-9x7.png'),
+      ),
+      isFalse,
+    );
   });
 }

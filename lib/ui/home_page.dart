@@ -12,7 +12,6 @@ import '../state/app_controller.dart';
 import 'theme.dart';
 import 'widgets/log_card.dart';
 import 'widgets/ops_card.dart';
-import 'widgets/preview_card.dart';
 import 'widgets/results_card.dart';
 import 'widgets/setup_panel.dart';
 import 'widgets/file_stage.dart';
@@ -135,17 +134,6 @@ class _NarrowWorkspace extends StatelessWidget {
           FileStage(controller: controller),
           const SizedBox(height: LabSpacing.gap),
           _ControlColumn(controller: controller),
-          const SizedBox(height: LabSpacing.gap),
-          Builder(
-            builder: (context) {
-              final file = controller.previewFile ?? controller.firstFile;
-              return PreviewCard(
-                file: file,
-                result: controller.resultForFile(file),
-                thumbnailer: controller.thumbnailer,
-              );
-            },
-          ),
           if (controller.logLines.isNotEmpty) ...[
             const SizedBox(height: LabSpacing.gap),
             LogCard(controller: controller),
@@ -177,9 +165,13 @@ class _ControlColumn extends StatelessWidget {
   }
 }
 
-/// The gallery column: the file stage holds it — drop target when empty, grid
-/// once filled — with the preview opening underneath only when a tile is
-/// picked, and the log arriving during a run.
+/// The gallery column: the file stage owns it — drop target when empty, grid
+/// once filled — with the log arriving during a run.
+///
+/// There is no preview pane here any more. A pane this shape could only ever
+/// be a few hundred pixels tall, which is not enough to judge an upscale, so
+/// clicking a tile opens the full-window viewer instead and the grid keeps the
+/// whole column.
 class _StageColumn extends StatelessWidget {
   const _StageColumn({required this.controller});
 
@@ -187,26 +179,9 @@ class _StageColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preview = controller.previewFile;
-
     return Column(
       children: [
-        Expanded(
-          flex: preview == null ? 1 : 3,
-          child: FileStage(controller: controller, expand: true),
-        ),
-        if (preview != null) ...[
-          const SizedBox(height: LabSpacing.gap),
-          Expanded(
-            flex: 2,
-            child: PreviewCard(
-              file: preview,
-              result: controller.resultForFile(preview),
-              thumbnailer: controller.thumbnailer,
-              expand: true,
-            ),
-          ),
-        ],
+        Expanded(child: FileStage(controller: controller, expand: true)),
         if (controller.logLines.isNotEmpty) ...[
           const SizedBox(height: LabSpacing.gap),
           LogCard(controller: controller, height: _kWideLogHeight),

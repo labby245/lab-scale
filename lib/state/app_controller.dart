@@ -419,15 +419,9 @@ class AppController extends ChangeNotifier {
       _activeIndex = null;
       _fileProgress = null;
       _results = List.unmodifiable(collected);
-      // Seeing what changed is the point of having run the job, so open the
-      // first successful result rather than making the user hunt for it. A
-      // preview the user opened themselves is left alone.
-      if (_previewFile == null) {
-        final firstWin = collected.indexWhere((r) => r.isSuccess);
-        if (firstWin >= 0 && firstWin < queue.length) {
-          _previewFile = queue[firstWin];
-        }
-      }
+      // Deliberately does not open anything: the viewer now takes the whole
+      // window, and having that appear unbidden the moment a batch ends would
+      // yank the user out of the grid they are watching.
       notifyListeners();
     }
   }

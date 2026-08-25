@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/media_file.dart';
 import '../../state/app_controller.dart';
+import '../compare_view.dart';
 import '../theme.dart';
 
 /// Tile width the grid aims for; the real width is whatever divides the
@@ -78,7 +79,10 @@ class _FileTile extends StatelessWidget {
       message: file.displayName,
       waitDuration: const Duration(milliseconds: 600),
       child: GestureDetector(
-        onTap: () => controller.selectForPreview(file),
+        onTap: () {
+          controller.selectForPreview(file);
+          openCompareView(context, controller, file);
+        },
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 200),
           opacity: dimmed ? 0.45 : 1,

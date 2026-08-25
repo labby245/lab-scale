@@ -1,9 +1,8 @@
-/// Preview of the selected media.
+/// The black rectangle a file is shown in — image, video, or a before/after
+/// comparison once the file has been through the pipeline.
 ///
-/// Once a file has been through the pipeline this becomes a before/after
-/// comparison — the reason you ran the job is to see what changed, so that is
-/// what the pane shows by default. Video keeps its player one button away,
-/// because a still cannot tell you whether motion got smoother.
+/// Kept separate from any card or page chrome so the workspace and the
+/// full-window viewer can both show the same thing at different sizes.
 library;
 
 import 'dart:io';
@@ -18,36 +17,36 @@ import '../../models/media_file.dart';
 import '../theme.dart';
 import 'compare_slider.dart';
 
-class PreviewCard extends StatefulWidget {
-  const PreviewCard({
+/// True when [result] gives us a second image to compare [file] against.
+bool canCompare(MediaFile? file, JobResult? result) =>
+    file != null &&
+    result != null &&
+    result.isSuccess &&
+    File(result.outputPath).existsSync();
+
+class MediaStage extends StatefulWidget {
+  const MediaStage({
     super.key,
     required this.file,
     this.result,
     this.thumbnailer,
-    this.expand = false,
   });
 
-  /// The file to preview, or null when nothing is selected.
+  /// The file to show, or null when nothing is selected.
   final MediaFile? file;
 
-  /// The finished job for [file], when there is one. Its output is the "after"
-  /// side of the comparison.
+  /// The finished job for [file], when there is one. Its output is the
+  /// "after" side of the comparison.
   final JobResult? result;
 
   /// Needed only to still a video for comparison.
   final Thumbnailer? thumbnailer;
 
-  /// Fill the height the parent hands down instead of holding a 16:9 box.
-  ///
-  /// Only safe where the parent supplies a bounded height — the one-screen
-  /// workspace does, the narrow scrolling fallback does not.
-  final bool expand;
-
   @override
-  State<PreviewCard> createState() => _PreviewCardState();
+  State<MediaStage> createState() => _MediaStageState();
 }
 
-class _PreviewCardState extends State<PreviewCard> {
+class _MediaStageState extends State<MediaStage> {
   Player? _player;
   VideoController? _videoController;
   String? _loadedPath;
@@ -55,13 +54,7 @@ class _PreviewCardState extends State<PreviewCard> {
   /// Video only: play the clip rather than compare two stills.
   bool _playing = false;
 
-  /// A finished, successful output exists to compare against.
-  bool get _canCompare {
-    final result = widget.result;
-    return result != null &&
-        result.isSuccess &&
-        File(result.outputPath).existsSync();
-  }
+  bool get _canCompare => canCompare(widget.file, widget.result);
 
   /// Playback shows the result when there is one — that is the thing being
   /// judged — and the source otherwise.
@@ -78,7 +71,7 @@ class _PreviewCardState extends State<PreviewCard> {
   }
 
   @override
-  void didUpdateWidget(PreviewCard oldWidget) {
+  void didUpdateWidget(MediaStage oldWidget) {
     super.didUpdateWidget(oldWidget);
     // A new file starts in comparison mode rather than inheriting the previous
     // file's choice.
@@ -130,36 +123,27 @@ class _PreviewCardState extends State<PreviewCard> {
   @override
   Widget build(BuildContext context) {
     final file = widget.file;
-    final stage = ClipRRect(
-      borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
-      child: Container(
-        width: double.infinity,
-        color: Colors.black,
-        child: _buildBody(),
-      ),
-    );
+    final offersToggle = _canCompare && file != null && file.isVideo;
 
-    return LabCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      width: double.infinity,
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          LabCardTitle(
-            badge: '3',
-            title: _canCompare ? 'Sebelum / Sesudah' : 'Preview',
-            trailing: (_canCompare && file != null && file.isVideo)
-                ? _ModeToggle(
-                    playing: _playing,
-                    onChanged: (value) {
-                      setState(() => _playing = value);
-                      _syncPlayer();
-                    },
-                  )
-                : null,
-          ),
-          if (widget.expand)
-            Expanded(child: stage)
-          else
-            AspectRatio(aspectRatio: 16 / 9, child: stage),
+          _buildBody(),
+          if (offersToggle)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: _ModeToggle(
+                playing: _playing,
+                onChanged: (value) {
+                  setState(() => _playing = value);
+                  _syncPlayer();
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -167,7 +151,7 @@ class _PreviewCardState extends State<PreviewCard> {
 
   Widget _buildBody() {
     final file = widget.file;
-    if (file == null) return const _EmptyPreview();
+    if (file == null) return const _EmptyStage();
 
     if (_canCompare && !_showsPlayer) {
       final after = widget.result!.outputPath;
@@ -185,7 +169,7 @@ class _PreviewCardState extends State<PreviewCard> {
       return Image.file(
         File(file.path),
         fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => const _EmptyPreview(
+        errorBuilder: (_, _, _) => const _EmptyStage(
           message: 'Tidak dapat menampilkan gambar ini',
         ),
       );
@@ -220,7 +204,7 @@ class _VideoCompare extends StatelessWidget {
   Widget build(BuildContext context) {
     final maker = thumbnailer;
     if (maker == null) {
-      return const _EmptyPreview(message: 'Preview tidak tersedia');
+      return const _EmptyStage(message: 'Preview tidak tersedia');
     }
 
     return FutureBuilder<List<String?>>(
@@ -235,7 +219,7 @@ class _VideoCompare extends StatelessWidget {
         }
         final frames = snapshot.data;
         if (frames == null || frames[0] == null || frames[1] == null) {
-          return const _EmptyPreview(
+          return const _EmptyStage(
             message: 'Tidak dapat mengambil frame pembanding',
           );
         }
@@ -258,23 +242,30 @@ class _ModeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _ModeChip(
-          icon: Icons.compare_arrows,
-          label: 'Banding',
-          selected: !playing,
-          onPressed: () => onChanged(false),
-        ),
-        const SizedBox(width: 6),
-        _ModeChip(
-          icon: Icons.play_arrow,
-          label: 'Putar',
-          selected: playing,
-          onPressed: () => onChanged(true),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ModeChip(
+            icon: Icons.compare_arrows,
+            label: 'Banding',
+            selected: !playing,
+            onPressed: () => onChanged(false),
+          ),
+          const SizedBox(width: 4),
+          _ModeChip(
+            icon: Icons.play_arrow,
+            label: 'Putar',
+            selected: playing,
+            onPressed: () => onChanged(true),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -300,12 +291,9 @@ class _ModeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
           color: selected
-              ? LabColors.primary.withValues(alpha: 0.18)
+              ? LabColors.primary.withValues(alpha: 0.9)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected ? LabColors.primary : LabColors.border,
-          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -313,14 +301,14 @@ class _ModeChip extends StatelessWidget {
             Icon(
               icon,
               size: 14,
-              color: selected ? LabColors.primaryBright : LabColors.textMuted,
+              color: selected ? Colors.white : LabColors.textSecondary,
             ),
             const SizedBox(width: 5),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11.5,
-                color: selected ? LabColors.primaryBright : LabColors.textMuted,
+                color: selected ? Colors.white : LabColors.textSecondary,
               ),
             ),
           ],
@@ -330,8 +318,8 @@ class _ModeChip extends StatelessWidget {
   }
 }
 
-class _EmptyPreview extends StatelessWidget {
-  const _EmptyPreview({this.message});
+class _EmptyStage extends StatelessWidget {
+  const _EmptyStage({this.message});
 
   final String? message;
 
