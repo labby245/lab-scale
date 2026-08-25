@@ -8,7 +8,7 @@ if not "%MINIMIZED%"=="1" (
     exit
 )
 
-:: Try virtual environment first
+:: LabScale launcher — try virtual environment first
 if exist ".venv\Scripts\python.exe" (
     echo Starting with .venv...
     ".venv\Scripts\python.exe" app.py

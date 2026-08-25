@@ -102,17 +102,6 @@ body {
 }
 .btn-ghost:hover { color: #94a3b8; }
 
-.btn-draw {
-  background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25);
-  color: #818cf8; border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 600;
-  cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap;
-}
-.btn-draw:hover { background: rgba(99,102,241,0.22); }
-.btn-draw.active { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
-.btn-draw:disabled { opacity: 0.35; cursor: not-allowed; }
-
-.link-btn { background: none; border: none; color: #f87171; cursor: pointer; font-size: 12px; font-family: inherit; text-decoration: underline; }
-
 .btn-cta {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
   background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none;
@@ -131,17 +120,6 @@ body {
   cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap;
 }
 .btn-open-folder:hover { background: rgba(99,102,241,0.22); }
-
-/* ── ROI header ── */
-.roi-header-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-
-/* ── Draw notice ── */
-.draw-notice {
-  display: flex; align-items: flex-start; gap: 8px;
-  background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
-  border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #fca5a5; margin-bottom: 10px;
-}
-.draw-notice svg { flex-shrink: 0; margin-top: 1px; }
 
 /* ── Operations ── */
 .ops { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
@@ -277,13 +255,6 @@ option { background: #1e293b; color: #e2e8f0; }
 #previewImg {
   width: 100%; height: auto; max-height: 500px; display: block;
   position: relative; z-index: 2; object-fit: contain;
-}
-#overlay {
-  position: absolute; left: 0; top: 0; z-index: 3;
-  pointer-events: none; cursor: default;
-}
-#overlay.draw-active { pointer-events: auto; cursor: crosshair; }
-
 /* ── Custom Controls ── */
 .custom-controls {
   display: flex; align-items: center; gap: 12px;
@@ -312,13 +283,6 @@ option { background: #1e293b; color: #e2e8f0; }
   background: #6366f1; cursor: pointer; border: 2px solid #0f1220;
 }
 .ctrl-seek:hover::-webkit-slider-thumb { transform: scale(1.2); }
-
-.roi-info {
-  display: flex; align-items: center; gap: 8px; margin-top: 8px;
-  font-size: 12px; color: #64748b;
-}
-.roi-info code { color: #818cf8; font-size: 11px; }
-
 /* ── Bulk results ── */
 .bulk-summary { font-size: 14px; font-weight: 600; color: #34d399; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .bulk-dir {
@@ -387,85 +351,6 @@ option { background: #1e293b; color: #e2e8f0; }
 .toast.info    { background: #2563eb; }
 
 .site-footer { border-top: 1px solid rgba(255,255,255,0.06); padding: 14px 0; color: #334155; font-size: 12px; text-align: center; }
-
-/* ── Remove Background ── */
-.rembg-info {
-  font-size: 11px;
-  color: #64748b;
-  padding: 6px 10px;
-  background: rgba(99,102,241,0.07);
-  border-radius: 6px;
-  border: 1px solid rgba(99,102,241,0.15);
-}
-.rembg-warn {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #f59e0b;
-  padding: 6px 10px;
-  background: rgba(245,158,11,0.08);
-  border-radius: 6px;
-  border: 1px solid rgba(245,158,11,0.2);
-}
-.rembg-install {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #f87171;
-  padding: 6px 10px;
-  background: rgba(248,113,113,0.08);
-  border-radius: 6px;
-  border: 1px solid rgba(248,113,113,0.2);
-}
-.rembg-install code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
-
-/* ── Auto Detect Button ── */
-.btn-auto-detect {
-  padding: 5px 11px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 8px;
-  border: 1px solid rgba(16,185,129,0.4);
-  background: rgba(16,185,129,0.1);
-  color: #10b981;
-  cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
-  white-space: nowrap;
-}
-.btn-auto-detect:hover:not(:disabled) { background: rgba(16,185,129,0.2); }
-.btn-auto-detect:disabled { opacity: 0.35; cursor: not-allowed; }
-
-/* ── Self-improving detector opt-in card ─────────────────────────────── */
-.label-optin {
-  max-width: 1200px;
-  margin: 18px auto 0 auto;
-  padding: 14px 18px;
-  border: 1px dashed rgba(99,102,241,0.35);
-  background: rgba(99,102,241,0.04);
-}
-.optin-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-}
-.optin-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-.optin-emoji { font-size: 22px; }
-.optin-name {
-  display: block;
-  font-weight: 600;
-  font-size: 14px;
-}
-.optin-desc {
-  display: block;
-  font-size: 12px;
-  opacity: 0.7;
-  margin-top: 2px;
-}
 
 /* ── Setup & Status — collapsed details panel ────────────────────────── */
 .setup-status {

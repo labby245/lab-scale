@@ -11,8 +11,8 @@ from typing import Callable, Optional
 import cv2
 import numpy as np
 
+from .frame_ops import apply_sharpness
 from .gpu import auto_tile_size, get_gpu_id, get_gpu_vram_gb
-from .inpaint_ops import apply_sharpness
 from .logging_config import get
 
 log = get(__name__)

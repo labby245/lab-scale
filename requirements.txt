@@ -11,17 +11,11 @@ numpy==1.26.4
 Pillow==10.4.0
 ffmpeg-python==0.2.0
 
-# ── AI: background removal & upscaling ────────────────────────────────────
-rembg==2.0.69
-onnxruntime==1.23.2          # rembg backend (CPU). For GPU: onnxruntime-gpu
+# ── AI: upscaling ─────────────────────────────────────────────────────────
 realesrgan==0.3.0
 basicsr==1.4.2
 
-# ── Optional AI features (enable in UI when installed) ────────────────────
-simple-lama-inpainting==0.1.2  # LaMa AI inpainting (~700MB model auto-download)
-ultralytics==8.4.46            # YOLOv8 watermark detector inference
-
-# ── PyTorch (required by ESRGAN and rembg) ────────────────────────────────
+# ── PyTorch (required by ESRGAN) ──────────────────────────────────────────
 # For NVIDIA CUDA: install matching CUDA build, e.g.
 #   pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
 # For CPU only:

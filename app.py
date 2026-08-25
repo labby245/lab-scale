@@ -1,4 +1,4 @@
-"""Flask entrypoint for Photo & Video Forge.
+"""Flask entrypoint for LabScale.
 
 Thin route layer: delegates all heavy lifting to utils.pipeline / utils.* modules."""
 
@@ -21,17 +21,12 @@ from pydantic import ValidationError
 from werkzeug.utils import secure_filename
 
 from utils import (
-    bg_ops,
-    detection_ops,
     jobs,
-    labels_store,
-    lama_ops,
     logging_config,
     pipeline,
     rife_ops,
     schemas,
     upscale_ops,
-    yolo_detect,
 )
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +49,6 @@ log = logging_config.get(__name__)
 
 job_store = jobs.JobStore(ttl_seconds=3600, max_jobs=200)
 name_map = jobs.NameMap(NAMEMAP_PATH)
-LABELS_STORE = labels_store.LabelsStore()
 bulk_executor = ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 4) // 2))
 
 
@@ -170,10 +164,6 @@ def _safe_input_path(filename: str) -> Optional[str]:
 
 def _make_suffix(opts: schemas.ProcessOptions) -> str:
     p: list[str] = []
-    if opts.has_roi:
-        p.append("nowm")
-    if opts.remove_bg:
-        p.append("nobg")
     if opts.upscale:
         model_short = {
             "lanczos": "lanczos",
@@ -193,8 +183,6 @@ def _validate_dependencies(opts: schemas.ProcessOptions) -> Optional[str]:
     use_esrgan = opts.upscale and opts.upscale_model not in ("lanczos", "", None)
     if use_esrgan and not upscale_ops.is_available():
         return "realesrgan tidak terinstal. Jalankan: pip install realesrgan basicsr"
-    if opts.remove_bg and not bg_ops.is_available():
-        return "rembg tidak terinstal. Jalankan: pip install rembg"
     return None
 
 
@@ -295,12 +283,11 @@ def process_video_route():
         t0 = time.time()
         pipeline.process_video(
             in_path, out_path,
-            roi=req.roi, method=req.method, quality=req.quality,
+            quality=req.quality,
             upscale=req.upscale, upscale_model=req.upscale_model,
             upscale_scale=req.upscale_scale, fps_boost=req.fps_boost,
             interp_engine=req.interp_engine,
-            sharpness=req.sharpness, remove_bg=req.remove_bg,
-            rembg_model=req.rembg_model, codec=req.codec,
+            sharpness=req.sharpness, codec=req.codec,
             temp_root=TEMP_FOLDER, log_fn=log_fn,
         )
         elapsed = time.time() - t0
@@ -326,7 +313,7 @@ def process_image_route():
         return _err(parsed.errors()[0]["msg"])
     req: schemas.ProcessImageRequest = parsed
 
-    if not (req.has_roi or req.upscale or req.remove_bg):
+    if not req.upscale:
         return _err("Pilih minimal satu operasi")
 
     in_path = _safe_input_path(req.filename)
@@ -338,7 +325,7 @@ def process_image_route():
         return _err(err)
 
     orig_base = name_map.get(req.filename, os.path.splitext(req.filename)[0]) or "output"
-    out_ext = ".png" if (req.remove_bg or req.quality == "ultra") else ".jpg"
+    out_ext = ".png" if req.quality == "ultra" else ".jpg"
     out_name = f"{orig_base}{_make_suffix(req)}{out_ext}"
     out_path = os.path.join(OUTPUT_FOLDER, out_name)
 
@@ -351,11 +338,9 @@ def process_image_route():
         t0 = time.time()
         pipeline.process_image(
             in_path, out_path,
-            roi=req.roi, method=req.method,
             upscale=req.upscale, upscale_model=req.upscale_model,
             upscale_scale=req.upscale_scale, quality=req.quality,
-            sharpness=req.sharpness, remove_bg=req.remove_bg,
-            rembg_model=req.rembg_model, log_fn=log_fn,
+            sharpness=req.sharpness, log_fn=log_fn,
         )
         elapsed = time.time() - t0
         if log_fn:
@@ -415,7 +400,7 @@ def process_bulk_route():
             continue
 
         if is_img:
-            out_ext = ".png" if (req.remove_bg or req.quality == "ultra") else ".jpg"
+            out_ext = ".png" if req.quality == "ultra" else ".jpg"
             out_name = f"{orig_base}{suffix}{out_ext}"
         else:
             out_name = f"{orig_base}{suffix}.mp4"
@@ -428,20 +413,18 @@ def process_bulk_route():
             if is_img:
                 pipeline.process_image(
                     in_path, out_path,
-                    roi=req.roi, method=req.method,
                     upscale=req.upscale, upscale_model=req.upscale_model,
                     upscale_scale=req.upscale_scale, quality=req.quality,
-                    sharpness=req.sharpness, remove_bg=req.remove_bg,
-                    rembg_model=req.rembg_model, log_fn=log_fn,
+                    sharpness=req.sharpness, log_fn=log_fn,
                 )
             else:
                 pipeline.process_video(
                     in_path, out_path,
-                    roi=req.roi, method=req.method, quality=req.quality,
+                    quality=req.quality,
                     upscale=req.upscale, upscale_model=req.upscale_model,
                     upscale_scale=req.upscale_scale, fps_boost=req.fps_boost,
-                    sharpness=req.sharpness, remove_bg=req.remove_bg,
-                    rembg_model=req.rembg_model, codec=req.codec,
+                    interp_engine=req.interp_engine,
+                    sharpness=req.sharpness, codec=req.codec,
                     temp_root=TEMP_FOLDER, log_fn=log_fn,
                 )
             elapsed = time.time() - t0
@@ -525,75 +508,13 @@ def esrgan_check():
     return jsonify({"available": upscale_ops.is_available()})
 
 
-@app.route("/rembg-check")
-def rembg_check():
-    return jsonify({"available": bg_ops.is_available()})
-
-
 @app.route("/capabilities")
 def capabilities():
     """Report availability of all optional capabilities for the UI."""
-    stats = LABELS_STORE.stats()
     return jsonify({
         "esrgan": upscale_ops.is_available(),
-        "rembg": bg_ops.is_available(),
-        "lama": lama_ops.is_available(),
         "rife": rife_ops.is_available(),
-        "yolo": yolo_detect.is_available(),
-        "label_count": stats["total"],
-        "label_unique_images": stats["unique_images"],
     })
-
-
-@app.route("/label-stats")
-def label_stats():
-    return jsonify(LABELS_STORE.stats())
-
-
-@app.route("/save-label", methods=["POST"])
-def save_label():
-    """Persist a (image, roi) sample for YOLO retraining."""
-    parsed = _parse(schemas.SaveLabelRequest, request.get_json(force=True) or {})
-    if isinstance(parsed, ValidationError):
-        return _err(parsed.errors()[0]["msg"])
-    req: schemas.SaveLabelRequest = parsed
-
-    in_path = _safe_input_path(req.filename)
-    if not in_path:
-        return _err("File tidak ditemukan", 404)
-
-    # Capture frame: image file → read directly; video → seek to requested frame
-    if _is_image(req.filename):
-        img = cv2.imread(in_path, cv2.IMREAD_COLOR)
-        if img is None:
-            return _err("Tidak dapat membaca gambar", 400)
-    else:
-        cap = cv2.VideoCapture(in_path)
-        if not cap.isOpened():
-            return _err("Tidak dapat membuka video", 400)
-        try:
-            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-            target_idx = (
-                req.frame_index
-                if req.frame_index is not None and 0 <= req.frame_index < total
-                else total // 2
-            )
-            cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
-            ret, img = cap.read()
-            if not ret or img is None:
-                return _err("Tidak dapat membaca frame", 400)
-        finally:
-            cap.release()
-
-    digest = LABELS_STORE.add_sample(
-        img,
-        {"x": req.roi.x, "y": req.roi.y, "width": req.roi.width, "height": req.roi.height},
-        source=req.source,
-    )
-    if digest is None:
-        return _err("Sample ditolak (ROI invalid atau gagal simpan)", 400)
-
-    return jsonify({"hash": digest, **LABELS_STORE.stats()})
 
 
 @app.route("/encoder-info")
@@ -612,40 +533,9 @@ def encoder_info():
     })
 
 
-@app.route("/detect-watermark", methods=["POST"])
-def detect_watermark_route():
-    parsed = _parse(schemas.DetectRequest, request.get_json(force=True) or {})
-    if isinstance(parsed, ValidationError):
-        return _err(parsed.errors()[0]["msg"])
-    req: schemas.DetectRequest = parsed
-
-    in_path = _safe_input_path(req.filename)
-    if not in_path:
-        return _err("File tidak ditemukan", 404)
-
-    try:
-        if _is_image(req.filename):
-            frame = cv2.imread(in_path, cv2.IMREAD_COLOR)
-            if frame is None:
-                return jsonify({"roi": None, "message": "Tidak dapat membaca gambar"})
-            result = detection_ops.detect_watermark_roi(frame)
-        else:
-            frames = detection_ops.get_sample_frames(in_path, n=6)
-            if not frames:
-                return jsonify({"roi": None, "message": "Tidak dapat membaca frame video"})
-            result = detection_ops.detect_watermark_roi(frames[0], extra_frames=frames[1:])
-        if result is None:
-            return jsonify({"roi": None, "message": "Watermark tidak terdeteksi — tandai manual"})
-        x, y, w, h = result
-        return jsonify({"roi": {"x": x, "y": y, "width": w, "height": h}})
-    except Exception as e:
-        log.exception("watermark detect failed")
-        return _err(str(e), 500)
-
-
 if __name__ == "__main__":
     import webbrowser
 
-    log.info("Starting Photo & Video Forge on http://127.0.0.1:5000")
+    log.info("Starting LabScale on http://127.0.0.1:5000")
     threading.Timer(1.2, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
     app.run(debug=False, use_reloader=False, host="127.0.0.1", port=5000)

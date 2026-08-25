@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Photo &amp; Video Forge — Watermark Remover &amp; Enhancer</title>
-  <meta name="description" content="Hapus watermark, upscale AI, boost 60fps — foto &amp; video, lokal, tanpa cloud." />
+  <title>LabScale — Upscale AI &amp; 60 FPS Boost</title>
+  <meta name="description" content="Upscale AI dan boost 60fps untuk foto &amp; video — diproses lokal, tanpa cloud." />
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,15 +18,13 @@
       <div class="brand">
         <div class="logo-box">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <rect x="1" y="4" width="11" height="11" rx="1.5"/>
-            <polygon points="16 4 23 7.5 23 14.5 16 18 16 4"/>
-            <circle cx="6.5" cy="18.5" r="1.5" fill="currentColor" stroke="none"/>
-            <rect x="10" y="17" width="7" height="4" rx="1" stroke-width="1.8"/>
+            <polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/>
+            <polyline points="9 21 3 21 3 15"/><line x1="3" y1="21" x2="10" y2="14"/>
           </svg>
         </div>
         <div>
-          <div class="brand-name">Photo &amp; Video Forge</div>
-          <div class="brand-sub">Photo · Video · Watermark · Upscale</div>
+          <div class="brand-name">LabScale</div>
+          <div class="brand-sub">Foto · Video · Upscale · 60 FPS</div>
         </div>
       </div>
       <div class="header-badge" id="modeBadge"></div>
@@ -79,30 +77,6 @@
           <div class="card-title"><span class="badge">2</span> Operasi</div>
           <div class="ops">
 
-            <!-- Watermark Remover -->
-            <label class="op-row" for="opWatermark">
-              <div class="op-meta">
-                <span class="op-emoji">✂️</span>
-                <div>
-                  <div class="op-name">Hapus Watermark</div>
-                  <div class="op-desc">Tandai area di preview →</div>
-                </div>
-              </div>
-              <div class="toggle"><input type="checkbox" id="opWatermark" /><span class="knob"></span></div>
-            </label>
-            <!-- Inpaint sub-settings (visible when WM is on) -->
-            <div class="sub-settings" id="wmSubSettings" hidden>
-              <div class="sel-group">
-                <label class="sel-label">Metode Inpaint</label>
-                <select id="method">
-                  <option value="telea">Telea — cepat, OpenCV</option>
-                  <option value="ns">Navier-Stokes — OpenCV, hasil lebih halus</option>
-                  <option value="lama" id="methodLamaOpt">LaMa AI — terbaik untuk wajah/teks</option>
-                </select>
-                <div class="hint-sm" id="methodHint"></div>
-              </div>
-            </div>
-
             <!-- Upscale -->
             <label class="op-row" id="opUpscaleRow" for="opUpscale">
               <div class="op-meta">
@@ -146,39 +120,6 @@
                 ⚠️ Real-ESRGAN pada video diproses per-frame — gunakan untuk klip pendek.
               </div>
               <div class="install-hint" id="esrganInstall" hidden>
-                Belum terinstal — buka <strong>⚙️ Setup</strong> di bawah.
-              </div>
-            </div>
-
-            <!-- Remove Background -->
-            <label class="op-row" for="opRemoveBg">
-              <div class="op-meta">
-                <span class="op-emoji">🪄</span>
-                <div>
-                  <div class="op-name">Hapus Background</div>
-                  <div class="op-desc">Pisahkan objek dari latar (AI rembg)</div>
-                </div>
-              </div>
-              <div class="toggle"><input type="checkbox" id="opRemoveBg" /><span class="knob"></span></div>
-            </label>
-            <div class="sub-settings" id="removeBgSettings" hidden>
-              <div class="sel-group" style="margin-bottom:8px">
-                <label class="sel-label">Model Background</label>
-                <select id="rembgModel">
-                  <option value="u2net" selected>U²-Net (umum, cepat)</option>
-                  <option value="u2netp">U²-Net (lite)</option>
-                  <option value="u2net_human_seg">U²-Net Human (orang)</option>
-                  <option value="isnet-general-use">ISNet (edge tajam)</option>
-                  <option value="birefnet-general">BiRefNet (kualitas terbaik)</option>
-                </select>
-              </div>
-              <div class="rembg-info">
-                Foto: hasil PNG transparan &nbsp;·&nbsp; Video: background hitam (H.264)
-              </div>
-              <div class="rembg-warn" id="rembgVideoWarn" hidden>
-                ⚠️ Hapus background pada video diproses per-frame — gunakan untuk klip pendek.
-              </div>
-              <div class="install-hint" id="rembgInstall" hidden>
                 Belum terinstal — buka <strong>⚙️ Setup</strong> di bawah.
               </div>
             </div>
@@ -249,20 +190,10 @@
       <!-- ══════════════ RIGHT COLUMN ══════════════ -->
       <div class="right-col">
 
-        <!-- VIDEO / PHOTO PREVIEW + ROI -->
+        <!-- VIDEO / PHOTO PREVIEW -->
         <div class="card editor-card">
           <div class="card-title">
-            <span class="badge">3</span> Preview &amp; Area Watermark (ROI)
-            <div class="roi-header-btns">
-              <button id="autoDetectBtn" class="btn-auto-detect" disabled title="Deteksi otomatis posisi watermark">🔍 Auto Deteksi</button>
-              <span id="detectorBadge" class="hint-sm" style="margin-left:6px"></span>
-              <button id="drawModeBtn" class="btn-draw" disabled>✏️ Tandai Area</button>
-              <button id="clearRoi" class="btn-ghost">Reset ROI</button>
-            </div>
-          </div>
-          <div class="draw-notice" id="drawNotice" hidden>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            Mode gambar aktif — klik &amp; drag untuk tandai area watermark, lalu klik tombol lagi untuk selesai.
+            <span class="badge">3</span> Preview
           </div>
           <div class="video-wrap" id="videoWrap">
             <div class="vp-placeholder" id="vpPlaceholder">
@@ -274,7 +205,6 @@
             </div>
             <video id="video" playsinline hidden></video>
             <img id="previewImg" hidden alt="Preview" />
-            <canvas id="overlay"></canvas>
           </div>
           <!-- Custom Video Controls (video only) -->
           <div class="custom-controls" id="customControls" hidden>
@@ -289,11 +219,6 @@
               <svg id="iconVol" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
               <svg id="iconMute" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
             </button>
-          </div>
-          <div class="roi-info" id="roiInfo" hidden>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-            ROI terpilih: <code id="roiText">–</code>
-            <button class="link-btn" id="clearRoiSmall">hapus</button>
           </div>
         </div>
 
@@ -331,29 +256,11 @@
         <span class="cap-detail">Real-ESRGAN x4 — model foto/anime</span>
         <button class="cap-cmd" data-cmd="pip install realesrgan basicsr" hidden></button>
       </div>
-      <div class="cap-row" data-cap="rembg">
-        <span class="cap-status" data-status>•</span>
-        <span class="cap-name">Hapus Background (rembg)</span>
-        <span class="cap-detail">5 model — u2net, BiRefNet, dst.</span>
-        <button class="cap-cmd" data-cmd="pip install rembg onnxruntime" hidden></button>
-      </div>
-      <div class="cap-row" data-cap="lama">
-        <span class="cap-status" data-status>•</span>
-        <span class="cap-name">Inpaint AI (LaMa)</span>
-        <span class="cap-detail">Hasil terbaik untuk watermark di wajah/teks</span>
-        <button class="cap-cmd" data-cmd="pip install simple-lama-inpainting" hidden></button>
-      </div>
       <div class="cap-row" data-cap="rife">
         <span class="cap-status" data-status>•</span>
         <span class="cap-name">Interpolasi AI (RIFE)</span>
         <span class="cap-detail">5–10× lebih cepat &amp; halus dari FFmpeg</span>
         <button class="cap-cmd" data-cmd="python scripts/install_rife.py" hidden></button>
-      </div>
-      <div class="cap-row" data-cap="yolo">
-        <span class="cap-status" data-status>•</span>
-        <span class="cap-name">Auto-Detect AI (YOLOv8)</span>
-        <span class="cap-detail">Bootstrap sintetis lalu auto-refine via opt-in</span>
-        <button class="cap-cmd" data-cmd="python scripts/install_yolo.py" hidden></button>
       </div>
       <div class="cap-row" data-cap="encoder">
         <span class="cap-status">⚙</span>
@@ -366,27 +273,10 @@
     </div>
   </details>
 
-  <!-- Self-improving detector: opt-in label collection -->
-  <div id="labelOptIn" class="card label-optin">
-    <label class="optin-row" for="labelOptInToggle">
-      <span class="optin-meta">
-        <span class="optin-emoji">🤖</span>
-        <span>
-          <span class="optin-name">Bantu tingkatkan auto-detect</span>
-          <span class="optin-desc" id="labelStats">
-            Setiap ROI yang Anda konfirmasi disimpan lokal sebagai data training.
-            Tidak ada yang dikirim ke cloud.
-          </span>
-        </span>
-      </span>
-      <span class="toggle"><input type="checkbox" id="labelOptInToggle" checked /><span class="knob"></span></span>
-    </label>
-  </div>
-
   <div id="toasts" class="toasts"></div>
 
   <footer class="site-footer">
-    <div class="container">Diproses lokal · OpenCV + FFmpeg · File asli tidak diubah</div>
+    <div class="container">LabScale · Diproses lokal · OpenCV + FFmpeg · File asli tidak diubah</div>
   </footer>
 
   <script src="/static/app.js"></script>
