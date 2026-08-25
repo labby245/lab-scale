@@ -2,7 +2,9 @@
 /// plus the global quality and codec selectors.
 library;
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as pth;
 
 import '../../models/process_options.dart';
 import '../../state/app_controller.dart';
@@ -87,8 +89,127 @@ class OpsCard extends StatelessWidget {
               ],
             ],
           ),
+
+          const SizedBox(height: LabSpacing.gap),
+          _OutputFolderRow(controller: controller),
         ],
       ),
+    );
+  }
+}
+
+/// Where results land. Lives here rather than behind a dialog because it is
+/// the first thing people look for and the last place they think to open.
+class _OutputFolderRow extends StatelessWidget {
+  const _OutputFolderRow({required this.controller});
+
+  final AppController controller;
+
+  /// The subfolder a dropped folder's results will go into, if the selection
+  /// came from exactly one folder.
+  String? get _subfolder {
+    final roots = controller.files
+        .map((f) => f.sourceRoot)
+        .whereType<String>()
+        .toSet();
+    if (roots.length != 1) return null;
+    return '${pth.basename(roots.first)}_upscaled';
+  }
+
+  Future<void> _pick() async {
+    final dir = await getDirectoryPath(
+      confirmButtonText: 'Pilih folder output',
+    );
+    if (dir == null) return;
+    await controller.setOutputDir(dir);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = _subfolder;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel('Folder Output'),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+          decoration: BoxDecoration(
+            color: LabColors.background,
+            borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
+            border: Border.all(color: LabColors.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.folder_outlined,
+                size: 16,
+                color: LabColors.textMuted,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      controller.outputDir,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: LabColors.textSecondary,
+                      ),
+                    ),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '└ $sub',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: LabColors.primaryBright,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: controller.isRunning ? null : _pick,
+                icon: const Icon(Icons.edit_outlined, size: 15),
+                tooltip: 'Ubah folder output',
+                color: LabColors.textMuted,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                padding: EdgeInsets.zero,
+              ),
+              if (!controller.usesDefaultOutputDir)
+                IconButton(
+                  onPressed:
+                      controller.isRunning ? null : controller.resetOutputDir,
+                  icon: const Icon(Icons.settings_backup_restore, size: 15),
+                  tooltip: 'Kembalikan ke folder bawaan',
+                  color: LabColors.textMuted,
+                  visualDensity: VisualDensity.compact,
+                  constraints:
+                      const BoxConstraints(minWidth: 30, minHeight: 30),
+                  padding: EdgeInsets.zero,
+                ),
+              IconButton(
+                onPressed: () => controller.revealInFileManager(),
+                icon: const Icon(Icons.open_in_new, size: 15),
+                tooltip: 'Buka folder',
+                color: LabColors.textMuted,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

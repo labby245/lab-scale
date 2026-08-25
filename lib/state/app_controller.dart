@@ -70,6 +70,7 @@ class AppController extends ChangeNotifier {
   static const _kQuality = 'pref_quality';
   static const _kSharpness = 'pref_sharpness';
   static const _kScale = 'pref_upscale_scale';
+  static const _kOutputDir = 'pref_output_dir';
 
   // ── State ─────────────────────────────────────────────────────────────────
   List<MediaFile> _files = const [];
@@ -82,6 +83,7 @@ class AppController extends ChangeNotifier {
   List<JobResult> _results = const [];
   String? _errorMessage;
   String _outputDir = '';
+  String _defaultOutputDir = '';
   String _tempDir = '';
   MediaInfo? _sourceInfo;
   int? _activeIndex;
@@ -178,7 +180,8 @@ class AppController extends ChangeNotifier {
 
   Future<void> initialize() async {
     final documents = await getApplicationDocumentsDirectory();
-    _outputDir = p.join(documents.path, 'LabScale');
+    _defaultOutputDir = p.join(documents.path, 'LabScale');
+    _outputDir = _defaultOutputDir;
     await Directory(_outputDir).create(recursive: true);
 
     final temp = await getTemporaryDirectory();
@@ -189,7 +192,24 @@ class AppController extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     await _probeCapabilities();
     _restorePreferences();
+    await _restoreOutputDir();
     notifyListeners();
+  }
+
+  /// Reinstates a folder the user picked previously.
+  ///
+  /// A stored folder can be gone by the next launch — an unmounted volume, a
+  /// renamed directory — so it is only adopted if it can actually be created.
+  /// Otherwise the default quietly takes over rather than every job failing.
+  Future<void> _restoreOutputDir() async {
+    final stored = _prefs?.getString(_kOutputDir);
+    if (stored == null || stored == _defaultOutputDir) return;
+    try {
+      await Directory(stored).create(recursive: true);
+      _outputDir = stored;
+    } on FileSystemException {
+      await _prefs?.remove(_kOutputDir);
+    }
   }
 
   Future<void> _probeCapabilities() async {
@@ -336,6 +356,33 @@ class AppController extends ChangeNotifier {
     if (isRunning) return;
     if (index < 0 || index >= _files.length) return;
     setFiles([..._files]..removeAt(index));
+  }
+
+  /// The folder results are written to, and where it started.
+  String get defaultOutputDir => _defaultOutputDir;
+  bool get usesDefaultOutputDir => _outputDir == _defaultOutputDir;
+
+  /// Points output at [dir]. Rejected while a job is running, since the
+  /// pipeline already holds the old path.
+  Future<void> setOutputDir(String dir) async {
+    if (isRunning) return;
+    try {
+      await Directory(dir).create(recursive: true);
+    } on FileSystemException {
+      _errorMessage = 'Tidak bisa menulis ke folder itu';
+      notifyListeners();
+      return;
+    }
+    _outputDir = dir;
+    await _prefs?.setString(_kOutputDir, dir);
+    notifyListeners();
+  }
+
+  Future<void> resetOutputDir() async {
+    if (isRunning) return;
+    _outputDir = _defaultOutputDir;
+    await _prefs?.remove(_kOutputDir);
+    notifyListeners();
   }
 
   void dismissError() {

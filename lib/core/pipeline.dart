@@ -113,10 +113,14 @@ class Pipeline {
         : '.mp4';
     final stem = '${file.baseName}${options.outputSuffix()}';
 
-    var candidate = p.join(outputDir, '$stem$ext');
+    // A dropped folder keeps its results together in a folder of its own.
+    final destination = file.destinationDir(outputDir);
+    Directory(destination).createSync(recursive: true);
+
+    var candidate = p.join(destination, '$stem$ext');
     var counter = 2;
     while (File(candidate).existsSync() || _claimed.contains(candidate)) {
-      candidate = p.join(outputDir, '${stem}_$counter$ext');
+      candidate = p.join(destination, '${stem}_$counter$ext');
       counter++;
     }
     _claimed.add(candidate);

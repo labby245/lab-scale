@@ -7,7 +7,7 @@ Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untu
 - **Upscale** — Real-ESRGAN (foto / anime / video anime) atau Lanczos untuk hasil cepat tanpa AI. Skala 1×–4×.
 - **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
 - **Boost ke 60 FPS** — motion interpolation via RIFE AI (5–10× lebih cepat dan jauh lebih halus) atau FFmpeg `minterpolate`.
-- **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
+- **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan, dan hasilnya dikumpulkan ke satu folder `<nama folder>_upscaled` di dalam folder output. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
 - **Bandingkan sebelum/sesudah** — klik foto mana pun untuk membukanya di viewer **setinggi jendela penuh**, dengan pembatas yang bisa digeser kiri-kanan. Panah ←/→ berpindah antar file, Esc menutup. Untuk video, yang dibandingkan satu frame, dan tombol **Putar** memutar hasilnya.
 - **Kualitas & codec** — Fast → Ultra (lossless), H.264 / HEVC / AV1, dengan NVENC (Windows) atau VideoToolbox (macOS) otomatis bila tersedia.
 - **Audio dipertahankan** — audio AAC di-copy apa adanya, format lain di-transcode ke AAC 192k.
@@ -106,7 +106,19 @@ Tanpa `SIGN_IDENTITY`, script tetap menghasilkan `.app` dan `.dmg` yang jalan di
 
 ## Output
 
-Hasil disimpan di `~/Documents/LabScale` (Windows: `%USERPROFILE%\Documents\LabScale`), dengan suffix yang menjelaskan operasi:
+Folder default `~/Documents/LabScale` (Windows: `%USERPROFILE%\Documents\LabScale`), bisa diganti lewat **Folder Output** di kartu Operasi — pilihannya diingat antar sesi, dan kembali ke default kalau folder itu hilang saat app dibuka lagi.
+
+File yang dipilih satu-satu mendarat langsung di folder output. **Folder yang di-drop hasilnya dikumpulkan** ke `<nama folder>_upscaled` di dalamnya, apa pun struktur di dalam folder aslinya:
+
+```
+~/Documents/LabScale/
+  foto_lanczos-4x.png                    ← file yang dipilih sendiri
+  Foto Liburan_upscaled/                 ← dari folder "Foto Liburan"
+    pantai_esrgan-real-4x.png
+    sunset_esrgan-real-4x.png
+```
+
+Nama file membawa suffix yang menjelaskan operasinya:
 
 ```
 klip_esrgan-real-2x_sharp30_60fps.mp4

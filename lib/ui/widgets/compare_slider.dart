@@ -37,9 +37,62 @@ class _CompareSliderState extends State<CompareSlider> {
   /// Divider position as a fraction of the width.
   double _split = 0.5;
 
+  /// Dragging must track the finger exactly; the snap buttons look better
+  /// sweeping across. Same value, two different durations.
+  Duration _glide = Duration.zero;
+
+  /// Both sides are held back until both have decoded, so the comparison
+  /// never appears one half at a time — the upscaled side is several times
+  /// the pixels of the original and would otherwise always arrive second.
+  bool _ready = false;
+  Object? _pending;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _warmUp();
+  }
+
+  @override
+  void didUpdateWidget(CompareSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.beforePath != widget.beforePath ||
+        oldWidget.afterPath != widget.afterPath) {
+      _ready = false;
+      _warmUp();
+    }
+  }
+
+  Future<void> _warmUp() async {
+    final token = Object();
+    _pending = token;
+    try {
+      await Future.wait([
+        precacheImage(FileImage(File(widget.beforePath)), context),
+        precacheImage(FileImage(File(widget.afterPath)), context),
+      ]);
+    } catch (_) {
+      // A missing or undecodable file falls through to the normal error
+      // builder rather than leaving the stage blank forever.
+    }
+    // A newer pair may have been requested while these were decoding.
+    if (!mounted || _pending != token) return;
+    setState(() => _ready = true);
+  }
+
   void _moveTo(double dx, double width) {
     if (width <= 0) return;
-    setState(() => _split = (dx / width).clamp(0.0, 1.0));
+    setState(() {
+      _glide = Duration.zero;
+      _split = (dx / width).clamp(0.0, 1.0);
+    });
+  }
+
+  void _snapTo(double value) {
+    setState(() {
+      _glide = const Duration(milliseconds: 260);
+      _split = value;
+    });
   }
 
   @override
@@ -47,7 +100,6 @@ class _CompareSliderState extends State<CompareSlider> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final handleX = width * _split;
 
         return GestureDetector(
           // Tap anywhere to jump the divider there; drag to sweep it.
@@ -55,30 +107,144 @@ class _CompareSliderState extends State<CompareSlider> {
           onHorizontalDragUpdate: (d) => _moveTo(d.localPosition.dx, width),
           child: ColoredBox(
             color: Colors.black,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _Side(path: widget.afterPath),
-                ClipRect(
-                  clipper: _LeftClipper(_split),
-                  child: _Side(path: widget.beforePath),
-                ),
-                _Handle(x: handleX),
-                _Tag(
-                  label: widget.beforeLabel,
-                  alignment: Alignment.topLeft,
-                  visible: _split > 0.12,
-                ),
-                _Tag(
-                  label: widget.afterLabel,
-                  alignment: Alignment.topRight,
-                  visible: _split < 0.88,
-                ),
-              ],
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: _split),
+              duration: _glide,
+              curve: Curves.easeOutCubic,
+              builder: (context, split, _) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  _Side(path: widget.afterPath),
+                  ClipRect(
+                    clipper: _LeftClipper(split),
+                    child: _Side(path: widget.beforePath),
+                  ),
+                  if (split > 0.001 && split < 0.999) _Handle(x: width * split),
+                  _Tag(
+                    label: widget.beforeLabel,
+                    alignment: Alignment.topLeft,
+                    visible: split > 0.12,
+                  ),
+                  _Tag(
+                    label: widget.afterLabel,
+                    alignment: Alignment.topRight,
+                    visible: split < 0.88,
+                  ),
+                  _SnapBar(
+                    split: split,
+                    beforeLabel: widget.beforeLabel,
+                    afterLabel: widget.afterLabel,
+                    onSnap: _snapTo,
+                  ),
+                  // Covers rather than replaces the comparison: the widgets
+                  // below are already laid out and simply become visible
+                  // together once both sides have decoded.
+                  if (!_ready)
+                    const ColoredBox(
+                      color: Colors.black,
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// One click to see a whole side, instead of having to drag the divider all
+/// the way across every time.
+class _SnapBar extends StatelessWidget {
+  const _SnapBar({
+    required this.split,
+    required this.beforeLabel,
+    required this.afterLabel,
+    required this.onSnap,
+  });
+
+  final double split;
+  final String beforeLabel;
+  final String afterLabel;
+  final ValueChanged<double> onSnap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        // Scales down rather than overflowing when the stage is narrow — a
+        // half-width comparison pane, or a very tall portrait image.
+        child: FittedBox(fit: BoxFit.scaleDown, child: _bar()),
+      ),
+    );
+  }
+
+  Widget _bar() {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SnapChip(
+            label: beforeLabel,
+            selected: split > 0.999,
+            onPressed: () => onSnap(1),
+          ),
+          _SnapChip(
+            label: 'Banding',
+            selected: split > 0.001 && split < 0.999,
+            onPressed: () => onSnap(0.5),
+          ),
+          _SnapChip(
+            label: afterLabel,
+            selected: split < 0.001,
+            onPressed: () => onSnap(0),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SnapChip extends StatelessWidget {
+  const _SnapChip({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? LabColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : LabColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -111,8 +277,7 @@ class _LeftClipper extends CustomClipper<Rect> {
       Rect.fromLTWH(0, 0, size.width * fraction, size.height);
 
   @override
-  bool shouldReclip(_LeftClipper oldClipper) =>
-      oldClipper.fraction != fraction;
+  bool shouldReclip(_LeftClipper oldClipper) => oldClipper.fraction != fraction;
 }
 
 class _Handle extends StatelessWidget {
