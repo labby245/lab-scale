@@ -108,7 +108,7 @@ Pelajaran umum dari jebakan kedua: `flutter analyze` + `flutter test` + `flutter
 | Item | Catatan |
 |---|---|
 | Signing + notarisasi | Butuh sertifikat Developer ID. Semua langkah lain sudah terbukti. |
-| Uji interaksi manual | Drag & drop dan pemutaran preview media_kit belum dicoba dengan tangan — verifikasi sejauh ini lewat test dan tangkapan layar. |
+| Uji interaksi manual | Drag & drop, batch berjalan, dan slider pembanding belum pernah disentuh tangan manusia. Grid terverifikasi lewat tangkapan layar app sungguhan; overlay progress dan slider lewat 11 widget test. |
 | Ikon Windows | `.ico` sudah diganti tapi belum di-build ulang di Windows. |
 | Rilis | Belum ada tag maupun GitHub Release. `dist/` gitignored. |
 
@@ -127,6 +127,17 @@ Dua catatan:
 2. `.ico`-nya 364 KB karena ImageMagick di mesin ini selalu menulis entri sebagai BMP, bukan PNG. Berfungsi normal di Windows, hanya lebih besar dari perlunya. Kalau mau ramping, bangun ulang `.ico` di Windows.
 
 Ikon macOS sudah terbukti: masuk `Assets.car` dan tampil di Dock. Ikon Windows belum di-build ulang sejak diganti.
+
+## Alur UI
+
+Bentuknya menyusul FreeScaler dalam dua hal yang diminta: **satu area besar yang sekaligus drop zone dan galeri**, dan **progress per file di atas gambarnya**.
+
+- `FileStage` (`lib/ui/widgets/file_stage.dart`) adalah kolom kiri. Kosong ia jadi undangan drop; terisi, rectangle yang sama berubah jadi grid. Drop target-nya membungkus seluruh kartu, jadi menjatuhkan file ke grid yang sudah terisi tetap bekerja. Ini menggantikan kartu "Pilih File" lama yang jadi mati begitu tugasnya selesai.
+- `FileGrid` memberi tiap file satu tile dengan poster, nama, ukuran, dan statusnya. Saat batch jalan, tile yang tidak sedang dikerjakan meredup ke opacity 0,45 dan tile aktif memakai overlay progress + persentase. Bar-nya *indeterminate* selama tahap yang tidak melaporkan progres (ekstraksi frame), lalu jadi terukur.
+- `CompareSlider` menempatkan hasil di atas aslinya dan meng-clip sisi "sebelum" ke kiri pembatas. Keduanya digambar `BoxFit.contain` di kotak yang sama, dan karena upscale mempertahankan rasio aspek, keduanya jatuh tepat bertindihan — jadi apa pun yang bergerak saat digeser adalah perbedaan nyata, bukan artefak layout.
+- Poster dibuat `Thumbnailer` lewat FFmpeg, bukan decoder Flutter. Mahal satu subprocess per file, tapi TIFF jadi ikut jalan (Flutter tidak bisa mendekodenya sama sekali), sumber 6000px tidak pernah didekode penuh hanya untuk mengisi tile 170px, dan video serta foto lewat jalur yang sama.
+
+Status per file diturunkan dari panjang `_results`: hasil ditambahkan berurutan, jadi sebuah file punya hasil persis ketika indeksnya di bawah jumlah yang sudah terkumpul. Tidak ada state per-tile yang perlu dijaga sinkron.
 
 ## Layout satu layar
 

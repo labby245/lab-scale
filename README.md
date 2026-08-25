@@ -7,7 +7,8 @@ Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untu
 - **Upscale** — Real-ESRGAN (foto / anime / video anime) atau Lanczos untuk hasil cepat tanpa AI. Skala 1×–4×.
 - **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
 - **Boost ke 60 FPS** — motion interpolation via RIFE AI (5–10× lebih cepat dan jauh lebih halus) atau FFmpeg `minterpolate`.
-- **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan.
+- **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
+- **Bandingkan sebelum/sesudah** — setelah file selesai, preview jadi pembanding dengan pembatas yang bisa digeser kiri-kanan. Untuk video, yang dibandingkan satu frame, dan tombol **Putar** memutar hasilnya.
 - **Kualitas & codec** — Fast → Ultra (lossless), H.264 / HEVC / AV1, dengan NVENC (Windows) atau VideoToolbox (macOS) otomatis bila tersedia.
 - **Audio dipertahankan** — audio AAC di-copy apa adanya, format lain di-transcode ke AAC 192k.
 
@@ -129,8 +130,15 @@ lib/
     media_file.dart        # penemuan file & folder
   state/
     app_controller.dart    # state app, preferensi, eksekusi job
+  core/
+    thumbnailer.dart       # poster frame lewat FFmpeg untuk grid & pembanding
   ui/
-    theme.dart  home_page.dart  widgets/
+    theme.dart  home_page.dart
+    widgets/
+      file_stage.dart      # drop zone yang berubah jadi grid
+      file_grid.dart       # tile + status per file
+      compare_slider.dart  # pembatas sebelum/sesudah
+      preview_card.dart  ops_card.dart  log_card.dart  ...
 
 tools/
   fetch_binaries.ps1 / .sh    # unduh ffmpeg + ncnn ke bin/

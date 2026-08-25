@@ -15,7 +15,7 @@ import 'widgets/ops_card.dart';
 import 'widgets/preview_card.dart';
 import 'widgets/results_card.dart';
 import 'widgets/setup_panel.dart';
-import 'widgets/source_card.dart';
+import 'widgets/file_stage.dart';
 
 /// Below this width the two columns stack instead of sitting side by side.
 const double _kTwoColumnBreakpoint = 1040;
@@ -99,6 +99,11 @@ class _WideWorkspace extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
+                flex: 6,
+                child: _StageColumn(controller: controller),
+              ),
+              const SizedBox(width: LabSpacing.gap),
+              Expanded(
                 flex: 5,
                 // The controls are the only part that can outgrow the window
                 // (Real-ESRGAN and RIFE both expand when switched on), so this
@@ -106,11 +111,6 @@ class _WideWorkspace extends StatelessWidget {
                 child: SingleChildScrollView(
                   child: _ControlColumn(controller: controller),
                 ),
-              ),
-              const SizedBox(width: LabSpacing.gap),
-              Expanded(
-                flex: 6,
-                child: _StageColumn(controller: controller),
               ),
             ],
           ),
@@ -132,9 +132,20 @@ class _NarrowWorkspace extends StatelessWidget {
       padding: const EdgeInsets.all(LabSpacing.pagePadding),
       child: Column(
         children: [
+          FileStage(controller: controller),
+          const SizedBox(height: LabSpacing.gap),
           _ControlColumn(controller: controller),
           const SizedBox(height: LabSpacing.gap),
-          PreviewCard(file: controller.firstFile),
+          Builder(
+            builder: (context) {
+              final file = controller.previewFile ?? controller.firstFile;
+              return PreviewCard(
+                file: file,
+                result: controller.resultForFile(file),
+                thumbnailer: controller.thumbnailer,
+              );
+            },
+          ),
           if (controller.logLines.isNotEmpty) ...[
             const SizedBox(height: LabSpacing.gap),
             LogCard(controller: controller),
@@ -154,8 +165,6 @@ class _ControlColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        SourceCard(controller: controller),
-        const SizedBox(height: LabSpacing.gap),
         OpsCard(controller: controller),
         const SizedBox(height: LabSpacing.gap),
         _ProcessButton(controller: controller),
@@ -168,7 +177,9 @@ class _ControlColumn extends StatelessWidget {
   }
 }
 
-/// Preview takes every pixel the log does not.
+/// The gallery column: the file stage holds it — drop target when empty, grid
+/// once filled — with the preview opening underneath only when a tile is
+/// picked, and the log arriving during a run.
 class _StageColumn extends StatelessWidget {
   const _StageColumn({required this.controller});
 
@@ -176,11 +187,26 @@ class _StageColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final preview = controller.previewFile;
+
     return Column(
       children: [
         Expanded(
-          child: PreviewCard(file: controller.firstFile, expand: true),
+          flex: preview == null ? 1 : 3,
+          child: FileStage(controller: controller, expand: true),
         ),
+        if (preview != null) ...[
+          const SizedBox(height: LabSpacing.gap),
+          Expanded(
+            flex: 2,
+            child: PreviewCard(
+              file: preview,
+              result: controller.resultForFile(preview),
+              thumbnailer: controller.thumbnailer,
+              expand: true,
+            ),
+          ),
+        ],
         if (controller.logLines.isNotEmpty) ...[
           const SizedBox(height: LabSpacing.gap),
           LogCard(controller: controller, height: _kWideLogHeight),
@@ -273,17 +299,14 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
+          // The app icon itself, so the header mark and the one in the Dock
+          // are the same thing. Its rounded corners are baked into the PNG —
+          // clipping again here would round them twice.
+          Image.asset(
+            'assets/logo.png',
             width: 34,
             height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [LabColors.primary, LabColors.accent],
-              ),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Icon(Icons.open_in_full, size: 17, color: Colors.white),
+            filterQuality: FilterQuality.medium,
           ),
           const SizedBox(width: 12),
           const Column(

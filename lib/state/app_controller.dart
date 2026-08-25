@@ -16,6 +16,7 @@ import '../core/ffmpeg_runner.dart';
 import '../core/job_log.dart';
 import '../core/pipeline.dart';
 import '../core/rife_runner.dart';
+import '../core/thumbnailer.dart';
 import '../models/media_file.dart';
 import '../models/process_options.dart';
 
@@ -39,8 +40,28 @@ class Capabilities {
 
 enum JobPhase { idle, running, done }
 
+/// Where a single queued file stands, for the selection grid.
+enum FileStatus { queued, running, done, failed }
+
 class AppController extends ChangeNotifier {
   AppController();
+
+  /// Builds a controller already parked in a given state, so widgets that read
+  /// it can be exercised without running a real job.
+  @visibleForTesting
+  AppController.inState({
+    List<MediaFile> files = const [],
+    JobPhase phase = JobPhase.idle,
+    int? activeIndex,
+    double? fileProgress,
+    List<JobResult> results = const [],
+  }) {
+    _files = files;
+    _phase = phase;
+    _activeIndex = activeIndex;
+    _fileProgress = fileProgress;
+    _results = results;
+  }
 
   // ── Preference keys ───────────────────────────────────────────────────────
   static const _kUpscaleModel = 'pref_upscale_model';
@@ -63,6 +84,10 @@ class AppController extends ChangeNotifier {
   String _outputDir = '';
   String _tempDir = '';
   MediaInfo? _sourceInfo;
+  int? _activeIndex;
+  double? _fileProgress;
+  MediaFile? _previewFile;
+  Thumbnailer? _thumbnailer;
 
   SharedPreferences? _prefs;
   StreamSubscription<String>? _logSub;
@@ -84,6 +109,44 @@ class AppController extends ChangeNotifier {
   List<JobResult> get results => _results;
   String? get errorMessage => _errorMessage;
   String get outputDir => _outputDir;
+
+  /// Index of the file being processed right now, or null when idle.
+  int? get activeIndex => _activeIndex;
+
+  /// Progress of the *current* file, 0–1. Distinct from [progress], which is
+  /// that fraction spread across the whole queue for the overall bar.
+  double? get fileProgress => _fileProgress;
+
+  /// File the preview pane is showing, or null when the grid has the column
+  /// to itself.
+  MediaFile? get previewFile => _previewFile;
+
+  /// Shared poster cache for the grid. Null until [initialize] has run.
+  Thumbnailer? get thumbnailer => _thumbnailer;
+
+  /// Where [index] stands in the queue.
+  ///
+  /// Results are appended in queue order, so a file has a result exactly when
+  /// its index is below the number collected so far.
+  FileStatus statusFor(int index) {
+    if (index < _results.length) {
+      return _results[index].isSuccess ? FileStatus.done : FileStatus.failed;
+    }
+    if (isRunning && index == _activeIndex) return FileStatus.running;
+    return FileStatus.queued;
+  }
+
+  /// The finished result for [index], or null while it is still queued.
+  JobResult? resultFor(int index) =>
+      index < _results.length ? _results[index] : null;
+
+  /// The finished result for [file], matched by path rather than identity so a
+  /// rebuilt [MediaFile] still lines up.
+  JobResult? resultForFile(MediaFile? file) {
+    if (file == null) return null;
+    final index = _files.indexWhere((f) => f.path == file.path);
+    return index < 0 ? null : resultFor(index);
+  }
 
   /// Images have no frame rate, so the FPS toggle is hidden for them.
   bool get showFpsOption => _files.any((f) => f.isVideo);
@@ -121,6 +184,7 @@ class AppController extends ChangeNotifier {
     final temp = await getTemporaryDirectory();
     _tempDir = p.join(temp.path, 'labscale');
     await Directory(_tempDir).create(recursive: true);
+    _thumbnailer = Thumbnailer(cacheDir: p.join(_tempDir, 'thumbs'));
 
     _prefs = await SharedPreferences.getInstance();
     await _probeCapabilities();
@@ -205,6 +269,9 @@ class AppController extends ChangeNotifier {
     _phase = JobPhase.idle;
     _statusText = '';
     _sourceInfo = null;
+    _activeIndex = null;
+    _fileProgress = null;
+    _previewFile = null;
 
     // FPS boost is meaningless for a photo-only selection.
     if (!showFpsOption && _options.fpsBoost) {
@@ -251,7 +318,24 @@ class AppController extends ChangeNotifier {
     _statusText = '';
     _progress = null;
     _sourceInfo = null;
+    _activeIndex = null;
+    _fileProgress = null;
+    _previewFile = null;
     notifyListeners();
+  }
+
+  /// Opens [file] in the preview pane, or closes the pane when null.
+  void selectForPreview(MediaFile? file) {
+    _previewFile = (file != null && file.path == _previewFile?.path) ? null : file;
+    notifyListeners();
+  }
+
+  /// Drops one file from the queue. Ignored mid-run, like every other
+  /// selection change.
+  void removeAt(int index) {
+    if (isRunning) return;
+    if (index < 0 || index >= _files.length) return;
+    setFiles([..._files]..removeAt(index));
   }
 
   void dismissError() {
@@ -279,6 +363,8 @@ class AppController extends ChangeNotifier {
 
     _phase = JobPhase.running;
     _progress = null;
+    _fileProgress = null;
+    _activeIndex = null;
     _logLines = const [];
     _results = const [];
     _errorMessage = null;
@@ -294,6 +380,8 @@ class AppController extends ChangeNotifier {
     try {
       for (var i = 0; i < total; i++) {
         final file = queue[i];
+        _activeIndex = i;
+        _fileProgress = null;
         _statusText = total == 1
             ? 'Memproses ${file.displayName}…'
             : '[${i + 1}/$total] ${file.displayName}';
@@ -328,7 +416,18 @@ class AppController extends ChangeNotifier {
     } finally {
       _phase = JobPhase.done;
       _progress = 1.0;
+      _activeIndex = null;
+      _fileProgress = null;
       _results = List.unmodifiable(collected);
+      // Seeing what changed is the point of having run the job, so open the
+      // first successful result rather than making the user hunt for it. A
+      // preview the user opened themselves is left alone.
+      if (_previewFile == null) {
+        final firstWin = collected.indexWhere((r) => r.isSuccess);
+        if (firstWin >= 0 && firstWin < queue.length) {
+          _previewFile = queue[firstWin];
+        }
+      }
       notifyListeners();
     }
   }
@@ -339,7 +438,9 @@ class AppController extends ChangeNotifier {
       notifyListeners();
     });
     _progressSub = reporter.progress.listen((fraction) {
-      // Spread each file's progress across its slice of the overall bar.
+      // The grid wants this file's own fraction; the overall bar wants it
+      // spread across this file's slice of the queue.
+      _fileProgress = fraction;
       _progress = fraction == null ? null : (index + fraction) / total;
       notifyListeners();
     });
