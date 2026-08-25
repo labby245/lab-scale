@@ -26,6 +26,8 @@ Video mengambil salah satu dari dua jalur:
 - **Direct** — satu pass FFmpeg yang mencakup Lanczos, `minterpolate`, dan unsharp. Dipakai bila tidak ada stage AI.
 - **Frames** — dekode ke PNG → (RIFE) → (Real-ESRGAN) → enkode ulang. Wajib bila ada stage ncnn.
 
+> Melanjutkan pekerjaan ini di mesin lain (khususnya macOS)? Baca [HANDOFF.md](HANDOFF.md) — berisi status verifikasi per platform, apa yang belum teruji, dan jebakan yang sudah pernah kena.
+
 ## Setup development
 
 ```bash
