@@ -128,6 +128,28 @@ Dua catatan:
 
 Ikon macOS sudah terbukti: masuk `Assets.car` dan tampil di Dock. Ikon Windows belum di-build ulang sejak diganti.
 
+## Model AI
+
+**Upscale.** Binary `realesrgan-ncnn-vulkan` memuat model apa pun berarsitektur ESRGAN dari folder `models/` lewat `-n <nama>`, jadi model komunitas bisa dijatuhkan begitu saja. Yang menghalangi hanya `UpscaleModel` di `lib/models/process_options.dart` yang masih enum hardcoded.
+
+Diukur di M1 dengan metode turun-4×-lalu-naik-4× dibanding aslinya (SSIM + rasio detail terhadap asli):
+
+| Model | desain SSIM | foto: rasio detail | detik |
+|---|---|---|---|
+| ultramix-balanced-4x | **0,9931** | **0,99×** | 6,6 |
+| ultrasharp-4x | 0,9875 | 1,05× | 6,4 |
+| remacri-4x | 0,9871 | 1,59× | 6,6 |
+| realesrgan-x4plus *(default)* | 0,9827 | 0,93× | 6,5 |
+| upscayl-lite-4x | 0,9784 | 0,72× | **0,7** |
+| high-fidelity-4x | 0,9769 | 0,39× | 6,5 |
+| Lanczos | 0,9768 | 0,18× | 0,4 |
+
+Hati-hati membaca SSIM pada foto: di sana Lanczos justru tertinggi karena membuang detail sehingga tidak pernah salah menebak, sementara model GAN dihukum karena mengarang detail. Untuk foto, rasio detail mendekati 1,00× yang berarti.
+
+`upscayl-standard-4x` dan `digital-art-4x` milik Upscayl **byte-identical** dengan `realesrgan-x4plus` dan `realesrgan-x4plus-anime` — hanya ganti nama. Lisensi tiap model komunitas perlu ditelusuri sebelum dibundel; Upscayl sendiri AGPL-3.0 sementara LabScale MIT.
+
+**RIFE.** Lihat catatan `--rife-latest` di README. Intinya: model dan binary terikat berpasangan, tidak bisa salah satu saja.
+
 ## Alur UI
 
 Bentuknya menyusul FreeScaler dalam dua hal yang diminta: **satu area besar yang sekaligus drop zone dan galeri**, dan **progress per file di atas gambarnya**.

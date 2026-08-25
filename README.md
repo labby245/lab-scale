@@ -20,7 +20,7 @@ LabScale adalah aplikasi Flutter murni. Tidak ada runtime Python, tidak ada serv
 |---|---|---|
 | `ffmpeg` / `ffprobe` | probe, ekstrak frame, filter, enkode | NVENC / VideoToolbox |
 | `realesrgan-ncnn-vulkan` | upscale AI | Vulkan (Win) / Metal via MoltenVK (Mac) |
-| `rife-ncnn-vulkan` | interpolasi frame AI | Vulkan / Metal |
+| `rife-ncnn-vulkan` | interpolasi frame AI (RIFE v4.25) | Vulkan / Metal |
 
 Video mengambil salah satu dari dua jalur:
 
@@ -44,6 +44,10 @@ flutter run -d windows    # atau: flutter run -d macos
 ```
 
 `bin/` sengaja tidak masuk git — isinya besar dan berlisensi terpisah.
+
+**RIFE v4.25 (opsional).** Default-nya v4.6 dari rilis nihui 2022, karena unduhannya ringan. Untuk model yang jauh lebih baik, tambahkan `--rife-latest` (bash) atau `-RifeLatest` (PowerShell). Harganya unduhan ~790 MB: **setiap model RIFE setelah v4.6 butuh build ncnn yang lebih baru** — binary lama menolak semuanya dengan `layer MemoryData not exists or registered` — dan satu-satunya build yang dipublikasikan ada di dalam satu arsip berisi ~50 model. Hanya yang diperlukan yang disimpan.
+
+Diukur di M1, 24 frame 1920×1080: v4.6 4,5 detik, v4.25 6,0 detik. Binary barunya tidak menurunkan performa model lama (4,4 detik).
 
 ### Di mana binary dicari
 

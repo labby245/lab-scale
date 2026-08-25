@@ -48,10 +48,17 @@ try {
         'rife-ncnn-vulkan.exe',
         'vcomp140.dll'          # OpenMP runtime the ncnn binaries link against
     )
-    $payloadDirs = @(
-        'models',               # Real-ESRGAN weights
-        'rife-v4.6'             # the only RIFE model LabScale asks for
-    )
+    $payloadDirs = @('models')   # Real-ESRGAN weights
+
+    # Only the RIFE model the app would actually pick, in the same order as
+    # Binaries._modelDirNames. Shipping the rest would add ~10 MB each for
+    # weights that never load.
+    foreach ($candidate in @('rife-v4.25', 'rife-v4.15', 'rife-v4.6')) {
+        if (Test-Path (Join-Path $binDir $candidate)) {
+            $payloadDirs += $candidate
+            break
+        }
+    }
 
     if (Test-Path $binDir) {
         Write-Host "`n== menyalin bin/ ke payload ==" -ForegroundColor Cyan

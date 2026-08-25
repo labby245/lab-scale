@@ -57,7 +57,17 @@ rm -rf "$RESOURCE_BIN"
 mkdir -p "$RESOURCE_BIN"
 
 PAYLOAD_FILES=(ffmpeg ffprobe realesrgan-ncnn-vulkan rife-ncnn-vulkan)
-PAYLOAD_DIRS=(models rife-v4.6)   # Real-ESRGAN weights + the one RIFE model
+PAYLOAD_DIRS=(models)             # Real-ESRGAN weights
+
+# Only the RIFE model the app would actually pick, in the same order as
+# Binaries._modelDirNames. Shipping the rest would add ~10 MB each for weights
+# that never load.
+for candidate in rife-v4.25 rife-v4.15 rife-v4.6; do
+  if [[ -d "$BIN_DIR/$candidate" ]]; then
+    PAYLOAD_DIRS+=("$candidate")
+    break
+  fi
+done
 
 for name in "${PAYLOAD_FILES[@]}"; do
   if [[ -f "$BIN_DIR/$name" ]]; then

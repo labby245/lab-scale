@@ -10,12 +10,27 @@
 #   realesrgan-ncnn-vulkan  AI upscaling via Metal    (BSD-3)
 #   rife-ncnn-vulkan        AI frame interpolation    (MIT)
 #
-# Usage: tools/fetch_binaries.sh [--force]
+# Usage: tools/fetch_binaries.sh [--force] [--rife-latest]
+#
+#   --rife-latest   Fetch RIFE v4.25 instead of v4.6. Costs a 792 MB download:
+#                   every model past v4.6 needs an ncnn build newer than
+#                   nihui's 2022 release (the old binary rejects them all with
+#                   "layer MemoryData not exists or registered"), and the only
+#                   published macOS build of it ships inside one archive with
+#                   ~50 models. Only two members are kept; the archive is
+#                   deleted afterwards.
 
 set -euo pipefail
 
 FORCE=0
-[[ "${1:-}" == "--force" ]] && FORCE=1
+RIFE_LATEST=0
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE=1 ;;
+    --rife-latest) RIFE_LATEST=1 ;;
+    *) echo "opsi tidak dikenal: $arg" >&2; exit 2 ;;
+  esac
+done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$ROOT/bin"
@@ -107,11 +122,24 @@ fi
 # ── RIFE ─────────────────────────────────────────────────────────────────────
 info $'\n[3/3] RIFE (ncnn-vulkan)'
 if ! already_present rife-ncnn-vulkan; then
-  d="$(fetch_zip \
-    'https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-macos.zip' \
-    rife)"
-  install_exe "$d" rife-ncnn-vulkan
-  install_models "$d" rife-v4.6
+  if [[ $RIFE_LATEST -eq 1 ]]; then
+    skip "mengunduh rilis TNTwise (792 MB) — hanya 2 berkas yang disimpan"
+    archive="$STAGING/rife-latest.zip"
+    curl -fL --retry 3 --progress-bar \
+      'https://github.com/TNTwise/rife-ncnn-vulkan/releases/download/20250112/macos.zip' \
+      -o "$archive"
+    unzip -qo "$archive" 'macos/rife-ncnn-vulkan' 'macos/rife-v4.25/*' -d "$STAGING/rife-latest"
+    rm -f "$archive"
+    install_exe "$STAGING/rife-latest" rife-ncnn-vulkan
+    install_models "$STAGING/rife-latest" rife-v4.25
+  else
+    d="$(fetch_zip \
+      'https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-macos.zip' \
+      rife)"
+    install_exe "$d" rife-ncnn-vulkan
+    install_models "$d" rife-v4.6
+    skip "RIFE v4.6 (2022). Pakai --rife-latest untuk v4.25 yang lebih baik."
+  fi
 fi
 
 info $'\nSelesai. Isi bin/:'

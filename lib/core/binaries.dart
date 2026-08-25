@@ -93,7 +93,14 @@ class Binaries {
   /// `models/` folder that belongs to Real-ESRGAN.
   static const Map<Tool, List<String>> _modelDirNames = {
     Tool.realesrgan: ['models'],
+    // Newest first. Every RIFE model past v4.6 needs a newer ncnn build than
+    // nihui's 2022 release — that binary fails them all with "layer MemoryData
+    // not exists or registered" — so `tools/fetch_binaries` fetches the
+    // matching pair. An install that only has the old model still works: the
+    // list simply falls through to it.
     Tool.rife: [
+      'rife-v4.25',
+      'rife-v4.15',
       'rife-v4.6',
       'rife-v4',
       'rife-anime',

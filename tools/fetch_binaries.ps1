@@ -18,7 +18,13 @@
 [CmdletBinding()]
 param(
     [string]$BinDir = (Join-Path $PSScriptRoot '..' 'bin'),
-    [switch]$Force
+    [switch]$Force,
+    # Fetch RIFE v4.25 instead of v4.6. Costs a 788 MB download: every model
+    # past v4.6 needs an ncnn build newer than nihui's 2022 release (the old
+    # binary rejects them all with "layer MemoryData not exists or
+    # registered"), and the only published Windows build of it ships inside one
+    # archive with ~50 models. Only what is needed is kept.
+    [switch]$RifeLatest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -121,13 +127,26 @@ try {
     # ── RIFE ──────────────────────────────────────────────────────────────────
     Write-Host "`n[3/3] RIFE (ncnn-vulkan)" -ForegroundColor Cyan
     if (-not (Test-AlreadyPresent 'rife-ncnn-vulkan.exe')) {
-        $dir = Get-Archive `
-            -Url 'https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-windows.zip' `
-            -FileName 'rife.zip'
-        Copy-Payload -SourceDir $dir `
-            -Executables @('rife-ncnn-vulkan.exe') `
-            -SupportFiles @('vcomp140.dll') `
-            -ModelDirNames @('rife-v4.6')
+        if ($RifeLatest) {
+            Write-Host '  mengunduh rilis TNTwise (788 MB) — hanya yang perlu disimpan' -ForegroundColor Yellow
+            $dir = Get-Archive `
+                -Url 'https://github.com/TNTwise/rife-ncnn-vulkan/releases/download/20250112/windows.zip' `
+                -FileName 'rife-latest.zip'
+            Copy-Payload -SourceDir $dir `
+                -Executables @('rife-ncnn-vulkan.exe') `
+                -SupportFiles @('vcomp140.dll') `
+                -ModelDirNames @('rife-v4.25')
+        }
+        else {
+            $dir = Get-Archive `
+                -Url 'https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-windows.zip' `
+                -FileName 'rife.zip'
+            Copy-Payload -SourceDir $dir `
+                -Executables @('rife-ncnn-vulkan.exe') `
+                -SupportFiles @('vcomp140.dll') `
+                -ModelDirNames @('rife-v4.6')
+            Write-Host '  RIFE v4.6 (2022). Pakai -RifeLatest untuk v4.25 yang lebih baik.' -ForegroundColor Yellow
+        }
     }
 
     Write-Host "`nSelesai. Isi bin/:" -ForegroundColor Cyan
