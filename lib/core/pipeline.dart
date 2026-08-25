@@ -43,9 +43,10 @@ class Pipeline {
   /// Processes [file] and returns where the result landed.
   Future<JobResult> process({
     required MediaFile file,
-    required ProcessOptions options,
+    required ProcessOptions rawOptions,
     required JobReporter reporter,
   }) async {
+    final options = _resolveAvailability(rawOptions, reporter);
     final output = _outputPathFor(file, options);
     try {
       if (file.isImage) {
@@ -72,6 +73,24 @@ class Pipeline {
     }
   }
 
+  /// Downgrades options that ask for a tool this machine does not have.
+  ///
+  /// A missing RIFE falls back to FFmpeg's `minterpolate` rather than failing
+  /// the job — that is what the README and the UI both promise. A missing
+  /// Real-ESRGAN is *not* downgraded: silently swapping in Lanczos would
+  /// deliver visibly different output than the user asked for, so that one is
+  /// left to fail with a clear "tool tidak ditemukan" message.
+  ProcessOptions _resolveAvailability(
+    ProcessOptions options,
+    JobReporter reporter,
+  ) {
+    if (options.useRife && !RifeRunner.isAvailable) {
+      reporter.log('RIFE tidak ditemukan — pakai FFmpeg minterpolate.');
+      return options.copyWith(interpEngine: InterpEngine.ffmpeg);
+    }
+    return options;
+  }
+
   /// The most informative line of a stderr tail is usually the last real one.
   static String _lastLine(String detail) {
     final lines = detail
@@ -83,13 +102,31 @@ class Pipeline {
     return lines.last.length > 300 ? lines.last.substring(0, 300) : lines.last;
   }
 
+  /// Builds the output path, appending `_2`, `_3`… when the name is taken.
+  ///
+  /// A recursive folder pick routinely contains several files with the same
+  /// basename in different subfolders; without this they would overwrite each
+  /// other while every one still reported success.
   String _outputPathFor(MediaFile file, ProcessOptions options) {
     final ext = file.isImage
         ? (options.quality == Quality.ultra ? '.png' : '.jpg')
         : '.mp4';
-    final name = '${file.baseName}${options.outputSuffix()}$ext';
-    return p.join(outputDir, name);
+    final stem = '${file.baseName}${options.outputSuffix()}';
+
+    var candidate = p.join(outputDir, '$stem$ext');
+    var counter = 2;
+    while (File(candidate).existsSync() || _claimed.contains(candidate)) {
+      candidate = p.join(outputDir, '${stem}_$counter$ext');
+      counter++;
+    }
+    _claimed.add(candidate);
+    return candidate;
   }
+
+  /// Paths handed out during this pipeline's lifetime. Needed because a file is
+  /// only created at the very end of a job, so `existsSync` alone would hand
+  /// the same name to two files in one batch.
+  final Set<String> _claimed = {};
 
   // ── Video ─────────────────────────────────────────────────────────────────
 
@@ -157,8 +194,27 @@ class Pipeline {
         framesDir = upDir;
       }
 
-      final needsResize = options.useEsrgan &&
-          EsrganRunner.needsPostResize(options.upscaleScale);
+      // Work out the final size. Two separate cases land here:
+      //   * ESRGAN ran at its native 2/3/4x — only 1x ("enhance only") needs a
+      //     resize back down.
+      //   * ESRGAN did NOT run, but Lanczos upscaling was requested and we are
+      //     on the frames path because of RIFE. The direct-path filter chain
+      //     never executed, so the scale has to happen here or the output comes
+      //     out at source resolution while the filename claims otherwise.
+      final int? targetWidth;
+      final int? targetHeight;
+      if (options.useEsrgan) {
+        final needsResize =
+            EsrganRunner.needsPostResize(options.upscaleScale);
+        targetWidth = needsResize ? info.width * options.upscaleScale : null;
+        targetHeight = needsResize ? info.height * options.upscaleScale : null;
+      } else if (options.lanczosScale != null) {
+        targetWidth = info.width * options.lanczosScale!;
+        targetHeight = info.height * options.lanczosScale!;
+      } else {
+        targetWidth = null;
+        targetHeight = null;
+      }
 
       await FfmpegRunner.encodeFromFrames(
         framesDir: framesDir,
@@ -168,9 +224,9 @@ class Pipeline {
         options: options,
         info: info,
         reporter: reporter,
-        postWidth: needsResize ? info.width * options.upscaleScale : null,
-        postHeight: needsResize ? info.height * options.upscaleScale : null,
-        sharpness: options.sharpness,
+        postWidth: targetWidth,
+        postHeight: targetHeight,
+        sharpness: options.effectiveSharpness,
         // RIFE already produced the target rate; only FFmpeg's own engine still
         // needs the minterpolate filter at encode time.
         minterpolate: options.fpsBoost && !options.useRife,
@@ -203,7 +259,7 @@ class Pipeline {
         output: output,
         reporter: reporter,
         lanczosScale: options.upscaleScale > 1 ? options.upscaleScale : null,
-        sharpness: options.sharpness,
+        sharpness: options.effectiveSharpness,
         quality: options.quality,
       );
       reporter.report(1.0);
@@ -231,7 +287,7 @@ class Pipeline {
         reporter: reporter,
         targetWidth: needsResize ? info.width * options.upscaleScale : null,
         targetHeight: needsResize ? info.height * options.upscaleScale : null,
-        sharpness: options.sharpness,
+        sharpness: options.effectiveSharpness,
         quality: options.quality,
       );
       reporter.report(1.0);

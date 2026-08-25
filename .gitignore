@@ -1,9 +1,12 @@
+# Project-specific folders are anchored with a leading slash so they match only
+# at the repo root. An unanchored `models/` would also swallow `lib/models/`.
+
 # ── Flutter / Dart ──────────────────────────────────────────────────────────
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
-build/
+/build/
 *.iml
 .idea/
 .vscode/
@@ -25,17 +28,17 @@ macos/Flutter/ephemeral/
 # ── External binaries ───────────────────────────────────────────────────────
 # ffmpeg / realesrgan-ncnn-vulkan / rife-ncnn-vulkan + their model folders.
 # Large and separately licensed — fetch with tools/fetch_binaries.{ps1,sh}.
-bin/
+/bin/
 
 # ── Build output ────────────────────────────────────────────────────────────
-dist/
+/dist/
 
 # ── Runtime ─────────────────────────────────────────────────────────────────
-uploads/
-outputs/
-temp/
-logs/
-cache/
+/uploads/
+/outputs/
+/temp/
+/logs/
+/cache/
 
 # ── OS noise ────────────────────────────────────────────────────────────────
 .DS_Store
@@ -47,7 +50,7 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-labels/
-models/
-yolo_runs/
+/labels/
+/models/
+/yolo_runs/
 *.pt

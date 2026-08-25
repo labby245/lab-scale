@@ -192,19 +192,34 @@ class FfmpegRunner {
   }
 
   /// Encodes one synthetic frame to /dev/null to prove the encoder opens.
+  ///
+  /// Uses `Process.start` rather than `Process.run` so a wedged driver can
+  /// actually be killed — `Future.timeout` alone abandons the future while the
+  /// child keeps running, leaking an ffmpeg process per probe.
   static Future<bool> _canEncode(String ffmpeg, String encoder) async {
+    Process? process;
     try {
-      final result = await Process.run(ffmpeg, [
+      process = await Process.start(ffmpeg, [
         '-hide_banner', '-loglevel', 'error', '-nostats',
         '-f', 'lavfi', '-i', 'nullsrc=s=256x256:d=1',
         '-c:v', encoder,
         '-frames:v', '1',
         '-f', 'null', '-',
-      ]).timeout(const Duration(seconds: 20));
-      return result.exitCode == 0;
+      ]);
+      // Drain both pipes; a full stdio buffer would deadlock the child.
+      unawaited(process.stdout.drain<void>());
+      unawaited(process.stderr.drain<void>());
+
+      final exitCode = await process.exitCode.timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          process!.kill(ProcessSignal.sigkill);
+          return -1;
+        },
+      );
+      return exitCode == 0;
     } on ProcessException {
-      return false;
-    } on TimeoutException {
+      process?.kill(ProcessSignal.sigkill);
       return false;
     }
   }
@@ -333,8 +348,28 @@ class FfmpegRunner {
     return 'unsharp=5:5:$amount:5:5:$amount';
   }
 
-  static List<String> _colorArgs(MediaInfo info) {
-    if (info.isHdr) {
+  /// Encoders able to carry 10-bit 4:2:0, which HDR needs.
+  static const _tenBitCapable = {
+    'libx264', 'libx265', 'libsvtav1', 'libaom-av1',
+    'hevc_nvenc', 'av1_nvenc', 'hevc_videotoolbox',
+  };
+
+  /// Picks the pixel format, keeping 10 bits when the source is HDR and the
+  /// chosen encoder can carry it.
+  static String _pixelFormat(MediaInfo info, String encoder) {
+    if (info.isHdr && _tenBitCapable.contains(encoder)) return 'yuv420p10le';
+    return 'yuv420p';
+  }
+
+  /// Colour tags must describe the pixels we actually wrote.
+  ///
+  /// Tagging PQ/bt2020 on an 8-bit yuv420p stream — which is what happens when
+  /// an HDR source is squeezed through an encoder that cannot do 10-bit —
+  /// produces a file players trust and then render with crushed, banded
+  /// highlights. In that case the honest answer is bt709.
+  static List<String> _colorArgs(MediaInfo info, String pixelFormat) {
+    final keepsHdr = info.isHdr && pixelFormat != 'yuv420p';
+    if (keepsHdr) {
       return [
         '-color_primaries', info.colorPrimaries,
         '-color_trc', info.colorTransfer,
@@ -367,10 +402,11 @@ class FfmpegRunner {
     ProgressSink? progress,
   }) async {
     final encoder = await selectEncoder(options.codec);
+    final pixelFormat = _pixelFormat(info, encoder.name);
     final filters = buildFilters(
       lanczosScale: options.lanczosScale,
       minterpolate: options.fpsBoost && options.interpEngine == InterpEngine.ffmpeg,
-      sharpness: options.sharpness,
+      sharpness: options.effectiveSharpness,
     );
 
     reporter.log('Enkode langsung [${options.quality.label}] via ${encoder.name}…');
@@ -384,8 +420,8 @@ class FfmpegRunner {
         '-y', '-i', input,
         '-c:v', encoder.name,
         ...encoder.presets[options.quality]!,
-        '-pix_fmt', 'yuv420p',
-        ..._colorArgs(info),
+        '-pix_fmt', pixelFormat,
+        ..._colorArgs(info, pixelFormat),
         '-movflags', '+faststart',
         ..._audioArgs(info),
         if (filters != null) ...['-filter:v', filters],
@@ -437,6 +473,7 @@ class FfmpegRunner {
     ProgressSink? progress,
   }) async {
     final encoder = await selectEncoder(options.codec);
+    final pixelFormat = _pixelFormat(info, encoder.name);
     reporter.log('Enkode [${options.quality.label}] via ${encoder.name}…');
 
     final filterParts = <String>[
@@ -463,8 +500,8 @@ class FfmpegRunner {
         if (info.hasAudio) ...['-map', '1:a:0?'],
         '-c:v', encoder.name,
         ...encoder.presets[options.quality]!,
-        '-pix_fmt', 'yuv420p',
-        ..._colorArgs(info),
+        '-pix_fmt', pixelFormat,
+        ..._colorArgs(info, pixelFormat),
         '-movflags', '+faststart',
         ..._audioArgs(info),
         if (filterParts.isNotEmpty) ...['-filter:v', filterParts.join(',')],

@@ -70,6 +70,23 @@ void main() {
     });
   });
 
+  group('effectiveSharpness', () {
+    test('is zero when upscale is off, however the slider is set', () {
+      // Regression: the slider only exists under the Upscale section and the
+      // filename only records sharpness when upscale is on, so an
+      // FPS-boost-only job used to get an invisible, unrecorded unsharp mask.
+      const options = ProcessOptions(fpsBoost: true, sharpness: 0.8);
+      expect(options.effectiveSharpness, 0.0);
+      expect(options.outputSuffix(), '_60fps');
+    });
+
+    test('passes the slider through when upscale is on', () {
+      const options = ProcessOptions(upscale: true, sharpness: 0.8);
+      expect(options.effectiveSharpness, 0.8);
+      expect(options.outputSuffix(), contains('sharp80'));
+    });
+  });
+
   group('outputSuffix', () {
     test('falls back to _processed when no op is selected', () {
       expect(const ProcessOptions().outputSuffix(), '_processed');

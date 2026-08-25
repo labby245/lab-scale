@@ -143,6 +143,9 @@ class AppController extends ChangeNotifier {
   /// Re-probes after the user drops binaries into `bin/` without restarting.
   Future<void> refreshCapabilities() async {
     Binaries.invalidate();
+    // A newly-dropped ffmpeg is a different build with a different encoder set,
+    // so the probed encoder list has to go too.
+    FfmpegRunner.invalidateEncoderCache();
     await _probeCapabilities();
     notifyListeners();
   }
@@ -160,11 +163,13 @@ class AppController extends ChangeNotifier {
           : UpscaleModel.lanczos;
     }
 
+    // A stored 'rife' must not survive onto a machine without RIFE: the
+    // dropdown disables that entry, which would leave it showing a selection
+    // the user cannot re-pick. The pipeline falls back either way.
     final storedEngine = prefs.getString(_kInterpEngine);
-    var engine = InterpEngine.fromId(storedEngine);
-    if (storedEngine == null) {
-      engine = _capabilities.rife ? InterpEngine.rife : InterpEngine.ffmpeg;
-    }
+    final engine = (storedEngine == null || !_capabilities.rife)
+        ? (_capabilities.rife ? InterpEngine.rife : InterpEngine.ffmpeg)
+        : InterpEngine.fromId(storedEngine);
 
     _options = ProcessOptions(
       upscaleModel: model,
@@ -190,6 +195,9 @@ class AppController extends ChangeNotifier {
   // ── Selection ─────────────────────────────────────────────────────────────
 
   void setFiles(List<MediaFile> files) {
+    // run() iterates _files against a length captured up front, so swapping the
+    // list mid-job would either skip files or blow up with a RangeError.
+    if (isRunning) return;
     _files = List.unmodifiable(files);
     _results = const [];
     _logLines = const [];
@@ -219,6 +227,11 @@ class AppController extends ChangeNotifier {
   }
 
   void addPaths(Iterable<String> paths) {
+    if (isRunning) {
+      _errorMessage = 'Sedang memproses — tunggu sampai selesai';
+      notifyListeners();
+      return;
+    }
     final found = MediaFile.collectFromPaths(paths);
     if (found.isEmpty) {
       _errorMessage = 'Tidak ada file yang didukung di lokasi tersebut';
@@ -229,6 +242,7 @@ class AppController extends ChangeNotifier {
   }
 
   void clearSelection() {
+    if (isRunning) return;
     _files = const [];
     _results = const [];
     _logLines = const [];
@@ -272,35 +286,51 @@ class AppController extends ChangeNotifier {
 
     final pipeline = Pipeline(outputDir: _outputDir, tempDir: _tempDir);
     final collected = <JobResult>[];
-    final total = _files.length;
+    // Snapshot the queue: selection is locked while running, but reading from a
+    // local list makes that guarantee independent of the UI.
+    final queue = List<MediaFile>.of(_files);
+    final total = queue.length;
 
-    for (var i = 0; i < total; i++) {
-      final file = _files[i];
-      _statusText = total == 1
-          ? 'Memproses ${file.displayName}…'
-          : '[${i + 1}/$total] ${file.displayName}';
-      notifyListeners();
+    try {
+      for (var i = 0; i < total; i++) {
+        final file = queue[i];
+        _statusText = total == 1
+            ? 'Memproses ${file.displayName}…'
+            : '[${i + 1}/$total] ${file.displayName}';
+        notifyListeners();
 
-      final reporter = JobReporter();
-      _attachReporter(reporter, index: i, total: total);
+        final reporter = JobReporter();
+        _attachReporter(reporter, index: i, total: total);
+        try {
+          final result = await pipeline.process(
+            file: file,
+            rawOptions: _options,
+            reporter: reporter,
+          );
+          collected.add(result);
+        } finally {
+          await _detachReporter(reporter);
+        }
 
-      final result = await pipeline.process(
-        file: file,
-        options: _options,
-        reporter: reporter,
-      );
-      collected.add(result);
-      await _detachReporter(reporter);
+        _results = List.unmodifiable(collected);
+        notifyListeners();
+      }
 
+      final ok = collected.where((r) => r.isSuccess).length;
+      _statusText = '$ok/$total berhasil diproses';
+    } catch (e) {
+      // Pipeline.process handles its own expected failures; anything reaching
+      // here is unexpected (a ProcessException from an unlaunchable binary, a
+      // filesystem error). Without this the phase would stay `running` forever
+      // and the Process button would never re-enable.
+      _errorMessage = 'Proses berhenti tak terduga: $e';
+      _statusText = 'Berhenti karena error';
+    } finally {
+      _phase = JobPhase.done;
+      _progress = 1.0;
       _results = List.unmodifiable(collected);
       notifyListeners();
     }
-
-    _phase = JobPhase.done;
-    _progress = 1.0;
-    final ok = collected.where((r) => r.isSuccess).length;
-    _statusText = '$ok/$total berhasil diproses';
-    notifyListeners();
   }
 
   void _attachReporter(JobReporter reporter, {required int index, required int total}) {

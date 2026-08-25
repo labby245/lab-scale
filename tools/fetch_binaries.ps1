@@ -45,7 +45,12 @@ function Get-Archive {
 }
 
 function Copy-Payload {
-    param([string]$SourceDir, [string[]]$Executables, [string[]]$ModelDirNames)
+    param(
+        [string]$SourceDir,
+        [string[]]$Executables,
+        [string[]]$ModelDirNames,
+        [string[]]$SupportFiles
+    )
 
     foreach ($exe in $Executables) {
         $found = Get-ChildItem -Path $SourceDir -Filter $exe -Recurse -File |
@@ -55,11 +60,25 @@ function Copy-Payload {
         Write-Host "  -> bin/$exe" -ForegroundColor Green
     }
 
+    # Runtime DLLs shipped alongside the ncnn tools (OpenMP, etc). Without these
+    # the executables resolve but refuse to start on a machine lacking the
+    # matching VC++ redistributable.
+    foreach ($support in $SupportFiles) {
+        $found = Get-ChildItem -Path $SourceDir -Filter $support -Recurse -File |
+            Select-Object -First 1
+        if (-not $found) { continue }
+        Copy-Item $found.FullName (Join-Path $BinDir $support) -Force
+        Write-Host "  -> bin/$support" -ForegroundColor Green
+    }
+
     foreach ($modelDir in $ModelDirNames) {
         $found = Get-ChildItem -Path $SourceDir -Filter $modelDir -Recurse -Directory |
             Select-Object -First 1
         if (-not $found) { continue }
         $dest = Join-Path $BinDir $modelDir
+        # Copy-Item -Recurse onto an existing directory nests it
+        # (bin/models/models) instead of replacing it, so clear the target first.
+        if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
         Copy-Item $found.FullName $dest -Recurse -Force
         Write-Host "  -> bin/$modelDir/" -ForegroundColor Green
     }
@@ -95,6 +114,7 @@ try {
             -FileName 'realesrgan.zip'
         Copy-Payload -SourceDir $dir `
             -Executables @('realesrgan-ncnn-vulkan.exe') `
+            -SupportFiles @('vcomp140.dll') `
             -ModelDirNames @('models')
     }
 
@@ -106,6 +126,7 @@ try {
             -FileName 'rife.zip'
         Copy-Payload -SourceDir $dir `
             -Executables @('rife-ncnn-vulkan.exe') `
+            -SupportFiles @('vcomp140.dll') `
             -ModelDirNames @('rife-v4.6')
     }
 
