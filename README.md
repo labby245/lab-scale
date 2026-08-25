@@ -54,7 +54,7 @@ Berurutan:
 4. `bin/` di root proyek (agar `flutter run` jalan tanpa bundling)
 5. `PATH`
 
-Panel **Setup & Status** di dalam app menunjukkan mana yang ketemu, dan punya tombol **Cek ulang** kalau Anda baru menaruh binary tanpa restart.
+Status bar di dasar jendela menunjukkan sekilas mana yang ketemu (satu titik per tool). Tombol **Setup & Status** di sebelah kanannya membuka rincian lengkap beserta **Cek ulang**, kalau Anda baru menaruh binary tanpa restart.
 
 FFmpeg wajib ada. Real-ESRGAN dan RIFE opsional — tanpa keduanya, upscale tetap jalan lewat Lanczos dan 60 FPS tetap jalan lewat `minterpolate`.
 
@@ -77,6 +77,14 @@ tools/package_macos.sh
 ```
 
 Menghasilkan `dist/LabScale-<versi>-macos.dmg`.
+
+Butuh **Xcode lengkap** (Command Line Tools saja tidak cukup) dan **CocoaPods** — media_kit punya podspec:
+
+```bash
+brew install cocoapods
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+```
 
 Untuk distribusi ke Mac lain, set identitas signing dulu:
 
@@ -143,7 +151,7 @@ flutter test
 ## Troubleshooting
 
 - **"FFmpeg tidak ditemukan"** — jalankan `tools/fetch_binaries.*`, atau install FFmpeg ke PATH.
-- **Upscale AI abu-abu / gagal** — `realesrgan-ncnn-vulkan` belum ada di `bin/`. Cek panel Setup & Status.
+- **Upscale AI abu-abu / gagal** — `realesrgan-ncnn-vulkan` belum ada di `bin/`. Cek Setup & Status di status bar.
 - **Real-ESRGAN lambat pada video** — diproses per-frame; pakai untuk klip pendek atau pilih Lanczos.
 - **Vulkan error di Windows** — update driver GPU; ncnn butuh driver Vulkan yang layak.
 - **Gatekeeper menolak app di Mac** — build belum di-notarisasi. Lihat bagian Build & bundle.

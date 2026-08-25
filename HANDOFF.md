@@ -1,6 +1,8 @@
 # Handoff — lanjut di macOS
 
-Catatan serah-terima dari sesi migrasi Flask/Python → Flutter (25 Agustus 2026). Semua pekerjaan di bawah ini dikerjakan dan diverifikasi **di Windows saja**. Bagian macOS ditulis tapi belum pernah dieksekusi.
+Catatan serah-terima dari sesi migrasi Flask/Python → Flutter (25 Agustus 2026), dilanjutkan di macOS pada hari yang sama.
+
+**Status per sesi macOS (MacBook Apple M1, macOS 15.7.7, arm64):** jalur macOS kini terverifikasi ujung ke ujung — analyze, 38 test, GPU lewat Metal, build release, `.app` yang jalan, dan `.dmg`. Yang belum: signing dengan Developer ID sungguhan dan notarisasi.
 
 ## Di mana posisinya sekarang
 
@@ -16,30 +18,62 @@ Tiga commit di `main`, sudah di-push ke `labby245/lab-scale`:
 
 ## Mulai di Mac
 
+Sudah dikerjakan di mesin ini; ditulis ulang di sini untuk mesin berikutnya.
+
 ```bash
-git clone https://github.com/labby245/lab-scale
-cd lab-scale
-
-# Flutter 3.47.1 / Dart 3.13.1 — versi yang dipakai di Windows.
-# Di Mac install normal (brew install --cask flutter atau dari docs.flutter.dev).
-flutter --version
-
+brew install --cask flutter    # cask-nya tepat 3.47.1 / Dart 3.13.1 — sama dengan Windows
+brew install cocoapods         # wajib: media_kit punya podspec
 flutter pub get
-tools/fetch_binaries.sh      # unduh ffmpeg + ncnn ke ./bin (gitignored)
-flutter run -d macos
+tools/fetch_binaries.sh        # unduh ffmpeg + ncnn ke ./bin (gitignored)
+flutter test                   # 38 test — tidak butuh Xcode
+flutter run -d macos           # butuh Xcode lengkap
 ```
 
 `bin/` tidak ada di git — isinya besar dan berlisensi terpisah, jadi harus di-fetch di tiap mesin.
 
-## Yang BELUM pernah diuji di macOS
+### Xcode lengkap masih wajib
 
-Ini bagian yang perlu perhatian Anda, bukan sekadar "tinggal jalan":
+`flutter build macos`, `flutter run -d macos`, dan `tools/package_macos.sh` memanggil `xcodebuild`. Command Line Tools saja tidak cukup:
 
-1. **`tools/package_macos.sh` belum pernah dieksekusi.** Ditulis berdasarkan alur codesign/notarize standar, tapi nol kali dijalankan. Harapkan ada yang perlu disetel.
-2. **Entitlements** — App Sandbox sengaja **dimatikan** di `macos/Runner/{Release,DebugProfile}.entitlements`. Alasannya ada di komentar file itu: app men-spawn binary helper (`ffmpeg`, `realesrgan-ncnn-vulkan`, `rife-ncnn-vulkan`) dan menulis ke `~/Documents/LabScale` — dua hal yang mustahil di dalam sandbox tanpa security-scoped bookmark per file. Target distribusi Developer ID, bukan Mac App Store. Kalau nanti Anda mau masuk App Store, ini harus dirombak total.
-3. **media_kit / libmpv** — dipakai untuk preview video. `com.apple.security.cs.disable-library-validation` sudah diaktifkan karena dylib-nya bertanda tangan berbeda dari app. Belum diuji apakah cukup saat notarisasi.
-4. **Real-ESRGAN & RIFE via MoltenVK** — di Windows keduanya jalan di Vulkan dan sudah terbukti (test integrasi lolos). Di Mac jalurnya lewat MoltenVK/Metal; secara teori sama, praktiknya belum dicek.
-5. **VideoToolbox** — `FfmpegRunner.selectEncoder` sudah punya cabang `h264_videotoolbox` / `hevc_videotoolbox` beserta preset kualitasnya, tapi cabang itu belum pernah dieksekusi.
+```bash
+# install Xcode dari App Store, lalu:
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+```
+
+Sampai itu dilakukan, `flutter doctor` akan terus melaporkan *"Xcode installation is incomplete"* dan semua jalur build macOS tertahan.
+
+## Status pengujian macOS
+
+Yang **sudah terbukti** di M1 (sesi 25 Agustus, semuanya dijalankan sungguhan):
+
+| Hal | Bukti |
+|---|---|
+| `flutter analyze` | bersih |
+| `flutter test` | 38/38 lolos — angka yang sama dengan Windows |
+| Real-ESRGAN via MoltenVK | ncnn memilih `[0 Apple M1]`, upscale 320×180 → 2× berhasil |
+| RIFE via MoltenVK | 4 frame → 8 frame, model `rife-v4.6` |
+| Jalur ncnn di dalam pipeline | test integrasi "Real-ESRGAN frame path" & "RIFE frame path" lolos — bukan sekadar binary polos |
+| VideoToolbox | `h264_videotoolbox` & `hevc_videotoolbox` lolos trial-probe **dan** enkode nyata; preset `-q:v` menskala benar (45 → 134 KB, 90 → 745 KB pada klip 640×360 2 detik) |
+| Arsitektur binary | ffmpeg/ffprobe arm64 native (dari Homebrew); kedua binary ncnn universal (x86_64 + arm64) — tidak ada yang lewat Rosetta |
+
+Ditambah, setelah Xcode 26.3 terpasang:
+
+| Hal | Bukti |
+|---|---|
+| `flutter build macos --release` | `LabScale.app` 92,9 MB terbangun |
+| `tools/package_macos.sh` | **jalan tuntas pada percobaan pertama**, exit 0 → `dist/LabScale-2.0.0-macos.dmg` (108 MB) |
+| App berjalan | UI render benar, dua kolom, RSS 114 MB |
+| Resolusi binary di dalam bundle | ketiga titik status hijau di build release — app menemukan `Contents/Resources/bin`, bukan PATH |
+| Ikon | terkompilasi ke `Assets.car` (1,1 MB) dan tampil di Dock |
+| Mekanika blok signing | dilatih dengan signature ad-hoc di salinan bundle: 23 framework + 4 helper CLI tertandatangani inside-out, `codesign --verify --deep --strict` → *valid on disk*, *satisfies its Designated Requirement*, entitlements hanya menempel di bundle app |
+
+Yang **masih belum teruji**:
+
+1. **Signing dengan Developer ID sungguhan.** Yang dilatih baru ad-hoc (`--sign -`), tanpa `--timestamp` — ad-hoc memang menolak timestamp. Jadi urutan dan enumerasinya terbukti, sertifikat dan timestamp-nya belum.
+2. **Notarisasi.** Belum pernah dikirim ke Apple. Ini juga satu-satunya cara membuktikan poin berikutnya.
+3. **media_kit / libmpv saat notarisasi** — `com.apple.security.cs.disable-library-validation` sudah diaktifkan karena dylib-nya bertanda tangan berbeda dari app. Bundle-nya membawa 23 framework (Mpv, Avcodec, Avfilter, dst.), jadi ini bagian yang paling mungkin rewel.
+4. **Entitlements** — App Sandbox sengaja **dimatikan** di `macos/Runner/{Release,DebugProfile}.entitlements`. Alasannya ada di komentar file itu: app men-spawn binary helper dan menulis ke `~/Documents/LabScale` — dua hal yang mustahil di dalam sandbox tanpa security-scoped bookmark per file. Target distribusi Developer ID, bukan Mac App Store. Kalau nanti mau masuk App Store, ini harus dirombak total.
 
 ### Signing & notarisasi
 
@@ -58,20 +92,51 @@ Tanpa `SIGN_IDENTITY` script tetap menghasilkan `.app` + `.dmg` yang jalan di me
 
 ## Jebakan yang sudah kena sekali — jangan terulang
 
-Dua hal ini ditemukan dengan cara yang mahal, jadi tercatat di sini:
+Keempat hal ini ditemukan dengan cara yang mahal, jadi tercatat di sini:
 
 - **`ffmpeg -encoders` berbohong.** Encoder terdaftar ≠ encoder bisa dipakai. Di mesin Windows ini `h264_nvenc` terdaftar tapi driver NVIDIA-nya terlalu tua (nvenc API 13.0 < 13.1), dan **setiap video gagal** dengan `exit -40`. `FfmpegRunner.encoders()` sekarang trial-encode satu frame per hardware encoder sebelum mempercayainya. Jangan pernah kembali ke pengecekan berbasis daftar.
 - **Pattern `.gitignore` tanpa anchor.** `models/` (untuk sisa YOLO) diam-diam ikut menelan `lib/models/`, sehingga dua file inti tidak ter-commit dan clone bersih tidak bisa di-build. Semua pattern folder proyek sekarang di-anchor `/…/`. **Kalau menambah entry folder baru, anchor ke root**, dan verifikasi dengan clone bersih — bukan dengan working tree.
 
-Pelajaran umum dari yang kedua: `flutter analyze` + `flutter test` + `flutter build` di working tree **tidak** membuktikan repo bisa dibangun orang lain. Sebelum rilis, `git clone` ke folder kosong lalu build dari situ.
+- **Fungsi bash yang "mengembalikan" path lewat stdout.** `fetch_zip()` di `tools/fetch_binaries.sh` mencetak baris progres *dan* path hasil ke stdout yang sama, jadi `d="$(fetch_zip ...)"` menangkap keduanya dan `find` menerima argumen sampah — script mati di langkah Real-ESRGAN. Ini kena begitu script itu pertama kali dijalankan di macOS. Progres sekarang diarahkan ke stderr. **Di bash, stdout sebuah fungsi adalah nilai baliknya — semua pesan untuk manusia harus ke stderr.**
+
+- **Restorasi jendela otomatis Cocoa membatalkan ukuran default, diam-diam.** `MainFlutterWindow` tidak pernah menyetel ukuran, jadi macOS memakai default `.xib` 800×600 — di bawah breakpoint dua-kolom 1040pt, sehingga app **selalu** terbuka dalam mode satu kolom yang harus di-scroll, sementara Windows sudah lama membuka di 1360×900. Yang bikin lama: `setContentSize` dipanggil, tidak error, dan tetap tidak berpengaruh — `contentMinSize` di baris sebelahnya jelas berlaku, jadi jelas kodenya jalan. Penyebabnya restorasi jendela otomatis yang memasang frame lama **setelah** `awakeFromNib` selesai. Memindahkan kode ke sesudah `super.awakeFromNib()` tidak menolong. Yang menolong: `isRestorable = false` lalu mengelola frame sendiri lewat `setFrameUsingName` / `setFrameAutosaveName`, sehingga ukuran default hanya berlaku saat belum ada frame tersimpan dan resize pengguna tetap diingat. **Kalau ukuran jendela yang Anda setel tidak berpengaruh di macOS, curigai restorasi lebih dulu — bukan kode Anda.**
+
+Pelajaran umum dari jebakan kedua: `flutter analyze` + `flutter test` + `flutter build` di working tree **tidak** membuktikan repo bisa dibangun orang lain. Sebelum rilis, `git clone` ke folder kosong lalu build dari situ. Pelajaran dari yang ketiga sejalur: script yang belum pernah dieksekusi belum bisa disebut ada.
 
 ## Sisa pekerjaan
 
 | Item | Catatan |
 |---|---|
-| Ikon aplikasi | Masih ikon default Flutter di kedua platform. Butuh `.icns` (macOS) + `.ico` (Windows). |
-| Uji macOS end-to-end | Jalankan `flutter test` di Mac — 38 test yang sama harusnya lolos; jalur ncnn lewat Metal yang perlu dibuktikan. |
+| Signing + notarisasi | Butuh sertifikat Developer ID. Semua langkah lain sudah terbukti. |
+| Uji interaksi manual | Drag & drop dan pemutaran preview media_kit belum dicoba dengan tangan — verifikasi sejauh ini lewat test dan tangkapan layar. |
+| Ikon Windows | `.ico` sudah diganti tapi belum di-build ulang di Windows. |
 | Rilis | Belum ada tag maupun GitHub Release. `dist/` gitignored. |
+
+~~Uji macOS end-to-end~~ — selesai, lihat tabel "Status pengujian macOS" di atas.
+
+### Ikon aplikasi
+
+Sumbernya master 1024×1024 dari `~/Downloads/Logo LabScale` — huruf "Ls" biru di latar navy dengan panah diagonal sebagai motif upscale.
+
+- **macOS** — 7 PNG (16–1024) disalin ke `macos/Runner/Assets.xcassets/AppIcon.appiconset/`. `Contents.json` bawaan Flutter sudah menunjuk nama file yang sama persis, jadi tidak diubah.
+- **Windows** — `windows/runner/resources/app_icon.ico` dibangun ulang dari master, 7 ukuran (16/24/32/48/64/128/256), naik dari 3 ukuran milik ikon default.
+
+Dua catatan:
+
+1. PNG per-ukuran yang disediakan ternyata murni downscale dari master (RMSE 0,001–0,003 terhadap Lanczos-downscale), jadi `.ico` dibangun dari master saja — tidak ada tuning per-ukuran yang hilang.
+2. `.ico`-nya 364 KB karena ImageMagick di mesin ini selalu menulis entri sebagai BMP, bukan PNG. Berfungsi normal di Windows, hanya lebih besar dari perlunya. Kalau mau ramping, bangun ulang `.ico` di Windows.
+
+Ikon macOS sudah terbukti: masuk `Assets.car` dan tampil di Dock. Ikon Windows belum di-build ulang sejak diganti.
+
+## Layout satu layar
+
+Workspace-nya dirancang muat dalam satu jendela tanpa scroll halaman:
+
+- `_WideWorkspace` (≥ 1040pt) — dua kolom setinggi jendela. Preview memakai `expand: true` sehingga menyerap sisa tinggi; hanya kolom kontrol yang punya scrollbar sendiri, karena hanya ia yang bisa tumbuh (Real-ESRGAN dan RIFE sama-sama memekar saat dinyalakan).
+- `_NarrowWorkspace` (< 1040pt) — kembali bertumpuk dan seluruh halaman men-scroll. `contentMinSize` 940×640 sengaja di bawah breakpoint, jadi jendela terkecil memang mendarat di mode ini.
+- Panel Setup & Status yang dulu kartu selebar halaman kini jadi status bar tipis yang selalu terlihat, dengan rincian pindah ke dialog. Kartu lamanya yang mendorong halaman melewati satu layar demi panel yang cuma dilirik sekali.
+
+`PreviewCard(expand: true)` memakai `Expanded`, jadi **hanya aman di parent yang tingginya terbatas**. Jangan pakai di jalur `_NarrowWorkspace` yang men-scroll.
 
 ## Sisa di disk mesin Windows
 
