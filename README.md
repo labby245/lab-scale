@@ -1,129 +1,151 @@
 # LabScale
 
-Upscale AI dan boost 60 FPS untuk foto & video — semuanya diproses **lokal**, tanpa cloud.
-
-Pilih file (atau seluruh folder), aktifkan operasi yang diinginkan, lalu proses. Hasil disimpan di `outputs/` dan file asli tidak pernah diubah.
+Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untuk **Windows dan macOS**. Semua pemrosesan berjalan **lokal**, tidak ada yang dikirim ke cloud, dan file asli tidak pernah diubah.
 
 ## Fitur
 
 - **Upscale** — Real-ESRGAN (foto / anime / video anime) atau Lanczos untuk hasil cepat tanpa AI. Skala 1×–4×.
-- **Sharpness** — unsharp mask yang bisa diatur, dipakai bersama upscale.
-- **Boost ke 60 FPS** — motion interpolation via FFmpeg `minterpolate` atau RIFE AI (5–10× lebih cepat dan lebih halus).
-- **Batch / folder** — drag & drop satu folder, semua media di dalamnya diproses berurutan.
-- **Kualitas & codec** — Fast → Ultra (lossless), H.264 / HEVC / AV1, dengan NVENC otomatis jika GPU tersedia.
-- **Audio dipertahankan** — audio asli di-copy (atau di-transcode ke AAC 192k jika perlu).
+- **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
+- **Boost ke 60 FPS** — motion interpolation via RIFE AI (5–10× lebih cepat dan jauh lebih halus) atau FFmpeg `minterpolate`.
+- **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan.
+- **Kualitas & codec** — Fast → Ultra (lossless), H.264 / HEVC / AV1, dengan NVENC (Windows) atau VideoToolbox (macOS) otomatis bila tersedia.
+- **Audio dipertahankan** — audio AAC di-copy apa adanya, format lain di-transcode ke AAC 192k.
 
-## Kebutuhan
+## Arsitektur
 
-- **Python** 3.10+
-- **FFmpeg** — `ffmpeg` dan `ffprobe` harus ada di PATH
+LabScale adalah aplikasi Flutter murni. Tidak ada runtime Python, tidak ada server lokal. Dart mengorkestrasi tiga binary CLI:
 
-macOS (Homebrew):
+| Tool | Peran | GPU |
+|---|---|---|
+| `ffmpeg` / `ffprobe` | probe, ekstrak frame, filter, enkode | NVENC / VideoToolbox |
+| `realesrgan-ncnn-vulkan` | upscale AI | Vulkan (Win) / Metal via MoltenVK (Mac) |
+| `rife-ncnn-vulkan` | interpolasi frame AI | Vulkan / Metal |
+
+Video mengambil salah satu dari dua jalur:
+
+- **Direct** — satu pass FFmpeg yang mencakup Lanczos, `minterpolate`, dan unsharp. Dipakai bila tidak ada stage AI.
+- **Frames** — dekode ke PNG → (RIFE) → (Real-ESRGAN) → enkode ulang. Wajib bila ada stage ncnn.
+
+## Setup development
+
 ```bash
-brew install ffmpeg
+flutter pub get
+
+# Unduh ffmpeg + binary ncnn ke ./bin
+#   Windows:
+pwsh tools/fetch_binaries.ps1
+#   macOS:
+tools/fetch_binaries.sh
+
+flutter run -d windows    # atau: flutter run -d macos
 ```
 
-Windows (winget):
+`bin/` sengaja tidak masuk git — isinya besar dan berlisensi terpisah.
+
+### Di mana binary dicari
+
+Berurutan:
+
+1. `<folder exe>/bin/` — Windows
+2. `<LabScale.app>/Contents/Resources/bin/` — macOS
+3. folder yang sama dengan executable
+4. `bin/` di root proyek (agar `flutter run` jalan tanpa bundling)
+5. `PATH`
+
+Panel **Setup & Status** di dalam app menunjukkan mana yang ketemu, dan punya tombol **Cek ulang** kalau Anda baru menaruh binary tanpa restart.
+
+FFmpeg wajib ada. Real-ESRGAN dan RIFE opsional — tanpa keduanya, upscale tetap jalan lewat Lanczos dan 60 FPS tetap jalan lewat `minterpolate`.
+
+## Build & bundle
+
+### Windows
+
 ```powershell
-winget install Gyan.FFmpeg
+pwsh tools/package_windows.ps1
 ```
 
-## Menjalankan
+Menghasilkan `dist/LabScale-<versi>-windows-x64.zip` berisi `labscale.exe`, DLL Flutter, dan `bin/`.
+
+Butuh Visual Studio 2022 dengan workload **Desktop development with C++**.
+
+### macOS
 
 ```bash
-python -m venv .venv
-# Windows:  .venv\Scripts\activate
-# macOS:    source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-python app.py
+tools/package_macos.sh
 ```
 
-Browser akan terbuka otomatis ke `http://127.0.0.1:5000`. Di Windows bisa juga langsung klik `start.bat`.
+Menghasilkan `dist/LabScale-<versi>-macos.dmg`.
 
-Server mati sendiri setelah 60 detik tanpa heartbeat dari browser — tutup tab, app berhenti.
+Untuk distribusi ke Mac lain, set identitas signing dulu:
 
-## Fitur AI opsional
-
-Panel **⚙️ Setup & Status** di bawah UI menunjukkan apa yang sudah aktif.
-
-| Fitur | Install |
-|---|---|
-| Upscale AI (Real-ESRGAN) | `pip install realesrgan basicsr` |
-| Interpolasi AI (RIFE) | `python scripts/install_rife.py` |
-
-Tanpa Real-ESRGAN, upscale tetap jalan lewat Lanczos. Tanpa RIFE, 60 FPS tetap jalan lewat FFmpeg `minterpolate`.
-
-Untuk GPU NVIDIA, install PyTorch build CUDA:
 ```bash
-pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
+export SIGN_IDENTITY="Developer ID Application: Nama Anda (TEAMID)"
+
+# Sekali saja — simpan kredensial notarisasi di keychain:
+xcrun notarytool store-credentials labscale-notary \
+  --apple-id you@example.com --team-id TEAMID --password APP_SPECIFIC_PW
+export NOTARY_PROFILE=labscale-notary
+
+tools/package_macos.sh
 ```
 
-## Mode kualitas
+Tanpa `SIGN_IDENTITY`, script tetap menghasilkan `.app` dan `.dmg` yang jalan di mesin Anda sendiri, hanya belum bisa didistribusikan tanpa peringatan Gatekeeper.
 
-| Mode | H.264 | HEVC | AV1 (CPU) |
-|---|---|---|---|
-| Fast | veryfast, CRF 23 | veryfast, CRF 26 | cpu-used 8, CRF 32 |
-| Balanced | medium, CRF 20 | medium, CRF 23 | cpu-used 5, CRF 28 |
-| Better | slow, CRF 18 | slow, CRF 21 | cpu-used 4, CRF 24 |
-| Best | veryslow, CRF 16 | veryslow, CRF 19 | cpu-used 2, CRF 22 |
-| Ultra | placebo, CRF 0 | veryslow, CRF 12 | cpu-used 1, CRF 18 |
+**Catatan App Sandbox:** LabScale menargetkan Developer ID, bukan Mac App Store. Sandbox sengaja dimatikan di `macos/Runner/*.entitlements` karena app men-spawn binary helper dan menulis ke `~/Documents/LabScale` — keduanya tidak mungkin di dalam sandbox tanpa security-scoped bookmark per file.
 
-Encoder NVENC dipilih otomatis jika GPU mendukung.
+## Output
+
+Hasil disimpan di `~/Documents/LabScale` (Windows: `%USERPROFILE%\Documents\LabScale`), dengan suffix yang menjelaskan operasi:
+
+```
+klip_esrgan-real-2x_sharp30_60fps.mp4
+foto_lanczos-4x.png
+```
 
 ## Struktur proyek
 
 ```text
-lab-scale/
-  app.py                    # Flask routes
-  requirements.txt
-  start.bat                 # launcher Windows
-  templates/index.html      # UI
-  static/
-    app.js                  # frontend
-    style.css
-  utils/
-    pipeline.py             # orkestrasi video & image
-    ffmpeg_ops.py           # encode / probe / preset codec
-    frame_ops.py            # ekstraksi frame + sharpness
-    upscale_ops.py          # Real-ESRGAN
-    interpolation_ops.py    # FFmpeg minterpolate
-    rife_ops.py             # RIFE ncnn-vulkan
-    gpu.py                  # deteksi GPU & encoder
-    jobs.py                 # job store + log
-    schemas.py              # validasi request (pydantic)
-    logging_config.py
-  scripts/install_rife.py
-  tests/
-  uploads/  outputs/  temp/ # gitignored
+lib/
+  main.dart
+  core/
+    binaries.dart          # resolusi path tool eksternal
+    ffmpeg_runner.dart     # preset codec, probe, filter, enkode
+    esrgan_runner.dart     # realesrgan-ncnn-vulkan
+    rife_runner.dart       # rife-ncnn-vulkan
+    pipeline.dart          # orkestrasi stage + routing direct/frames
+    job_log.dart           # stream log & progress
+  models/
+    process_options.dart   # opsi immutable + keputusan routing
+    media_file.dart        # penemuan file & folder
+  state/
+    app_controller.dart    # state app, preferensi, eksekusi job
+  ui/
+    theme.dart  home_page.dart  widgets/
+
+tools/
+  fetch_binaries.ps1 / .sh    # unduh ffmpeg + ncnn ke bin/
+  package_windows.ps1         # build + zip
+  package_macos.sh            # build + sign + dmg + notarize
+
+test/                         # unit test routing & filter chain
+windows/  macos/              # runner native
 ```
-
-## API
-
-| Endpoint | Body | Return |
-|---|---|---|
-| `POST /upload` | multipart `video` | `{ filename, originalBase, isImage }` |
-| `POST /process` | `{ filename, upscale, upscale_model, upscale_scale, fps_boost, interp_engine, sharpness, quality, codec, job_id }` | `{ outputFilename, outputDir, outputPath }` |
-| `POST /process-image` | sama, tanpa `fps_boost` / `codec` | `{ outputFilename, outputDir, outputPath }` |
-| `POST /process-bulk` | `{ files: [...], ...opsi }` | `{ results, summary, outputDir }` |
-| `GET /process-log/<job_id>` | — | `{ logs, done }` |
-| `GET /capabilities` | — | `{ esrgan, rife }` |
-| `GET /encoder-info` | — | encoder + status GPU |
-| `POST /open-folder` | `{ path }` | `{ ok }` |
 
 ## Test
 
 ```bash
-pytest
+flutter analyze
+flutter test
 ```
 
 ## Troubleshooting
 
-- **"ffmpeg failed"** — pastikan `ffmpeg` dan `ffprobe` ada di PATH.
-- **Upload terlalu besar** — batas default 2 GB (`MAX_CONTENT_LENGTH` di `app.py`).
-- **ESRGAN lambat pada video** — Real-ESRGAN diproses per-frame; gunakan untuk klip pendek atau pilih Lanczos.
-- **Out of memory saat upscale** — tile size dipilih otomatis dari VRAM; turunkan skala output jika masih gagal.
+- **"FFmpeg tidak ditemukan"** — jalankan `tools/fetch_binaries.*`, atau install FFmpeg ke PATH.
+- **Upscale AI abu-abu / gagal** — `realesrgan-ncnn-vulkan` belum ada di `bin/`. Cek panel Setup & Status.
+- **Real-ESRGAN lambat pada video** — diproses per-frame; pakai untuk klip pendek atau pilih Lanczos.
+- **Vulkan error di Windows** — update driver GPU; ncnn butuh driver Vulkan yang layak.
+- **Gatekeeper menolak app di Mac** — build belum di-notarisasi. Lihat bagian Build & bundle.
 
 ## Lisensi
 
-MIT
+MIT. Binary yang diunduh `tools/fetch_binaries.*` punya lisensi masing-masing (FFmpeg: LGPL/GPL, Real-ESRGAN: BSD-3, RIFE ncnn: MIT).

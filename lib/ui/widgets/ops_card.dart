@@ -1,0 +1,442 @@
+/// Operation toggles: upscale (model, scale, sharpness) and 60 FPS boost,
+/// plus the global quality and codec selectors.
+library;
+
+import 'package:flutter/material.dart';
+
+import '../../models/process_options.dart';
+import '../../state/app_controller.dart';
+import '../theme.dart';
+
+class OpsCard extends StatelessWidget {
+  const OpsCard({super.key, required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = controller.options;
+
+    return LabCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const LabCardTitle(badge: '2', title: 'Operasi'),
+
+          _OpToggle(
+            icon: Icons.zoom_out_map,
+            name: 'Upscale',
+            description: 'Perbesar resolusi dengan AI atau Lanczos',
+            value: options.upscale,
+            onChanged: (v) =>
+                controller.updateOptions((o) => o.copyWith(upscale: v)),
+          ),
+          if (options.upscale) _UpscaleSettings(controller: controller),
+
+          if (controller.showFpsOption) ...[
+            const SizedBox(height: 4),
+            _OpToggle(
+              icon: Icons.speed,
+              name: 'Boost ke $kTargetFps FPS',
+              description: 'Motion interpolation (video saja)',
+              value: options.fpsBoost,
+              onChanged: (v) =>
+                  controller.updateOptions((o) => o.copyWith(fpsBoost: v)),
+            ),
+            if (options.fpsBoost) _FpsSettings(controller: controller),
+          ],
+
+          const SizedBox(height: LabSpacing.gap),
+          const Divider(height: 1),
+          const SizedBox(height: LabSpacing.gap),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _LabeledDropdown<Quality>(
+                  label: 'Kualitas Output',
+                  value: options.quality,
+                  items: Quality.values,
+                  labelOf: (q) => q.label,
+                  onChanged: (q) =>
+                      controller.updateOptions((o) => o.copyWith(quality: q)),
+                ),
+              ),
+              if (controller.showFpsOption) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _LabeledDropdown<VideoCodec>(
+                    label: 'Codec Video',
+                    value: options.codec,
+                    items: VideoCodec.values,
+                    labelOf: (c) => c.label,
+                    hint: controller.capabilities.encoderSummary,
+                    onChanged: (c) =>
+                        controller.updateOptions((o) => o.copyWith(codec: c)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Upscale sub-settings ────────────────────────────────────────────────────
+
+class _UpscaleSettings extends StatelessWidget {
+  const _UpscaleSettings({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = controller.options;
+    final first = controller.firstFile;
+
+    return _SubSettings(
+      children: [
+        _LabeledDropdown<UpscaleModel>(
+          label: 'Model Upscale',
+          value: options.upscaleModel,
+          items: UpscaleModel.values,
+          labelOf: (m) => m.label,
+          onChanged: (m) =>
+              controller.updateOptions((o) => o.copyWith(upscaleModel: m)),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            const _FieldLabel('Skala Output'),
+            const Spacer(),
+            for (var scale = kMinScale; scale <= kMaxScale; scale++)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: _ScaleChip(
+                  scale: scale,
+                  selected: options.upscaleScale == scale,
+                  onTap: () => controller
+                      .updateOptions((o) => o.copyWith(upscaleScale: scale)),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          controller.dimensionEstimate,
+          style: const TextStyle(fontSize: 11.5, color: LabColors.textMuted),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            _FieldLabel('Sharpness  ${(options.sharpness * 100).round()}%'),
+            if ((options.sharpness - 0.3).abs() < 0.001)
+              const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Text(
+                  '(default)',
+                  style: TextStyle(fontSize: 11, color: LabColors.textFaint),
+                ),
+              ),
+          ],
+        ),
+        Slider(
+          value: options.sharpness,
+          onChanged: (v) =>
+              controller.updateOptions((o) => o.copyWith(sharpness: v)),
+        ),
+        if (options.useEsrgan && first != null && first.isVideo)
+          const _Notice(
+            tone: LabColors.warning,
+            text: 'Real-ESRGAN pada video diproses per-frame — '
+                'gunakan untuk klip pendek.',
+          ),
+        if (controller.esrganMissing)
+          const _Notice(
+            tone: LabColors.danger,
+            text: 'realesrgan-ncnn-vulkan tidak ditemukan — '
+                'lihat panel Setup & Status di bawah.',
+          ),
+      ],
+    );
+  }
+}
+
+// ── FPS sub-settings ────────────────────────────────────────────────────────
+
+class _FpsSettings extends StatelessWidget {
+  const _FpsSettings({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final caps = controller.capabilities;
+    return _SubSettings(
+      children: [
+        _LabeledDropdown<InterpEngine>(
+          label: 'Engine Interpolasi',
+          value: controller.options.interpEngine,
+          items: InterpEngine.values,
+          labelOf: (e) => e.label,
+          disabledOf: (e) => e == InterpEngine.rife && !caps.rife,
+          hint: caps.rife
+              ? '✓ RIFE aktif'
+              : '⚠ RIFE belum tersedia — pakai FFmpeg',
+          onChanged: (e) =>
+              controller.updateOptions((o) => o.copyWith(interpEngine: e)),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Shared building blocks ──────────────────────────────────────────────────
+
+class _OpToggle extends StatelessWidget {
+  const _OpToggle({
+    required this.icon,
+    required this.name,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String name;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 19, color: LabColors.primaryBright),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: LabColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: LabColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubSettings extends StatelessWidget {
+  const _SubSettings({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 6, right: 6, bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: LabColors.background.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
+        border: Border.all(color: LabColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w600,
+        color: LabColors.textSecondary,
+        letterSpacing: 0.2,
+      ),
+    );
+  }
+}
+
+class _LabeledDropdown<T> extends StatelessWidget {
+  const _LabeledDropdown({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.labelOf,
+    required this.onChanged,
+    this.disabledOf,
+    this.hint,
+  });
+
+  final String label;
+  final T value;
+  final List<T> items;
+  final String Function(T) labelOf;
+  final bool Function(T)? disabledOf;
+  final String? hint;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(label),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: LabColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
+            border: Border.all(color: LabColors.borderStrong),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isExpanded: true,
+              isDense: true,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              dropdownColor: LabColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: LabColors.textPrimary,
+              ),
+              items: [
+                for (final item in items)
+                  DropdownMenuItem<T>(
+                    value: item,
+                    enabled: !(disabledOf?.call(item) ?? false),
+                    child: Text(
+                      labelOf(item),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: (disabledOf?.call(item) ?? false)
+                            ? LabColors.textFaint
+                            : LabColors.textPrimary,
+                      ),
+                    ),
+                  ),
+              ],
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+            ),
+          ),
+        ),
+        if (hint != null) ...[
+          const SizedBox(height: 5),
+          Text(
+            hint!,
+            style: const TextStyle(fontSize: 11, color: LabColors.textFaint),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ScaleChip extends StatelessWidget {
+  const _ScaleChip({
+    required this.scale,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int scale;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 40,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected
+              ? LabColors.primary.withValues(alpha: 0.22)
+              : LabColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? LabColors.primary : LabColors.borderStrong,
+          ),
+        ),
+        child: Text(
+          '$scale×',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: selected ? LabColors.primaryBright : LabColors.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({required this.tone, required this.text});
+
+  final Color tone;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11.5, color: tone),
+      ),
+    );
+  }
+}

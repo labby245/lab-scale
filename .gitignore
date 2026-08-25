@@ -1,44 +1,53 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.pytest_cache/
-.pytest_cache/
-*.coverage
-.coverage*
-htmlcov/
-
-# Environments
-.venv/
-venv/
-.env
-.env.*
-
-# OS/IDE
-.DS_Store
+# ── Flutter / Dart ──────────────────────────────────────────────────────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
 .idea/
 .vscode/
 
-# App runtime artifacts
+# Generated at build time by the Flutter tool
+**/Flutter/ephemeral/
+**/ephemeral/
+windows/flutter/generated_plugin*
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Flutter/Flutter-Generated.xcconfig
+macos/Flutter/ephemeral/
+
+# ── Xcode ───────────────────────────────────────────────────────────────────
+**/xcuserdata/
+**/DerivedData/
+*.moved-aside
+*.pbxuser
+
+# ── External binaries ───────────────────────────────────────────────────────
+# ffmpeg / realesrgan-ncnn-vulkan / rife-ncnn-vulkan + their model folders.
+# Large and separately licensed — fetch with tools/fetch_binaries.{ps1,sh}.
+bin/
+
+# ── Build output ────────────────────────────────────────────────────────────
+dist/
+
+# ── Runtime ─────────────────────────────────────────────────────────────────
 uploads/
 outputs/
 temp/
 logs/
 cache/
 
-# Self-improving detector — labeled samples + trained weights + RIFE binary
+# ── OS noise ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Leftovers from the pre-Flutter Python stack ─────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
 labels/
 models/
-bin/
 yolo_runs/
-
-# Stray ultralytics auto-downloads (yolov8n.pt etc. land in cwd during training)
-/*.pt
-
-# FFmpeg intermediates
-*.log
-*.tmp
-
-# Node (if any future tooling)
-node_modules/
+*.pt
