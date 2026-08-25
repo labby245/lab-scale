@@ -33,18 +33,26 @@ class OpsCard extends StatelessWidget {
           ),
           if (options.upscale) _UpscaleSettings(controller: controller),
 
-          if (controller.showFpsOption) ...[
-            const SizedBox(height: 4),
-            _OpToggle(
-              icon: Icons.speed,
-              name: 'Boost ke $kTargetFps FPS',
-              description: 'Motion interpolation (video saja)',
-              value: options.fpsBoost,
-              onChanged: (v) =>
-                  controller.updateOptions((o) => o.copyWith(fpsBoost: v)),
-            ),
-            if (options.fpsBoost) _FpsSettings(controller: controller),
-          ],
+          const SizedBox(height: 4),
+          // Always shown, even for a photo-only selection. It used to vanish
+          // entirely, which read as the app having lost a feature its own
+          // subtitle advertises; greyed out with a reason is honest instead.
+          _OpToggle(
+            icon: Icons.speed,
+            name: 'Boost ke $kTargetFps FPS',
+            description: controller.capabilities.rife
+                ? 'Motion interpolation via RIFE AI'
+                : 'Motion interpolation via FFmpeg minterpolate',
+            enabled: controller.showFpsOption,
+            disabledReason: controller.hasFiles
+                ? 'Hanya untuk video — pilihan saat ini foto semua'
+                : 'Hanya untuk video — pilih klip dulu',
+            value: options.fpsBoost,
+            onChanged: (v) =>
+                controller.updateOptions((o) => o.copyWith(fpsBoost: v)),
+          ),
+          if (controller.showFpsOption && options.fpsBoost)
+            _FpsSettings(controller: controller),
 
           const SizedBox(height: LabSpacing.gap),
           const Divider(height: 1),
@@ -203,6 +211,8 @@ class _OpToggle extends StatelessWidget {
     required this.description,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
+    this.disabledReason,
   });
 
   final IconData icon;
@@ -211,16 +221,29 @@ class _OpToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// A greyed-out row still tells the user the feature exists. Hiding it makes
+  /// the app look like it lost a feature it advertises.
+  final bool enabled;
+
+  /// Replaces [description] while disabled, to say *why* it is unavailable.
+  final String? disabledReason;
+
   @override
   Widget build(BuildContext context) {
+    final subtitle = enabled ? description : (disabledReason ?? description);
+
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged(!value) : null,
       borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Row(
           children: [
-            Icon(icon, size: 19, color: LabColors.primaryBright),
+            Icon(
+              icon,
+              size: 19,
+              color: enabled ? LabColors.primaryBright : LabColors.textFaint,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -228,15 +251,17 @@ class _OpToggle extends StatelessWidget {
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: LabColors.textPrimary,
+                      color: enabled
+                          ? LabColors.textPrimary
+                          : LabColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    description,
+                    subtitle,
                     style: const TextStyle(
                       fontSize: 11.5,
                       color: LabColors.textMuted,
@@ -245,7 +270,10 @@ class _OpToggle extends StatelessWidget {
                 ],
               ),
             ),
-            Switch(value: value, onChanged: onChanged),
+            Switch(
+              value: value,
+              onChanged: enabled ? onChanged : null,
+            ),
           ],
         ),
       ),
