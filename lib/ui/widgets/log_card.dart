@@ -7,9 +7,13 @@ import '../../state/app_controller.dart';
 import '../theme.dart';
 
 class LogCard extends StatefulWidget {
-  const LogCard({super.key, required this.controller});
+  const LogCard({super.key, required this.controller, this.height = 190});
 
   final AppController controller;
+
+  /// Height of the scrolling log body. The one-screen workspace trims this so
+  /// the preview above it keeps the larger share of the column.
+  final double height;
 
   @override
   State<LogCard> createState() => _LogCardState();
@@ -54,7 +58,7 @@ class _LogCardState extends State<LogCard> {
                 : null,
           ),
           Container(
-            height: 190,
+            height: widget.height,
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(

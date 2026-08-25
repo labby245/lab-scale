@@ -12,10 +12,16 @@ import '../../models/media_file.dart';
 import '../theme.dart';
 
 class PreviewCard extends StatefulWidget {
-  const PreviewCard({super.key, required this.file});
+  const PreviewCard({super.key, required this.file, this.expand = false});
 
   /// The file to preview, or null when nothing is selected.
   final MediaFile? file;
+
+  /// Fill the height the parent hands down instead of holding a 16:9 box.
+  ///
+  /// Only safe where the parent supplies a bounded height — the one-screen
+  /// workspace does, the narrow scrolling fallback does not.
+  final bool expand;
 
   @override
   State<PreviewCard> createState() => _PreviewCardState();
@@ -76,21 +82,24 @@ class _PreviewCardState extends State<PreviewCard> {
 
   @override
   Widget build(BuildContext context) {
+    final stage = ClipRRect(
+      borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
+      child: Container(
+        width: double.infinity,
+        color: Colors.black,
+        child: _buildBody(),
+      ),
+    );
+
     return LabCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const LabCardTitle(badge: '3', title: 'Preview'),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(LabSpacing.controlRadius),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Container(
-                color: Colors.black,
-                child: _buildBody(),
-              ),
-            ),
-          ),
+          if (widget.expand)
+            Expanded(child: stage)
+          else
+            AspectRatio(aspectRatio: 16 / 9, child: stage),
         ],
       ),
     );

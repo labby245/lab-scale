@@ -1,4 +1,9 @@
 /// Two-column workspace: controls on the left, preview and log on the right.
+///
+/// The wide form is sized to sit inside one window with no page-level scroll —
+/// the preview stretches to take whatever height is left over, and each column
+/// scrolls on its own only when its own content outgrows the window. Below the
+/// breakpoint the columns stack and the whole page scrolls instead.
 library;
 
 import 'package:flutter/material.dart';
@@ -14,6 +19,10 @@ import 'widgets/source_card.dart';
 
 /// Below this width the two columns stack instead of sitting side by side.
 const double _kTwoColumnBreakpoint = 1040;
+
+/// Log height in the one-screen layout — shorter than the stacked default so
+/// the preview above it keeps the bulk of the column.
+const double _kWideLogHeight = 150;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.controller});
@@ -60,57 +69,84 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= _kTwoColumnBreakpoint;
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1280),
-                      child: Column(
-                        children: [
-                          if (isWide)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 5,
-                                  child: _LeftColumn(controller: controller),
-                                ),
-                                const SizedBox(width: LabSpacing.gap),
-                                Expanded(
-                                  flex: 6,
-                                  child: _RightColumn(controller: controller),
-                                ),
-                              ],
-                            )
-                          else
-                            Column(
-                              children: [
-                                _LeftColumn(controller: controller),
-                                const SizedBox(height: LabSpacing.gap),
-                                _RightColumn(controller: controller),
-                              ],
-                            ),
-                          const SizedBox(height: LabSpacing.gap),
-                          SetupPanel(controller: controller),
-                          const SizedBox(height: 20),
-                          const _Footer(),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
+                return constraints.maxWidth >= _kTwoColumnBreakpoint
+                    ? _WideWorkspace(controller: controller)
+                    : _NarrowWorkspace(controller: controller);
               },
             ),
           ),
+          SetupStatusBar(controller: controller),
         ],
       ),
     );
   }
 }
 
-class _LeftColumn extends StatelessWidget {
-  const _LeftColumn({required this.controller});
+/// Side-by-side columns that together fill exactly one window height.
+class _WideWorkspace extends StatelessWidget {
+  const _WideWorkspace({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(LabSpacing.pagePadding),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1560),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 5,
+                // The controls are the only part that can outgrow the window
+                // (Real-ESRGAN and RIFE both expand when switched on), so this
+                // column — and only this column — gets its own scrollbar.
+                child: SingleChildScrollView(
+                  child: _ControlColumn(controller: controller),
+                ),
+              ),
+              const SizedBox(width: LabSpacing.gap),
+              Expanded(
+                flex: 6,
+                child: _StageColumn(controller: controller),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stacked fallback for narrow windows — the whole page scrolls.
+class _NarrowWorkspace extends StatelessWidget {
+  const _NarrowWorkspace({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(LabSpacing.pagePadding),
+      child: Column(
+        children: [
+          _ControlColumn(controller: controller),
+          const SizedBox(height: LabSpacing.gap),
+          PreviewCard(file: controller.firstFile),
+          if (controller.logLines.isNotEmpty) ...[
+            const SizedBox(height: LabSpacing.gap),
+            LogCard(controller: controller),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlColumn extends StatelessWidget {
+  const _ControlColumn({required this.controller});
 
   final AppController controller;
 
@@ -132,8 +168,9 @@ class _LeftColumn extends StatelessWidget {
   }
 }
 
-class _RightColumn extends StatelessWidget {
-  const _RightColumn({required this.controller});
+/// Preview takes every pixel the log does not.
+class _StageColumn extends StatelessWidget {
+  const _StageColumn({required this.controller});
 
   final AppController controller;
 
@@ -141,10 +178,12 @@ class _RightColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        PreviewCard(file: controller.firstFile),
+        Expanded(
+          child: PreviewCard(file: controller.firstFile, expand: true),
+        ),
         if (controller.logLines.isNotEmpty) ...[
           const SizedBox(height: LabSpacing.gap),
-          LogCard(controller: controller),
+          LogCard(controller: controller, height: _kWideLogHeight),
         ],
       ],
     );
@@ -282,20 +321,13 @@ class _Header extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(width: 14),
+          const Text(
+            'Diproses lokal · file asli tidak diubah',
+            style: TextStyle(fontSize: 11, color: LabColors.textFaint),
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _Footer extends StatelessWidget {
-  const _Footer();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'LabScale · Diproses lokal · FFmpeg + ncnn-vulkan · File asli tidak diubah',
-      style: TextStyle(fontSize: 11.5, color: LabColors.textFaint),
     );
   }
 }

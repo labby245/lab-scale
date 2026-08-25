@@ -34,6 +34,9 @@ class LabSpacing {
   static const double controlRadius = 10;
   static const double cardPadding = 18;
   static const double gap = 14;
+
+  /// Breathing room between the window edge and the workspace columns.
+  static const double pagePadding = 22;
 }
 
 ThemeData buildLabScaleTheme() {
