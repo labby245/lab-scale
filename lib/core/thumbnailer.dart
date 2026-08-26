@@ -43,7 +43,15 @@ class Thumbnailer {
       return Future.value(null);
     }
     final target = _cachePathFor(path, size);
-    return _jobs.putIfAbsent(target, () => _generate(path, isVideo, target));
+    return _jobs.putIfAbsent(target, () async {
+      final result = await _generate(path, isVideo, target);
+      // Only success is remembered. A failure is usually transient — FFmpeg
+      // not found yet, a file still being copied — and caching it would poison
+      // that thumbnail for the rest of the session, surviving even a
+      // successful "Cek ulang".
+      if (result == null) _jobs.remove(target);
+      return result;
+    });
   }
 
   /// Keyed on size as well as path so replacing a file with a different one of

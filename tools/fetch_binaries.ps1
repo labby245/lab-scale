@@ -132,7 +132,9 @@ try {
 
     # ── RIFE ──────────────────────────────────────────────────────────────────
     Write-Host "`n[3/4] RIFE (ncnn-vulkan)" -ForegroundColor Cyan
-    if (-not (Test-AlreadyPresent 'rife-ncnn-vulkan.exe')) {
+    # -RifeLatest must run even when a binary is already installed: that binary
+    # is almost certainly the old one, which is exactly what needs replacing.
+    if ($RifeLatest -or (-not (Test-AlreadyPresent 'rife-ncnn-vulkan.exe'))) {
         if ($RifeLatest) {
             Write-Host '  mengunduh rilis TNTwise (788 MB) — hanya yang perlu disimpan' -ForegroundColor Yellow
             $dir = Get-Archive `
@@ -167,11 +169,27 @@ try {
                 Write-Host "  $name sudah ada - lewati" -ForegroundColor Yellow
                 continue
             }
-            foreach ($ext in @('param', 'bin')) {
-                Invoke-WebRequest -Uri "$base/$name.$ext" `
-                    -OutFile (Join-Path $modelsDir "$name.$ext")
+            # Staged first, then moved as a pair: writing straight into
+            # models/ meant an interrupted .bin left a valid-looking .param
+            # behind, and the skip check above keys on that .param.
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "labscale-$name"
+            New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+            try {
+                foreach ($ext in @('param', 'bin')) {
+                    Invoke-WebRequest -Uri "$base/$name.$ext" `
+                        -OutFile (Join-Path $tmp "$name.$ext")
+                }
+                foreach ($ext in @('param', 'bin')) {
+                    Move-Item -Force (Join-Path $tmp "$name.$ext") $modelsDir
+                }
+                Write-Host "  -> models/$name" -ForegroundColor Green
             }
-            Write-Host "  -> models/$name" -ForegroundColor Green
+            catch {
+                Write-Host "  gagal mengunduh $name - dilewati" -ForegroundColor Red
+            }
+            finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
         }
     }
     else {

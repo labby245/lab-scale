@@ -121,6 +121,16 @@ class _SetupDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The dialog is its own route, so it does not rebuild when the home page
+    // does — without listening here, "Cek ulang" would re-probe and leave the
+    // rows showing the previous answer.
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
     final caps = controller.capabilities;
 
     return AlertDialog(

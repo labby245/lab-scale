@@ -189,7 +189,7 @@ class _MediaStageState extends State<MediaStage> {
 
 /// Comparing two clips means comparing one frame from each — the player cannot
 /// show two videos at once, and a scrubbed pair would drift out of sync.
-class _VideoCompare extends StatelessWidget {
+class _VideoCompare extends StatefulWidget {
   const _VideoCompare({
     required this.thumbnailer,
     required this.beforePath,
@@ -201,18 +201,50 @@ class _VideoCompare extends StatelessWidget {
   final String afterPath;
 
   @override
+  State<_VideoCompare> createState() => _VideoCompareState();
+}
+
+class _VideoCompareState extends State<_VideoCompare> {
+  /// Held across rebuilds. Built inside build() it would be a *new* future
+  /// every frame, so FutureBuilder would drop back to `waiting` each time —
+  /// during a running batch the controller notifies on every log line, which
+  /// left the comparison flashing a spinner and resetting the divider.
+  Future<List<String?>>? _frames;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  @override
+  void didUpdateWidget(_VideoCompare oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.beforePath != widget.beforePath ||
+        oldWidget.afterPath != widget.afterPath) {
+      _start();
+    }
+  }
+
+  void _start() {
+    final maker = widget.thumbnailer;
+    _frames = maker == null
+        ? null
+        : Future.wait([
+            maker.posterForPath(widget.beforePath, isVideo: true),
+            maker.posterForPath(widget.afterPath, isVideo: true),
+          ]);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final maker = thumbnailer;
-    if (maker == null) {
+    final frames = _frames;
+    if (frames == null) {
       return const _EmptyStage(message: 'Preview tidak tersedia');
     }
 
     return FutureBuilder<List<String?>>(
-      key: ValueKey('$beforePath|$afterPath'),
-      future: Future.wait([
-        maker.posterForPath(beforePath, isVideo: true),
-        maker.posterForPath(afterPath, isVideo: true),
-      ]),
+      future: frames,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator(strokeWidth: 2));

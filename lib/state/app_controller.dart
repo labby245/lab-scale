@@ -254,9 +254,13 @@ class AppController extends ChangeNotifier {
     // dropdown showing a disabled entry the user cannot re-pick, so fall back
     // the same way a first run does.
     if (storedModel == null || !isModelInstalled(model)) {
-      model = _capabilities.esrgan
-          ? UpscaleModel.realesrganX4Plus
-          : UpscaleModel.lanczos;
+      // Falling back on the binary's presence alone would just pick another
+      // model whose weights are missing, landing back in the same state.
+      // x4plus first because it is what the default fetch installs.
+      model = [
+        UpscaleModel.realesrganX4Plus,
+        ...UpscaleModel.values.where((m) => m.isAi),
+      ].firstWhere(isModelInstalled, orElse: () => UpscaleModel.lanczos);
     }
 
     // A stored 'rife' must not survive onto a machine without RIFE: the
@@ -337,7 +341,16 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    setFiles(found);
+    // Appends. The buttons say "Tambah" and dropping onto a filled grid reads
+    // as adding to it, so replacing the queue would quietly discard work the
+    // user had already lined up. Duplicates are ignored rather than queued
+    // twice.
+    final merged = <MediaFile>[..._files];
+    final seen = _files.map((f) => f.path).toSet();
+    for (final file in found) {
+      if (seen.add(file.path)) merged.add(file);
+    }
+    setFiles(merged);
   }
 
   void clearSelection() {
@@ -449,12 +462,21 @@ class AppController extends ChangeNotifier {
         final reporter = JobReporter();
         _attachReporter(reporter, index: i, total: total);
         try {
-          final result = await pipeline.process(
+          collected.add(await pipeline.process(
             file: file,
             rawOptions: _options,
             reporter: reporter,
-          );
-          collected.add(result);
+          ));
+        } catch (e) {
+          // One unexpected failure must not abandon the rest of the batch, and
+          // every file needs a result: statusFor reads position in [results],
+          // so a gap would leave this file and every file after it drawn as
+          // still queued long after the run stopped.
+          collected.add(JobResult(
+            sourceName: file.displayName,
+            outputPath: '',
+            error: '$e',
+          ));
         } finally {
           await _detachReporter(reporter);
         }

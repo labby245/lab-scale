@@ -136,8 +136,17 @@ class Binaries {
   static bool hasEsrganModel(String ncnnName) {
     final dir = modelsDir(Tool.realesrgan);
     if (dir == null) return false;
-    return File(p.join(dir, '$ncnnName.param')).existsSync() &&
-        File(p.join(dir, '$ncnnName.bin')).existsSync();
+
+    bool pairExists(String stem) =>
+        File(p.join(dir, '$stem.param')).existsSync() &&
+        File(p.join(dir, '$stem.bin')).existsSync();
+
+    // Most models are one file pair. AnimeVideoV3 instead ships one pair per
+    // scale — realesr-animevideov3-x2/-x3/-x4 — and the binary appends the
+    // suffix itself, so looking only for the bare name would report a model
+    // that works perfectly well as missing.
+    if (pairExists(ncnnName)) return true;
+    return [2, 3, 4].any((scale) => pairExists('$ncnnName-x$scale'));
   }
 
   static String? _which(String fileName) {

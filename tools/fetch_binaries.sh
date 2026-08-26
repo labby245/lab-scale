@@ -123,7 +123,9 @@ fi
 
 # ── RIFE ─────────────────────────────────────────────────────────────────────
 info $'\n[3/4] RIFE (ncnn-vulkan)'
-if ! already_present rife-ncnn-vulkan; then
+# --rife-latest must run even when a binary is already installed: that binary
+# is almost certainly the old one, which is exactly what needs replacing.
+if [[ $RIFE_LATEST -eq 1 ]] || ! already_present rife-ncnn-vulkan; then
   if [[ $RIFE_LATEST -eq 1 ]]; then
     skip "mengunduh rilis TNTwise (792 MB) — hanya 2 berkas yang disimpan"
     archive="$STAGING/rife-latest.zip"
@@ -161,10 +163,19 @@ fetch_extra_models() {
       skip "$name sudah ada — lewati"
       continue
     fi
-    for ext in param bin; do
-      curl -fL --retry 3 -o "$BIN_DIR/models/$name.$ext" "$base/$name.$ext"
-    done
-    ok "models/$name"
+    # Downloaded to staging first, then moved as a pair. Writing straight into
+    # models/ meant an interrupted .bin left a valid-looking .param behind —
+    # and the skip check above keys on that .param, so re-running would skip
+    # the broken model forever.
+    local tmp="$STAGING/model-$name"
+    mkdir -p "$tmp"
+    if curl -fL --retry 3 -o "$tmp/$name.param" "$base/$name.param" \
+       && curl -fL --retry 3 -o "$tmp/$name.bin" "$base/$name.bin"; then
+      mv -f "$tmp/$name.param" "$tmp/$name.bin" "$BIN_DIR/models/"
+      ok "models/$name"
+    else
+      echo "  gagal mengunduh $name — dilewati" >&2
+    fi
   done
 }
 
