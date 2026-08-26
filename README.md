@@ -90,6 +90,8 @@ Menghasilkan `dist/LabScale-<versi>-windows-x64.zip` berisi `labscale.exe`, DLL 
 
 Butuh Visual Studio 2022 dengan workload **Desktop development with C++**.
 
+Script PowerShell-nya bisa diperiksa dari macOS juga — `brew install powershell` memberi `pwsh`, cukup untuk mem-parse dan menjalankan jalur unduhan model.
+
 ### macOS
 
 ```bash

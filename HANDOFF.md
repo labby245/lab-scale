@@ -108,6 +108,7 @@ Pelajaran umum dari jebakan kedua: `flutter analyze` + `flutter test` + `flutter
 | Item | Catatan |
 |---|---|
 | Signing + notarisasi | Butuh sertifikat Developer ID. Semua langkah lain sudah terbukti. |
+| Script PowerShell | ~~belum diverifikasi~~ — `brew install powershell` memberi `pwsh` di macOS. Keduanya di-parse bersih, dan `fetch_binaries.ps1 -ExtraModels` dijalankan sungguhan sampai keempat model terunduh. |
 | Uji interaksi manual | Drag & drop, batch berjalan, viewer, dan slider pembanding belum pernah disentuh tangan manusia. Grid terverifikasi lewat tangkapan layar app sungguhan; sisanya lewat 22 widget test. Klik sintetis berhenti bekerja di mesin ini di tengah sesi — gejala *secure input* — jadi otomasi GUI bukan jalan yang bisa diandalkan di sini. |
 | Ikon Windows | `.ico` sudah diganti tapi belum di-build ulang di Windows. |
 | Rilis | Belum ada tag maupun GitHub Release. `dist/` gitignored. |
