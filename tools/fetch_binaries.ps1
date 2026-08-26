@@ -24,7 +24,13 @@ param(
     # binary rejects them all with "layer MemoryData not exists or
     # registered"), and the only published Windows build of it ships inside one
     # archive with ~50 models. Only what is needed is kept.
-    [switch]$RifeLatest
+    [switch]$RifeLatest,
+    # ESRGAN weights from Upscayl (resources/models). The binary loads any
+    # ESRGAN-architecture model via `-n <name>`, so this is purely dropping
+    # files in. Off by default: ~100 MB, and each model carries its own
+    # provenance and terms (Upscayl itself is AGPL-3.0) — check the licence
+    # before redistributing them.
+    [switch]$ExtraModels
 )
 
 $ErrorActionPreference = 'Stop'
@@ -104,7 +110,7 @@ try {
     Write-Host "`nBin dir: $BinDir`n" -ForegroundColor Cyan
 
     # ── FFmpeg ────────────────────────────────────────────────────────────────
-    Write-Host "[1/3] FFmpeg" -ForegroundColor Cyan
+    Write-Host "[1/4] FFmpeg" -ForegroundColor Cyan
     if (-not (Test-AlreadyPresent 'ffmpeg.exe')) {
         $dir = Get-Archive `
             -Url 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' `
@@ -113,7 +119,7 @@ try {
     }
 
     # ── Real-ESRGAN ───────────────────────────────────────────────────────────
-    Write-Host "`n[2/3] Real-ESRGAN (ncnn-vulkan)" -ForegroundColor Cyan
+    Write-Host "`n[2/4] Real-ESRGAN (ncnn-vulkan)" -ForegroundColor Cyan
     if (-not (Test-AlreadyPresent 'realesrgan-ncnn-vulkan.exe')) {
         $dir = Get-Archive `
             -Url 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip' `
@@ -125,7 +131,7 @@ try {
     }
 
     # ── RIFE ──────────────────────────────────────────────────────────────────
-    Write-Host "`n[3/3] RIFE (ncnn-vulkan)" -ForegroundColor Cyan
+    Write-Host "`n[3/4] RIFE (ncnn-vulkan)" -ForegroundColor Cyan
     if (-not (Test-AlreadyPresent 'rife-ncnn-vulkan.exe')) {
         if ($RifeLatest) {
             Write-Host '  mengunduh rilis TNTwise (788 MB) — hanya yang perlu disimpan' -ForegroundColor Yellow
@@ -147,6 +153,29 @@ try {
                 -ModelDirNames @('rife-v4.6')
             Write-Host '  RIFE v4.6 (2022). Pakai -RifeLatest untuk v4.25 yang lebih baik.' -ForegroundColor Yellow
         }
+    }
+
+    # ── Model upscale tambahan ────────────────────────────────────────────────
+    Write-Host "`n[4/4] Model upscale tambahan" -ForegroundColor Cyan
+    if ($ExtraModels) {
+        $base = 'https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models'
+        $modelsDir = Join-Path $BinDir 'models'
+        New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
+        foreach ($name in @('ultramix-balanced-4x', 'ultrasharp-4x', 'remacri-4x', 'upscayl-lite-4x')) {
+            $paramPath = Join-Path $modelsDir "$name.param"
+            if ((-not $Force) -and (Test-Path $paramPath)) {
+                Write-Host "  $name sudah ada - lewati" -ForegroundColor Yellow
+                continue
+            }
+            foreach ($ext in @('param', 'bin')) {
+                Invoke-WebRequest -Uri "$base/$name.$ext" `
+                    -OutFile (Join-Path $modelsDir "$name.$ext")
+            }
+            Write-Host "  -> models/$name" -ForegroundColor Green
+        }
+    }
+    else {
+        Write-Host '  dilewati. Pakai -ExtraModels untuk Ultramix / UltraSharp / Remacri / Lite.' -ForegroundColor Yellow
     }
 
     Write-Host "`nSelesai. Isi bin/:" -ForegroundColor Cyan

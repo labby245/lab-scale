@@ -10,7 +10,7 @@
 #   realesrgan-ncnn-vulkan  AI upscaling via Metal    (BSD-3)
 #   rife-ncnn-vulkan        AI frame interpolation    (MIT)
 #
-# Usage: tools/fetch_binaries.sh [--force] [--rife-latest]
+# Usage: tools/fetch_binaries.sh [--force] [--rife-latest] [--extra-models]
 #
 #   --rife-latest   Fetch RIFE v4.25 instead of v4.6. Costs a 792 MB download:
 #                   every model past v4.6 needs an ncnn build newer than
@@ -24,10 +24,12 @@ set -euo pipefail
 
 FORCE=0
 RIFE_LATEST=0
+EXTRA_MODELS=0
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=1 ;;
     --rife-latest) RIFE_LATEST=1 ;;
+    --extra-models) EXTRA_MODELS=1 ;;
     *) echo "opsi tidak dikenal: $arg" >&2; exit 2 ;;
   esac
 done
@@ -92,7 +94,7 @@ install_models() {
 printf '\nBin dir: %s\n\n' "$BIN_DIR"
 
 # ── FFmpeg ───────────────────────────────────────────────────────────────────
-info "[1/3] FFmpeg"
+info "[1/4] FFmpeg"
 if ! already_present ffmpeg; then
   if command -v brew >/dev/null 2>&1 && brew list ffmpeg >/dev/null 2>&1; then
     # A Homebrew ffmpeg is already trusted and notarized; reuse it.
@@ -110,7 +112,7 @@ if ! already_present ffmpeg; then
 fi
 
 # ── Real-ESRGAN ──────────────────────────────────────────────────────────────
-info $'\n[2/3] Real-ESRGAN (ncnn-vulkan)'
+info $'\n[2/4] Real-ESRGAN (ncnn-vulkan)'
 if ! already_present realesrgan-ncnn-vulkan; then
   d="$(fetch_zip \
     'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-macos.zip' \
@@ -120,7 +122,7 @@ if ! already_present realesrgan-ncnn-vulkan; then
 fi
 
 # ── RIFE ─────────────────────────────────────────────────────────────────────
-info $'\n[3/3] RIFE (ncnn-vulkan)'
+info $'\n[3/4] RIFE (ncnn-vulkan)'
 if ! already_present rife-ncnn-vulkan; then
   if [[ $RIFE_LATEST -eq 1 ]]; then
     skip "mengunduh rilis TNTwise (792 MB) — hanya 2 berkas yang disimpan"
@@ -140,6 +142,37 @@ if ! already_present rife-ncnn-vulkan; then
     install_models "$d" rife-v4.6
     skip "RIFE v4.6 (2022). Pakai --rife-latest untuk v4.25 yang lebih baik."
   fi
+fi
+
+# ── Model upscale tambahan ───────────────────────────────────────────────────
+#
+# Bobot ESRGAN dari Upscayl (resources/models). Binary realesrgan-ncnn-vulkan
+# memuat model apa pun berarsitektur ESRGAN lewat `-n <nama>`, jadi ini murni
+# menaruh berkas — tidak ada kode yang berubah.
+#
+# Tidak diunduh secara default: empat model ini ~100 MB, dan masing-masing
+# punya asal-usul serta ketentuan sendiri (Upscayl sendiri AGPL-3.0). Periksa
+# lisensinya sebelum ikut mendistribusikannya.
+fetch_extra_models() {
+  local base='https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models'
+  mkdir -p "$BIN_DIR/models"
+  for name in ultramix-balanced-4x ultrasharp-4x remacri-4x upscayl-lite-4x; do
+    if [[ $FORCE -eq 0 && -e "$BIN_DIR/models/$name.param" ]]; then
+      skip "$name sudah ada — lewati"
+      continue
+    fi
+    for ext in param bin; do
+      curl -fL --retry 3 -o "$BIN_DIR/models/$name.$ext" "$base/$name.$ext"
+    done
+    ok "models/$name"
+  done
+}
+
+info $'\n[4/4] Model upscale tambahan'
+if [[ $EXTRA_MODELS -eq 1 ]]; then
+  fetch_extra_models
+else
+  skip "dilewati. Pakai --extra-models untuk Ultramix / UltraSharp / Remacri / Lite."
 fi
 
 info $'\nSelesai. Isi bin/:'

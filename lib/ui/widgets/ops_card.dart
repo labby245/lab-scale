@@ -233,6 +233,11 @@ class _UpscaleSettings extends StatelessWidget {
           value: options.upscaleModel,
           items: UpscaleModel.values,
           labelOf: (m) => m.label,
+          disabledOf: (m) => !controller.isModelInstalled(m),
+          hint: UpscaleModel.values.every(controller.isModelInstalled)
+              ? null
+              : 'Model yang redup belum terpasang — jalankan '
+                  'tools/fetch_binaries --extra-models',
           onChanged: (m) =>
               controller.updateOptions((o) => o.copyWith(upscaleModel: m)),
         ),

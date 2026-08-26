@@ -4,7 +4,7 @@ Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untu
 
 ## Fitur
 
-- **Upscale** — Real-ESRGAN (foto / anime / video anime) atau Lanczos untuk hasil cepat tanpa AI. Skala 1×–4×.
+- **Upscale** — delapan pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: foto realistis, desain & ilustrasi, anime & manga, video anime, draf cepat, atau Lanczos tanpa AI. Skala 1×–4×.
 - **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
 - **Boost ke 60 FPS** — motion interpolation via RIFE AI (5–10× lebih cepat dan jauh lebih halus) atau FFmpeg `minterpolate`.
 - **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan, dan hasilnya dikumpulkan ke satu folder `<nama folder>_upscaled` di dalam folder output. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
@@ -44,6 +44,21 @@ flutter run -d windows    # atau: flutter run -d macos
 ```
 
 `bin/` sengaja tidak masuk git — isinya besar dan berlisensi terpisah.
+
+**Model upscale tambahan (opsional).** Empat model terbaik untuk desain dan foto tidak ikut secara default (~100 MB, dan masing-masing punya ketentuan lisensi sendiri). Tambahkan `--extra-models` / `-ExtraModels` untuk mengambil Ultramix Balanced, UltraSharp, Remacri, dan Upscayl Lite. Di dalam app, model yang belum terpasang tampil redup dan tidak bisa dipilih.
+
+Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai terhadap aslinya:
+
+| Model | Desain (SSIM) | Foto (rasio detail) | Detik |
+|---|---|---|---|
+| Ultramix Balanced | **0,9931** | **0,99×** | 6,6 |
+| UltraSharp | 0,9875 | 1,05× | 6,4 |
+| Remacri | 0,9871 | 1,59× | 6,6 |
+| ESRGAN x4+ *(bawaan)* | 0,9827 | 0,93× | 6,5 |
+| Upscayl Lite | 0,9784 | 0,72× | **0,7** |
+| Lanczos | 0,9768 | 0,18× | 0,4 |
+
+Rasio detail 1,00× berarti detail halus kembali sebanyak aslinya; di bawah itu buram, di atas itu mengarang.
 
 **RIFE v4.25 (opsional).** Default-nya v4.6 dari rilis nihui 2022, karena unduhannya ringan. Untuk model yang jauh lebih baik, tambahkan `--rife-latest` (bash) atau `-RifeLatest` (PowerShell). Harganya unduhan ~790 MB: **setiap model RIFE setelah v4.6 butuh build ncnn yang lebih baru** — binary lama menolak semuanya dengan `layer MemoryData not exists or registered` — dan satu-satunya build yang dipublikasikan ada di dalam satu arsip berisi ~50 model. Hanya yang diperlukan yang disimpan.
 

@@ -126,6 +126,20 @@ class Binaries {
     return null;
   }
 
+  /// Whether the Real-ESRGAN weights for [ncnnName] are actually installed.
+  ///
+  /// The model list is fixed in the UI so people can see what exists, but only
+  /// some of it ships by default — the rest arrives with
+  /// `tools/fetch_binaries --extra-models`. Without this the dropdown would
+  /// happily offer a model whose weights are absent, and the job would only
+  /// fail once it had been queued.
+  static bool hasEsrganModel(String ncnnName) {
+    final dir = modelsDir(Tool.realesrgan);
+    if (dir == null) return false;
+    return File(p.join(dir, '$ncnnName.param')).existsSync() &&
+        File(p.join(dir, '$ncnnName.bin')).existsSync();
+  }
+
   static String? _which(String fileName) {
     final locator = Platform.isWindows ? 'where' : 'which';
     try {

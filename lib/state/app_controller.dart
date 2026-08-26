@@ -174,7 +174,16 @@ class AppController extends ChangeNotifier {
   bool get canProcess => hasFiles && _options.hasAnyOp && !isRunning;
 
   /// The selected AI model is unavailable, so processing would fail.
-  bool get esrganMissing => _options.useEsrgan && !_capabilities.esrgan;
+  bool get esrganMissing =>
+      _options.useEsrgan &&
+      (!_capabilities.esrgan || !isModelInstalled(_options.upscaleModel));
+
+  /// Whether [model] can actually run here — the binary plus its weights.
+  bool isModelInstalled(UpscaleModel model) {
+    final name = model.ncnnName;
+    if (name == null) return true; // Lanczos needs nothing.
+    return _capabilities.esrgan && Binaries.hasEsrganModel(name);
+  }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -241,7 +250,10 @@ class AppController extends ChangeNotifier {
     // Fall back to the best model the machine can actually run.
     final storedModel = prefs.getString(_kUpscaleModel);
     var model = UpscaleModel.fromId(storedModel);
-    if (storedModel == null) {
+    // A stored model whose weights are not on this machine would leave the
+    // dropdown showing a disabled entry the user cannot re-pick, so fall back
+    // the same way a first run does.
+    if (storedModel == null || !isModelInstalled(model)) {
       model = _capabilities.esrgan
           ? UpscaleModel.realesrganX4Plus
           : UpscaleModel.lanczos;
