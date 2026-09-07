@@ -87,8 +87,16 @@ enum UpscaleModel {
 
   bool get isAi => ncnnName != null;
 
-  /// Native scale factor of the ncnn model. All bundled models are x4.
-  int get nativeScale => 4;
+  /// Scales this model actually ships weights for.
+  ///
+  /// Only AnimeVideoV3 has separate x2/x3 files. Handing a 4x-only network
+  /// `-s 2` does not fail — the tool stitches its tiles with the wrong
+  /// arithmetic and leaves a seam every 400 output pixels, which looks like a
+  /// faint grid over flat colour. Any scale not listed here is reached by
+  /// running the model at 4x and letting FFmpeg resize down afterwards.
+  Set<int> get nativeScales => this == UpscaleModel.realesrAnimeVideoV3
+      ? const {2, 3, 4}
+      : const {4};
 
   static UpscaleModel fromId(String? id) => UpscaleModel.values.firstWhere(
         (m) => m.id == id,

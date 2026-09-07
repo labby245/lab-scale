@@ -16,20 +16,19 @@ import 'job_log.dart';
 class EsrganRunner {
   EsrganRunner._();
 
-  /// Scales the ncnn tool can produce directly; anything else is reached by
-  /// upscaling to 4x and letting FFmpeg resize down in the encode pass.
-  static const Set<int> nativeScales = {2, 3, 4};
-
   static bool get isAvailable => Binaries.isAvailable(Tool.realesrgan);
 
-  /// The scale to pass to `-s`. For a 1x "enhance only" request we still run
-  /// the model at 4x and downscale afterwards, because the tool has no 1x mode.
-  static int ncnnScaleFor(int requestedScale) =>
-      nativeScales.contains(requestedScale) ? requestedScale : 4;
+  /// The scale to pass to `-s`.
+  ///
+  /// Only a scale the model has weights for is asked of the tool directly.
+  /// Everything else — a 1x "enhance only" request, or 2x on a 4x-only
+  /// network — runs at 4x and is resized down in the encode pass.
+  static int ncnnScaleFor(UpscaleModel model, int requestedScale) =>
+      model.nativeScales.contains(requestedScale) ? requestedScale : 4;
 
   /// True when FFmpeg must resize after the model runs.
-  static bool needsPostResize(int requestedScale) =>
-      !nativeScales.contains(requestedScale);
+  static bool needsPostResize(UpscaleModel model, int requestedScale) =>
+      !model.nativeScales.contains(requestedScale);
 
   /// Upscales every PNG in [inputDir], writing results to [outputDir].
   static Future<void> upscaleDirectory({
@@ -51,7 +50,7 @@ class EsrganRunner {
     await Directory(outputDir).create(recursive: true);
     reporter.log(
       'Real-ESRGAN: model ${model.id} pada $totalFrames frame '
-      '(${ncnnScaleFor(scale)}×)…',
+      '(${ncnnScaleFor(model, scale)}×)…',
     );
 
     await _run(
@@ -76,7 +75,7 @@ class EsrganRunner {
     required int scale,
     required JobReporter reporter,
   }) async {
-    reporter.log('Real-ESRGAN: model ${model.id} (${ncnnScaleFor(scale)}×)…');
+    reporter.log('Real-ESRGAN: model ${model.id} (${ncnnScaleFor(model, scale)}×)…');
     await _run(
       inputPath: input,
       outputPath: output,
@@ -104,7 +103,7 @@ class EsrganRunner {
       '-i', inputPath,
       '-o', outputPath,
       '-n', model.ncnnName!,
-      '-s', '${ncnnScaleFor(scale)}',
+      '-s', '${ncnnScaleFor(model, scale)}',
       '-f', 'png',
       if (modelsDir != null) ...['-m', modelsDir],
     ];

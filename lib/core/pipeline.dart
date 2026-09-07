@@ -209,7 +209,7 @@ class Pipeline {
       final int? targetHeight;
       if (options.useEsrgan) {
         final needsResize =
-            EsrganRunner.needsPostResize(options.upscaleScale);
+            EsrganRunner.needsPostResize(options.upscaleModel, options.upscaleScale);
         targetWidth = needsResize ? info.width * options.upscaleScale : null;
         targetHeight = needsResize ? info.height * options.upscaleScale : null;
       } else if (options.lanczosScale != null) {
@@ -284,7 +284,7 @@ class Pipeline {
       );
 
       final needsResize =
-          EsrganRunner.needsPostResize(options.upscaleScale);
+          EsrganRunner.needsPostResize(options.upscaleModel, options.upscaleScale);
       await FfmpegRunner.filterImage(
         input: staged,
         output: output,
