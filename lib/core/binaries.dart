@@ -133,7 +133,7 @@ class Binaries {
   /// `tools/fetch_binaries --extra-models`. Without this the dropdown would
   /// happily offer a model whose weights are absent, and the job would only
   /// fail once it had been queued.
-  static bool hasEsrganModel(String ncnnName) {
+  static bool hasEsrganModel(String ncnnName, {Set<int> scales = const {}}) {
     final dir = modelsDir(Tool.realesrgan);
     if (dir == null) return false;
 
@@ -145,8 +145,14 @@ class Binaries {
     // scale — realesr-animevideov3-x2/-x3/-x4 — and the binary appends the
     // suffix itself, so looking only for the bare name would report a model
     // that works perfectly well as missing.
+    //
+    // Every declared scale must be present, not merely one of them: this
+    // check exists so the dropdown never offers a model that fails once the
+    // job is already queued, and a half-fetched set would do exactly that the
+    // moment the user picked the missing scale.
     if (pairExists(ncnnName)) return true;
-    return [2, 3, 4].any((scale) => pairExists('$ncnnName-x$scale'));
+    if (scales.isEmpty) return false;
+    return scales.every((scale) => pairExists('$ncnnName-x$scale'));
   }
 
   static String? _which(String fileName) {

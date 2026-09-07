@@ -12,7 +12,8 @@ library;
 /// "detail" is how much fine detail came back relative to the original: 1.00x
 /// is right, below is blurry, above is invented.
 enum UpscaleModel {
-  lanczos('lanczos', 'Cepat — tanpa AI (Lanczos)', null, 'lanczos'),
+  lanczos('lanczos', 'Cepat — tanpa AI (Lanczos)', null, 'lanczos',
+      nativeScales: {}),
 
   /// Design SSIM 0.9931 (best of every model tried), photo detail 0.99x.
   /// The strongest all-rounder, and markedly better than x4plus on flat
@@ -62,6 +63,8 @@ enum UpscaleModel {
     'Video anime — jauh lebih cepat',
     'realesr-animevideov3',
     'esrgan-video',
+    // The only model shipping separate weights per scale.
+    nativeScales: {2, 3, 4},
   ),
 
   /// ~0.7s where the 32 MB networks take ~6.5s, at a real but modest quality
@@ -73,7 +76,13 @@ enum UpscaleModel {
     'lite',
   );
 
-  const UpscaleModel(this.id, this.label, this.ncnnName, this.suffix);
+  const UpscaleModel(
+    this.id,
+    this.label,
+    this.ncnnName,
+    this.suffix, {
+    this.nativeScales = const {4},
+  });
 
   /// Stable identifier used for preferences and output filename suffixes.
   final String id;
@@ -89,14 +98,16 @@ enum UpscaleModel {
 
   /// Scales this model actually ships weights for.
   ///
-  /// Only AnimeVideoV3 has separate x2/x3 files. Handing a 4x-only network
-  /// `-s 2` does not fail — the tool stitches its tiles with the wrong
-  /// arithmetic and leaves a seam every 400 output pixels, which looks like a
-  /// faint grid over flat colour. Any scale not listed here is reached by
-  /// running the model at 4x and letting FFmpeg resize down afterwards.
-  Set<int> get nativeScales => this == UpscaleModel.realesrAnimeVideoV3
-      ? const {2, 3, 4}
-      : const {4};
+  /// Handing a 4x-only network `-s 2` does not fail — the tool stitches its
+  /// tiles with the wrong arithmetic and returns a torn image, at exactly the
+  /// requested size so no dimension check catches it. Any scale not listed
+  /// here is reached by running the model at its widest and letting FFmpeg
+  /// resize down afterwards.
+  ///
+  /// Declared per model rather than derived in a getter, so a network that
+  /// ships x2 weights is a matter of saying so on its own line instead of
+  /// remembering to amend a condition elsewhere.
+  final Set<int> nativeScales;
 
   static UpscaleModel fromId(String? id) => UpscaleModel.values.firstWhere(
         (m) => m.id == id,

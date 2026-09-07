@@ -182,7 +182,8 @@ class AppController extends ChangeNotifier {
   bool isModelInstalled(UpscaleModel model) {
     final name = model.ncnnName;
     if (name == null) return true; // Lanczos needs nothing.
-    return _capabilities.esrgan && Binaries.hasEsrganModel(name);
+    return _capabilities.esrgan &&
+        Binaries.hasEsrganModel(name, scales: model.nativeScales);
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -371,7 +372,8 @@ class AppController extends ChangeNotifier {
 
   /// Opens [file] in the preview pane, or closes the pane when null.
   void selectForPreview(MediaFile? file) {
-    _previewFile = (file != null && file.path == _previewFile?.path) ? null : file;
+    final same = file != null && file.path == _previewFile?.path;
+    _previewFile = same ? null : file;
     notifyListeners();
   }
 
@@ -507,7 +509,11 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  void _attachReporter(JobReporter reporter, {required int index, required int total}) {
+  void _attachReporter(
+    JobReporter reporter, {
+    required int index,
+    required int total,
+  }) {
     _logSub = reporter.logs.listen((line) {
       _logLines = [..._logLines, line];
       notifyListeners();

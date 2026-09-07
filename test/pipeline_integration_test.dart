@@ -64,6 +64,25 @@ void main() {
     return MediaFile.tryFrom(path)!;
   }
 
+  /// A clip carrying a `rotation=90` display matrix, like a phone recording.
+  ///
+  /// ffprobe reports the *stored* dimensions for these while ffmpeg
+  /// autorotates on extraction, so the two disagree — the trap the frames path
+  /// has to survive.
+  Future<MediaFile> makeRotatedClip(String name) async {
+    final flat = await makeClip('flat_$name');
+    final path = p.join(workspace.path, name);
+    final result = await Process.run(Binaries.require(Tool.ffmpeg), [
+      '-y', '-hide_banner', '-loglevel', 'error',
+      '-display_rotation', '90',
+      '-i', flat.path,
+      '-c', 'copy',
+      path,
+    ]);
+    expect(result.exitCode, 0, reason: result.stderr.toString());
+    return MediaFile.tryFrom(path)!;
+  }
+
   Future<MediaFile> makeStill(String name) async {
     final path = p.join(workspace.path, name);
     final result = await Process.run(Binaries.require(Tool.ffmpeg), [
@@ -264,6 +283,29 @@ void main() {
       final info = await FfmpegRunner.probe(result.outputPath);
       expect(info.width, _clipWidth * 2);
       expect(info.height, _clipHeight * 2);
+    }, timeout: const Timeout(Duration(minutes: 10)));
+
+    test('a rotated clip keeps its shape through the resize', () async {
+      // ffprobe reports the stored dimensions while ffmpeg autorotates on
+      // extraction, so scaling to probe's numbers turns a portrait clip into
+      // a squashed landscape one. Only bites on the post-resize path — which
+      // 2x on a 4x-only model now always takes.
+      final clip = await makeRotatedClip('src_rotated.mp4');
+      final result = await run(
+        clip,
+        const ProcessOptions(
+          upscale: true,
+          upscaleModel: UpscaleModel.realesrganX4Plus,
+          upscaleScale: 2,
+          quality: Quality.fast,
+        ),
+      );
+
+      expect(result.error, isNull);
+      final info = await FfmpegRunner.probe(result.outputPath);
+      // The visible frame is portrait: the stored size transposed, doubled.
+      expect(info.width, _clipHeight * 2);
+      expect(info.height, _clipWidth * 2);
     }, timeout: const Timeout(Duration(minutes: 10)));
   }, skip: _noFfmpeg ?? (Binaries.isAvailable(Tool.realesrgan)
       ? false

@@ -8,6 +8,9 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 
 import '../models/process_options.dart';
 import 'binaries.dart';
@@ -22,13 +25,26 @@ class EsrganRunner {
   ///
   /// Only a scale the model has weights for is asked of the tool directly.
   /// Everything else — a 1x "enhance only" request, or 2x on a 4x-only
-  /// network — runs at 4x and is resized down in the encode pass.
-  static int ncnnScaleFor(UpscaleModel model, int requestedScale) =>
-      model.nativeScales.contains(requestedScale) ? requestedScale : 4;
+  /// network — runs at the model's widest scale and is resized down in the
+  /// encode pass.
+  ///
+  /// The fallback is read off the model rather than hard-coded to 4, so a
+  /// network that tops out lower can never be handed a `-s` it has no weights
+  /// for, which is the very failure this mechanism exists to prevent.
+  static int ncnnScaleFor(UpscaleModel model, int requestedScale) {
+    final scales = model.nativeScales;
+    if (scales.isEmpty) return requestedScale; // Not an ncnn model at all.
+    if (scales.contains(requestedScale)) return requestedScale;
+    return scales.reduce(math.max);
+  }
 
   /// True when FFmpeg must resize after the model runs.
+  ///
+  /// Expressed through [ncnnScaleFor] so the two cannot drift apart: a resize
+  /// is needed exactly when the tool was asked for a different scale than the
+  /// user wanted.
   static bool needsPostResize(UpscaleModel model, int requestedScale) =>
-      !model.nativeScales.contains(requestedScale);
+      ncnnScaleFor(model, requestedScale) != requestedScale;
 
   /// Upscales every PNG in [inputDir], writing results to [outputDir].
   static Future<void> upscaleDirectory({
@@ -50,7 +66,7 @@ class EsrganRunner {
     await Directory(outputDir).create(recursive: true);
     reporter.log(
       'Real-ESRGAN: model ${model.id} pada $totalFrames frame '
-      '(${ncnnScaleFor(model, scale)}×)…',
+      '($scale×)…',
     );
 
     await _run(
@@ -75,7 +91,16 @@ class EsrganRunner {
     required int scale,
     required JobReporter reporter,
   }) async {
-    reporter.log('Real-ESRGAN: model ${model.id} (${ncnnScaleFor(model, scale)}×)…');
+    final ncnnScale = ncnnScaleFor(model, scale);
+    reporter.log(
+      ncnnScale == scale
+          ? 'Real-ESRGAN: model ${model.id} ($scale×)…'
+          // Says why a 2x job is about to cost what a 4x one does: this model
+          // has no weights at the requested scale, so it runs wide and FFmpeg
+          // resizes down afterwards.
+          : 'Real-ESRGAN: model ${model.id} ($scale× — jaringan '
+              '$ncnnScale× lalu diperkecil)…',
+    );
     await _run(
       inputPath: input,
       outputPath: output,
@@ -85,6 +110,28 @@ class EsrganRunner {
     );
     reporter.log('Real-ESRGAN selesai.');
   }
+
+  /// The exact argv handed to `realesrgan-ncnn-vulkan`.
+  ///
+  /// Split out so the `-s` value can be asserted directly. A torn output comes
+  /// back at exactly the requested size, so no test of the *result* can catch
+  /// the wrong scale reaching the process — only the argv can.
+  @visibleForTesting
+  static List<String> buildArgs({
+    required String inputPath,
+    required String outputPath,
+    required UpscaleModel model,
+    required int requestedScale,
+    String? modelsDir,
+  }) =>
+      <String>[
+        '-i', inputPath,
+        '-o', outputPath,
+        '-n', model.ncnnName!,
+        '-s', '${ncnnScaleFor(model, requestedScale)}',
+        '-f', 'png',
+        if (modelsDir != null) ...['-m', modelsDir],
+      ];
 
   static Future<void> _run({
     required String inputPath,
@@ -99,14 +146,13 @@ class EsrganRunner {
     final binary = Binaries.require(Tool.realesrgan);
     final modelsDir = Binaries.modelsDir(Tool.realesrgan);
 
-    final args = <String>[
-      '-i', inputPath,
-      '-o', outputPath,
-      '-n', model.ncnnName!,
-      '-s', '${ncnnScaleFor(model, scale)}',
-      '-f', 'png',
-      if (modelsDir != null) ...['-m', modelsDir],
-    ];
+    final args = buildArgs(
+      inputPath: inputPath,
+      outputPath: outputPath,
+      model: model,
+      requestedScale: scale,
+      modelsDir: modelsDir,
+    );
 
     final process = await Process.start(binary, args);
     final stderrTail = <String>[];

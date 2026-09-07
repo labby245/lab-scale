@@ -8,6 +8,7 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
@@ -102,6 +103,35 @@ class Pipeline {
     return lines.last.length > 300 ? lines.last.substring(0, 300) : lines.last;
   }
 
+  /// Dimensions of the first extracted frame, or null when they cannot be
+  /// read.
+  ///
+  /// Read straight from the PNG header rather than by shelling out: the answer
+  /// is 24 bytes in, and this sits on the hot path of every video job.
+  static Future<({int width, int height})?> _firstFrameSize(
+    String framesDir,
+  ) async {
+    try {
+      final frames = await Directory(framesDir)
+          .list()
+          .where((e) => e is File && e.path.toLowerCase().endsWith('.png'))
+          .toList();
+      if (frames.isEmpty) return null;
+      frames.sort((a, b) => a.path.compareTo(b.path));
+
+      final header = await (frames.first as File).openRead(0, 24).first;
+      if (header.length < 24) return null;
+      final bytes = Uint8List.fromList(header);
+      // 8-byte signature, 4-byte chunk length, "IHDR", then two big-endian
+      // uint32s.
+      if (String.fromCharCodes(bytes.sublist(12, 16)) != 'IHDR') return null;
+      final data = ByteData.sublistView(bytes);
+      return (width: data.getUint32(16), height: data.getUint32(20));
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   /// Builds the output path, appending `_2`, `_3`… when the name is taken.
   ///
   /// A recursive folder pick routinely contains several files with the same
@@ -169,6 +199,15 @@ class Pipeline {
         progress: reporter.stage(0.0, 0.25),
       );
 
+      // Geometry comes from the frames themselves, not from probe(). FFmpeg
+      // autorotates on extraction while ffprobe reports the *stored*
+      // dimensions, so a phone clip carrying rotation=90 has frames that are
+      // the transpose of what info says. Scaling to info's numbers would
+      // squash a portrait clip into landscape.
+      final source =
+          await _firstFrameSize(framesDir) ??
+          (width: info.width, height: info.height);
+
       var fps = info.fps;
 
       if (options.useRife) {
@@ -199,8 +238,9 @@ class Pipeline {
       }
 
       // Work out the final size. Two separate cases land here:
-      //   * ESRGAN ran at its native 2/3/4x — only 1x ("enhance only") needs a
-      //     resize back down.
+      //   * ESRGAN ran, but at a wider scale than was asked for. That is every
+      //     request a model has no weights for — a 1x "enhance only", and
+      //     also 2x and 3x on the seven 4x-only models, which all run at 4x.
       //   * ESRGAN did NOT run, but Lanczos upscaling was requested and we are
       //     on the frames path because of RIFE. The direct-path filter chain
       //     never executed, so the scale has to happen here or the output comes
@@ -208,13 +248,17 @@ class Pipeline {
       final int? targetWidth;
       final int? targetHeight;
       if (options.useEsrgan) {
-        final needsResize =
-            EsrganRunner.needsPostResize(options.upscaleModel, options.upscaleScale);
-        targetWidth = needsResize ? info.width * options.upscaleScale : null;
-        targetHeight = needsResize ? info.height * options.upscaleScale : null;
+        final needsResize = EsrganRunner.needsPostResize(
+          options.upscaleModel,
+          options.upscaleScale,
+        );
+        targetWidth = needsResize ? source.width * options.upscaleScale : null;
+        targetHeight = needsResize
+            ? source.height * options.upscaleScale
+            : null;
       } else if (options.lanczosScale != null) {
-        targetWidth = info.width * options.lanczosScale!;
-        targetHeight = info.height * options.lanczosScale!;
+        targetWidth = source.width * options.lanczosScale!;
+        targetHeight = source.height * options.lanczosScale!;
       } else {
         targetWidth = null;
         targetHeight = null;
@@ -283,8 +327,10 @@ class Pipeline {
         reporter: reporter,
       );
 
-      final needsResize =
-          EsrganRunner.needsPostResize(options.upscaleModel, options.upscaleScale);
+      final needsResize = EsrganRunner.needsPostResize(
+        options.upscaleModel,
+        options.upscaleScale,
+      );
       await FfmpegRunner.filterImage(
         input: staged,
         output: output,

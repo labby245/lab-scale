@@ -60,6 +60,8 @@ Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai
 
 Rasio detail 1,00× berarti detail halus kembali sebanyak aslinya; di bawah itu buram, di atas itu mengarang.
 
+**Kenapa 2× tidak lebih cepat dari 4×.** Hanya AnimeVideoV3 yang punya bobot terpisah untuk 2× dan 3×. Model lain 4× saja, jadi permintaan 2× dijalankan di 4× lalu diperkecil FFmpeg — waktu GPU dan ruang sementara sama seperti 4× penuh. Log menyebutkannya (`jaringan 4× lalu diperkecil`). Pada jalur video ini berarti frame sementara berukuran 4×, bukan 2×: klip 1080p panjang bisa memakan puluhan GB di folder temp. Kalau ruang sempit, pilih AnimeVideoV3 atau proses per potongan.
+
 **RIFE v4.25 (opsional).** Default-nya v4.6 dari rilis nihui 2022, karena unduhannya ringan. Untuk model yang jauh lebih baik, tambahkan `--rife-latest` (bash) atau `-RifeLatest` (PowerShell). Harganya unduhan ~790 MB: **setiap model RIFE setelah v4.6 butuh build ncnn yang lebih baru** — binary lama menolak semuanya dengan `layer MemoryData not exists or registered` — dan satu-satunya build yang dipublikasikan ada di dalam satu arsip berisi ~50 model. Hanya yang diperlukan yang disimpan.
 
 Diukur di M1, 24 frame 1920×1080: v4.6 4,5 detik, v4.25 6,0 detik. Binary barunya tidak menurunkan performa model lama (4,4 detik).
