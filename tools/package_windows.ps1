@@ -105,6 +105,9 @@ try {
             Write-Host "  models/$stem"
         }
     }
+    else {
+        Write-Host 'bin/ kosong — app akan mencari tool di PATH' -ForegroundColor Yellow
+    }
 
     # The licences travel with the binaries they cover.
     foreach ($doc in @('LICENSE', 'THIRD_PARTY_NOTICES.md')) {
@@ -113,9 +116,6 @@ try {
     $licensesOut = Join-Path $releaseDir 'licenses'
     if (Test-Path $licensesOut) { Remove-Item $licensesOut -Recurse -Force }
     Copy-Item (Join-Path $root 'licenses') $licensesOut -Recurse -Force
-    else {
-        Write-Host 'bin/ kosong — app akan mencari tool di PATH' -ForegroundColor Yellow
-    }
 
     $version = (Select-String -Path (Join-Path $root 'pubspec.yaml') -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
     $versionName = $version.Split('+')[0]
