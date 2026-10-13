@@ -15,6 +15,7 @@ import '../core/app_log.dart';
 import '../core/binaries.dart';
 import '../core/esrgan_runner.dart';
 import '../core/ffmpeg_runner.dart';
+import '../core/gpu_probe.dart';
 import '../core/job_log.dart';
 import '../core/model_store.dart';
 import '../core/pipeline.dart';
@@ -32,11 +33,18 @@ class Capabilities {
     this.esrgan = false,
     this.rife = false,
     this.encoders,
+    this.esrganIssue,
+    this.rifeIssue,
   });
 
   final bool ffmpeg;
   final bool esrgan;
   final bool rife;
+
+  /// Why a tool that is installed still cannot run here (no Vulkan GPU), or
+  /// null. Lets the UI say "your GPU" instead of "reinstall the app".
+  final GpuProbeResult? esrganIssue;
+  final GpuProbeResult? rifeIssue;
 
   /// Verified encoders, or null until the probe has answered.
   final EncoderSupport? encoders;
@@ -344,6 +352,14 @@ class AppController extends ChangeNotifier {
       'tools: ffmpeg=${caps.ffmpeg} esrgan=${caps.esrgan} rife=${caps.rife} '
       '· encoders: ${caps.encoderSummary(S.en)}',
     );
+    for (final (name, issue) in [
+      ('esrgan', caps.esrganIssue),
+      ('rife', caps.rifeIssue),
+    ]) {
+      if (issue != null) {
+        _appLog?.write('$name unusable: ${issue.failure.name} ${issue.detail}');
+      }
+    }
   }
 
   /// Reinstates a folder the user picked previously.
@@ -363,12 +379,19 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _probeCapabilities() async {
-    final support = await FfmpegRunner.encoders();
+    // Both at once: the GPU probe is a second or so of real ncnn work, the
+    // encoder probe a few trial encodes, and the window waits on both.
+    final results = await Future.wait([
+      FfmpegRunner.encoders(),
+      probeGpuTools(_tempDir),
+    ]);
     _capabilities = Capabilities(
       ffmpeg: Binaries.isAvailable(Tool.ffmpeg),
       esrgan: EsrganRunner.isAvailable,
       rife: RifeRunner.isAvailable,
-      encoders: support,
+      encoders: results.first as EncoderSupport,
+      esrganIssue: Binaries.unusableReason(Tool.realesrgan),
+      rifeIssue: Binaries.unusableReason(Tool.rife),
     );
   }
 

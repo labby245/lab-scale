@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../l10n/strings.dart';
+import 'gpu_probe.dart';
 
 enum Tool {
   ffmpeg('ffmpeg'),
@@ -80,13 +81,27 @@ class Binaries {
   /// Path to [tool], throwing a user-facing message when it is missing.
   static String require(Tool tool) {
     final path = resolve(tool);
-    if (path == null) {
+    if (path == null || _unusable.containsKey(tool)) {
       throw ToolMissingException(tool);
     }
     return path;
   }
 
-  static bool isAvailable(Tool tool) => resolve(tool) != null;
+  /// Present *and* able to run. A tool [markUnusable] by the GPU probe
+  /// counts as missing, so the UI and the pipeline's fallbacks treat a PC
+  /// without Vulkan exactly like one without the binary.
+  static bool isAvailable(Tool tool) =>
+      resolve(tool) != null && !_unusable.containsKey(tool);
+
+  static final Map<Tool, GpuProbeResult> _unusable = {};
+
+  /// Why [tool] is present but cannot run here, or null.
+  static GpuProbeResult? unusableReason(Tool tool) => _unusable[tool];
+
+  static void markUnusable(Tool tool, GpuProbeResult reason) =>
+      _unusable[tool] = reason;
+
+  static void clearUnusable() => _unusable.clear();
 
   /// Candidate model folder names per tool, best first.
   ///
@@ -204,11 +219,14 @@ class ToolMissingException implements Exception {
 
   final Tool tool;
 
-  String get installHint => switch (tool) {
-        Tool.ffmpeg || Tool.ffprobe => S.current.ffmpegMissingHint,
-        Tool.realesrgan => S.current.esrganMissingHint,
-        Tool.rife => S.current.rifeMissingHint,
-      };
+  String get installHint {
+    if (Binaries.unusableReason(tool) != null) return S.current.noVulkanHint;
+    return switch (tool) {
+      Tool.ffmpeg || Tool.ffprobe => S.current.ffmpegMissingHint,
+      Tool.realesrgan => S.current.esrganMissingHint,
+      Tool.rife => S.current.rifeMissingHint,
+    };
+  }
 
   @override
   String toString() => installHint;

@@ -18,31 +18,39 @@ macOS (Apple Silicon) · Windows
 
 ---
 
-LabScale membuat foto dan video kecil jadi lebih besar dan tajam dengan AI, dan
-membuat video yang patah-patah jadi mulus di 60 frame per detik. Masukkan satu
+LabScale membuat foto dan video yang kecil atau buram jadi lebih besar dan
+tajam dengan AI, dan membuat video yang patah-patah jadi mulus. Masukkan satu
 file atau satu folder, pilih yang kamu mau, tekan **Proses**.
 
-Tidak ada yang diunggah ke mana pun. Semua langkah berjalan di komputermu
-sendiri, memakai GPU-mu sendiri, dan file aslimu tidak pernah diubah.
+## Kenapa LabScale
+
+- 🆓 **Gratis selamanya** — tanpa akun, tanpa watermark, tanpa batas jumlah
+  file.
+- 🔒 **Privat** — semuanya diproses di komputermu. Tidak ada yang diunggah,
+  dan file aslimu tidak pernah diubah.
+- 🎬 **Foto *dan* video** — perbesar sampai 4×, dan ubah video patah-patah
+  jadi mulus 60 FPS.
+- 📁 **Sekali banyak** — masukkan satu folder, lalu bandingkan sebelum dan
+  sesudahnya berdampingan.
 
 ## Fiturnya
 
-- **Upscale 1×–4×** dengan model yang dipilih menurut *peruntukannya*: foto
-  realistis, desain & ilustrasi, anime & manga, video anime, atau draf cepat.
-  Atau Lanczos biasa tanpa AI.
-- **Boost ke 60 FPS** dengan interpolasi frame RIFE AI (atau bawaan FFmpeg).
+- **Upscale 1×–4×.** Kamu memilih menurut jenis gambarnya: foto, desain atau
+  ilustrasi, anime, atau video anime. Ada juga mode draf cepat dan pilihan
+  biasa tanpa AI.
+- **Video mulus 60 FPS**, dengan membuat frame-frame di antaranya.
 - **Satu folder sekaligus.** Setiap file tampil sebagai thumbnail, dan file
   yang sedang dikerjakan punya progress bar sendiri. Hasil dari satu folder
   dikumpulkan di folder `<nama folder>_upscaled`.
 - **Bandingkan sebelum / sesudah.** Klik file mana saja untuk membandingkan
   asli dan hasilnya selebar jendela, dengan pembatas yang bisa digeser.
   ←/→ untuk pindah file.
-- **Kualitas & codec** — H.264, HEVC, atau AV1, memakai encoder hardware GPU
-  (VideoToolbox di Mac, NVENC di NVIDIA) kalau ada. Audio tetap ikut.
-- **Bisa dibatalkan kapan saja**, dan LabScale mengecek ruang disk sebelum
-  memulai pekerjaan video yang panjang, bukan baru ketahuan penuh di tengah
-  jalan.
+- **Bisa dibatalkan kapan saja.** LabScale juga mengecek ruang disk sebelum
+  pekerjaan video yang panjang, bukan baru ketahuan penuh di tengah jalan.
 - **Bahasa Indonesia dan Inggris**, ganti dengan satu klik.
+- Untuk yang ingin tahu detail teknis: video disimpan sebagai H.264, HEVC,
+  atau AV1, memakai encoder hardware GPU kalau ada (VideoToolbox di Mac,
+  NVENC di NVIDIA), dan audionya tetap ikut.
 
 ## Cara pasang
 
@@ -66,8 +74,10 @@ Mac Intel tidak didukung.
 2. Kalau Windows SmartScreen menampilkan "Windows protected your PC", klik
    **More info → Run anyway**. Installer-nya tidak butuh hak administrator.
 
-Fitur AI butuh GPU yang mendukung Vulkan — praktis semua GPU NVIDIA, AMD, atau
-Intel beberapa tahun terakhir, dengan driver yang terbaru.
+Fitur AI butuh GPU yang mendukung Vulkan — kebanyakan GPU NVIDIA, AMD, dan
+Intel sejak sekitar 2016, dengan driver terbaru. Di laptop yang lebih tua
+LabScale tetap bisa dipakai: app memberi tahu bahwa fitur AI tidak tersedia,
+sedangkan upscale tanpa AI dan boost 60 FPS tetap jalan.
 
 ## Perlu diketahui
 

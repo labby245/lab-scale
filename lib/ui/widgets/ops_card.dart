@@ -252,12 +252,15 @@ class _UpscaleSettings extends StatelessWidget {
           value: model,
           items: UpscaleModel.values,
           labelOf: (m) => _modelLabel(s, m),
+          // Downloadable models stay pickable to reach their download button
+          // — unless no AI model can run here at all.
           disabledOf: (m) =>
-              !controller.isModelInstalled(m) && downloadableFor(m) == null,
+              !controller.isModelInstalled(m) &&
+              (downloadableFor(m) == null || !controller.capabilities.esrgan),
           onChanged: (m) =>
               controller.updateOptions((o) => o.copyWith(upscaleModel: m)),
         ),
-        if (download != null)
+        if (download != null && controller.capabilities.esrgan)
           _ModelDownloadPanel(controller: controller, download: download),
         const SizedBox(height: 14),
         Row(
@@ -307,7 +310,9 @@ class _UpscaleSettings extends StatelessWidget {
           _Notice(tone: LabColors.warning, text: s.esrganVideoNotice),
         // A missing binary is a broken install; a missing downloadable model
         // is already explained by the download panel above.
-        if (controller.esrganMissing && !controller.capabilities.esrgan)
+        if (controller.capabilities.esrganIssue != null && model.isAi)
+          _Notice(tone: LabColors.warning, text: s.noVulkanHint)
+        else if (controller.esrganMissing && !controller.capabilities.esrgan)
           _Notice(tone: LabColors.danger, text: s.esrganMissingNotice)
         else if (controller.esrganMissing && download == null)
           _Notice(tone: LabColors.danger, text: s.modelWeightsMissing),

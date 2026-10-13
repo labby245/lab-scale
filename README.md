@@ -18,30 +18,37 @@ macOS (Apple Silicon) · Windows
 
 ---
 
-LabScale makes small photos and videos bigger and sharper with AI, and makes
-choppy video smooth at 60 frames per second. Drop in a file or a whole folder,
-pick what you want, press **Process**.
+LabScale makes small or blurry photos and videos bigger and sharper with AI,
+and makes choppy video smooth. Drop in a file or a whole folder, pick what you
+want, press **Process**.
 
-Nothing is uploaded anywhere. Every step runs on your own machine, on your own
-GPU, and your original files are never modified.
+## Why LabScale
+
+- 🆓 **Free, for good** — no account, no watermark, no limit on how many files.
+- 🔒 **Private** — everything happens on your computer. Nothing is uploaded,
+  and your original files are never changed.
+- 🎬 **Photos *and* video** — enlarge up to 4×, and turn choppy video into
+  smooth 60 FPS.
+- 📁 **Many at once** — drop a whole folder, then compare before and after
+  side by side.
 
 ## What it does
 
-- **Upscale 1×–4×** with models picked by what they are *for*: realistic
-  photos, design & illustration, anime & manga, anime video, or a quick draft.
-  Or plain Lanczos, no AI at all.
-- **Boost to 60 FPS** with RIFE AI frame interpolation (or FFmpeg's built-in
-  one).
+- **Upscale 1×–4×.** You choose by what the picture is: a photo, a design or
+  illustration, anime, or anime video. There is also a quick draft mode, and a
+  plain non-AI option.
+- **Smooth video to 60 FPS** by generating the frames in between.
 - **Whole folders at once.** Every file shows as a thumbnail, and the one being
-  worked on carries its own progress bar. Results from a folder are collected
-  in one `<folder>_upscaled` folder.
+  worked on has its own progress bar. A folder's results are collected in one
+  `<folder>_upscaled` folder.
 - **Before / after viewer.** Click any file to compare the original and the
-  result full-window, with a divider you drag across. ←/→ moves between files.
-- **Quality & codec control** — H.264, HEVC or AV1, using your GPU's hardware
-  encoder (VideoToolbox on Mac, NVENC on NVIDIA) when it has one. Audio is kept.
-- **Cancel anytime**, and LabScale checks there is enough free disk space
-  before starting a long video job, instead of filling your disk halfway.
-- **English and Indonesian** interface, switchable in one click.
+  result full-window, dragging a divider across. ←/→ moves between files.
+- **Cancel anytime.** LabScale also checks there is enough free disk space
+  before a long video job, instead of filling your disk halfway.
+- **English and Indonesian**, switchable in one click.
+- For the technically curious: video comes out as H.264, HEVC or AV1, using
+  your GPU's hardware encoder when it has one (VideoToolbox on Mac, NVENC on
+  NVIDIA), and the audio is kept.
 
 ## Install
 
@@ -66,8 +73,10 @@ Intel Macs are not supported.
    **More info → Run anyway**. The installer does not need administrator
    rights.
 
-The AI features need a GPU with Vulkan support — practically any NVIDIA, AMD
-or Intel GPU from the last several years, with an up-to-date driver.
+The AI features need a GPU that supports Vulkan — most NVIDIA, AMD and Intel
+GPUs from about 2016 onward, with an up-to-date driver. On older laptops
+LabScale still runs: it says the AI features are unavailable, and the non-AI
+upscale and the 60 FPS boost keep working.
 
 ## Good to know
 

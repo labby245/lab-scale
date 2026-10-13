@@ -1,0 +1,36 @@
+# Builds the Windows installer + zip from any branch and keeps them as a
+# workflow artifact (7 days) — for trying a change on a real PC before it is
+# tagged. Releases still come only from release.yml.
+name: Build Windows (test)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Fetch tools
+        shell: pwsh
+        run: tools/fetch_binaries.ps1 -RifeLatest
+
+      - name: Build installer + zip
+        shell: pwsh
+        run: tools/package_windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labscale-windows
+          path: dist/LabScale-*
+          retention-days: 7

@@ -491,6 +491,22 @@ class S {
         'FFmpeg was not found. Reinstall LabScale, or place ffmpeg and ffprobe '
             'in the app’s bin/ folder.',
       );
+  String get noVulkanHint => _(
+        'GPU atau driver di komputer ini tidak mendukung Vulkan, jadi fitur AI '
+            'tidak bisa jalan. Upscale Lanczos dan boost 60 FPS lewat FFmpeg '
+            'tetap bisa dipakai. Memperbarui driver GPU kadang menolong.',
+        'This computer’s GPU or driver does not support Vulkan, so the AI '
+            'features cannot run. Lanczos upscaling and the FFmpeg 60 FPS boost '
+            'still work. Updating the GPU driver sometimes helps.',
+      );
+  String get noVulkanShort => _(
+        'Tidak bisa jalan: GPU/driver tidak mendukung Vulkan',
+        'Cannot run: the GPU/driver does not support Vulkan',
+      );
+  String gpuProbeFailed(String detail) => _(
+        'Tidak bisa jalan di GPU ini — $detail',
+        'Cannot run on this GPU — $detail',
+      );
   String get esrganMissingHint => _(
         'Real-ESRGAN tidak ditemukan. Install ulang LabScale, atau letakkan '
             'realesrgan-ncnn-vulkan di folder bin/ milik aplikasi.',

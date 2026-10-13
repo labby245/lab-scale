@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/binaries.dart';
+import '../../core/gpu_probe.dart';
 import '../../l10n/strings.dart';
 import '../../state/app_controller.dart';
 import '../theme.dart';
@@ -161,13 +162,13 @@ class _SetupDetailsDialog extends StatelessWidget {
               available: caps.esrgan,
               name: s.esrganName,
               detail: s.esrganDetail,
-              hint: s.esrganHint,
+              hint: _issueText(s, caps.esrganIssue) ?? s.esrganHint,
             ),
             _ToolRow(
               available: caps.rife,
               name: s.rifeName,
               detail: s.rifeDetail,
-              hint: s.rifeHint,
+              hint: _issueText(s, caps.rifeIssue) ?? s.rifeHint,
             ),
             _EncoderRow(summary: caps.encoderSummary(s)),
             const SizedBox(height: 12),
@@ -200,6 +201,14 @@ class _SetupDetailsDialog extends StatelessWidget {
     );
   }
 }
+
+/// A tool that is installed but cannot run here is a GPU problem, not a
+/// missing file, and "copy it into bin/" would send the user the wrong way.
+String? _issueText(S s, GpuProbeResult? issue) => switch (issue) {
+      null => null,
+      GpuProbeResult(failure: GpuProbeFailure.noVulkan) => s.noVulkanShort,
+      _ => s.gpuProbeFailed(issue.detail),
+    };
 
 class _ToolRow extends StatelessWidget {
   const _ToolRow({
