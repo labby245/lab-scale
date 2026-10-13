@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labscale/core/binaries.dart';
 import 'package:labscale/core/gpu_probe.dart';
 import 'package:labscale/core/rife_runner.dart';
+import 'package:labscale/l10n/strings.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -88,5 +89,21 @@ void main() {
     // AnimeVideoV3 is named without its -x4 suffix: the tool adds it.
     expect(probeModelFor(work.path), 'realesr-animevideov3');
     expect(probeModelFor(p.join(work.path, 'nope')), isNull);
+  });
+
+  test('only a missing Vulkan is reported as a missing Vulkan', () {
+    for (final s in [S.id, S.en]) {
+      expect(
+        s.gpuIssue(const GpuProbeResult(GpuProbeFailure.noVulkan, 'dll')),
+        contains('Vulkan'),
+      );
+      // A hang or a driver error on a GPU that has Vulkan must say what
+      // happened, not send the user hunting for a driver they already have.
+      final other = s.gpuIssue(
+        const GpuProbeResult(GpuProbeFailure.failed, 'exit -1'),
+      );
+      expect(other, isNot(contains('Vulkan')));
+      expect(other, contains('exit -1'));
+    }
   });
 }

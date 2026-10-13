@@ -12,6 +12,7 @@ library;
 
 import 'package:flutter/widgets.dart';
 
+import '../core/gpu_probe.dart';
 import '../models/process_options.dart';
 
 class S {
@@ -503,6 +504,13 @@ class S {
         'Tidak bisa jalan: GPU/driver tidak mendukung Vulkan',
         'Cannot run: the GPU/driver does not support Vulkan',
       );
+  /// Why an installed AI tool cannot run, worded by what actually failed:
+  /// "no Vulkan" sends the user to their driver, anything else (a hang, a
+  /// driver error) must not claim Vulkan is missing.
+  String gpuIssue(GpuProbeResult issue) =>
+      issue.failure == GpuProbeFailure.noVulkan
+          ? noVulkanShort
+          : gpuProbeFailed(issue.detail);
   String gpuProbeFailed(String detail) => _(
         'Tidak bisa jalan di GPU ini — $detail',
         'Cannot run on this GPU — $detail',

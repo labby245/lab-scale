@@ -659,6 +659,7 @@ class AppController extends ChangeNotifier {
         notifyListeners();
 
         final reporter = JobReporter();
+        final linesBefore = _logLines;
         _activeReporter = reporter;
         _attachReporter(reporter, index: i, total: total);
         try {
@@ -680,6 +681,11 @@ class AppController extends ChangeNotifier {
         } finally {
           _activeReporter = null;
           await _detachReporter(reporter);
+          // The streams feed the panel live; this makes the end state
+          // exact. history is filled synchronously in log(), so it holds
+          // every line the job wrote no matter how delivery and the
+          // subscription teardown happened to interleave.
+          _logLines = [...linesBefore, ...reporter.history];
         }
 
         final result = collected.last;

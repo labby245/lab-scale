@@ -204,11 +204,8 @@ class _SetupDetailsDialog extends StatelessWidget {
 
 /// A tool that is installed but cannot run here is a GPU problem, not a
 /// missing file, and "copy it into bin/" would send the user the wrong way.
-String? _issueText(S s, GpuProbeResult? issue) => switch (issue) {
-      null => null,
-      GpuProbeResult(failure: GpuProbeFailure.noVulkan) => s.noVulkanShort,
-      _ => s.gpuProbeFailed(issue.detail),
-    };
+String? _issueText(S s, GpuProbeResult? issue) =>
+    issue == null ? null : s.gpuIssue(issue);
 
 class _ToolRow extends StatelessWidget {
   const _ToolRow({

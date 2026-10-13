@@ -15,7 +15,10 @@ import 'package:path/path.dart' as p;
 void main() {
   test("a run's final log line reaches the panel", () async {
     final ffmpeg = Binaries.resolve(Tool.ffmpeg);
-    if (ffmpeg == null) return markTestSkipped('ffmpeg tidak terpasang');
+    // The image path probes with ffprobe before it touches ffmpeg.
+    if (ffmpeg == null || Binaries.resolve(Tool.ffprobe) == null) {
+      return markTestSkipped('ffmpeg/ffprobe tidak terpasang');
+    }
 
     final work = Directory.systemTemp.createTempSync('labscale_log_');
     addTearDown(() => work.deleteSync(recursive: true));

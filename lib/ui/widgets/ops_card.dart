@@ -231,7 +231,10 @@ class _UpscaleSettings extends StatelessWidget {
   /// greyed out.
   String _modelLabel(S s, UpscaleModel m) {
     final download = downloadableFor(m);
-    // No download offer where no AI model can run anyway.
+    // No download offer where Real-ESRGAN cannot run (no usable GPU, or the
+    // binary is missing) — the model would be unusable once fetched. The
+    // GPU probe finishes before the window first shows, so "not probed yet"
+    // never reaches this.
     if (download != null &&
         controller.capabilities.esrgan &&
         !controller.isModelInstalled(m)) {
@@ -247,6 +250,7 @@ class _UpscaleSettings extends StatelessWidget {
     final first = controller.firstFile;
     final model = options.upscaleModel;
     final download = downloadableFor(model);
+    final issue = controller.capabilities.esrganIssue;
 
     return _SubSettings(
       children: [
@@ -260,15 +264,15 @@ class _UpscaleSettings extends StatelessWidget {
           disabledOf: (m) =>
               !controller.isModelInstalled(m) &&
               (downloadableFor(m) == null || !controller.capabilities.esrgan),
+          // The AI entries are greyed out; one quiet line says why, right
+          // where the user is looking. Not a warning box: someone who only
+          // uses Lanczos has nothing to fix.
+          hint: issue == null ? null : s.gpuIssue(issue),
           onChanged: (m) =>
               controller.updateOptions((o) => o.copyWith(upscaleModel: m)),
         ),
         if (download != null && controller.capabilities.esrgan)
           _ModelDownloadPanel(controller: controller, download: download),
-        // The AI entries are greyed out; say why right here rather than only
-        // in Setup & Status, where nobody looking at this menu would go.
-        if (controller.capabilities.esrganIssue != null)
-          _Notice(tone: LabColors.warning, text: s.noVulkanHint),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -316,13 +320,14 @@ class _UpscaleSettings extends StatelessWidget {
         if (options.useEsrgan && first != null && first.isVideo)
           _Notice(tone: LabColors.warning, text: s.esrganVideoNotice),
         // A missing binary is a broken install; a missing downloadable model
-        // is already explained by the download panel above.
-        if (controller.capabilities.esrganIssue != null)
-          const SizedBox.shrink()
-        else if (controller.esrganMissing && !controller.capabilities.esrgan)
-          _Notice(tone: LabColors.danger, text: s.esrganMissingNotice)
-        else if (controller.esrganMissing && download == null)
-          _Notice(tone: LabColors.danger, text: s.modelWeightsMissing),
+        // is already explained by the download panel above. A tool that is
+        // present but cannot run is explained under the dropdown instead.
+        if (issue == null) ...[
+          if (controller.esrganMissing && !controller.capabilities.esrgan)
+            _Notice(tone: LabColors.danger, text: s.esrganMissingNotice)
+          else if (controller.esrganMissing && download == null)
+            _Notice(tone: LabColors.danger, text: s.modelWeightsMissing),
+        ],
       ],
     );
   }

@@ -23,6 +23,7 @@ class CompareSlider extends StatefulWidget {
     required this.afterPath,
     this.beforeLabel,
     this.afterLabel,
+    this.tagTopInset = 0,
   });
 
   final String beforePath;
@@ -31,6 +32,10 @@ class CompareSlider extends StatefulWidget {
   /// Null means the plain "Original" / "Result" in the current language.
   final String? beforeLabel;
   final String? afterLabel;
+
+  /// Extra room above the corner tags, for a stage that overlays controls
+  /// along its top edge.
+  final double tagTopInset;
 
   @override
   State<CompareSlider> createState() => _CompareSliderState();
@@ -129,11 +134,13 @@ class _CompareSliderState extends State<CompareSlider> {
                   if (split > 0.001 && split < 0.999) _Handle(x: width * split),
                   _Tag(
                     label: beforeLabel,
+                    topInset: widget.tagTopInset,
                     alignment: Alignment.topLeft,
                     visible: split > 0.12,
                   ),
                   _Tag(
                     label: afterLabel,
+                    topInset: widget.tagTopInset,
                     alignment: Alignment.topRight,
                     visible: split < 0.88,
                   ),
@@ -335,11 +342,13 @@ class _Tag extends StatelessWidget {
     required this.label,
     required this.alignment,
     required this.visible,
+    this.topInset = 0,
   });
 
   final String label;
   final Alignment alignment;
   final bool visible;
+  final double topInset;
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +358,7 @@ class _Tag extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         opacity: visible ? 1 : 0,
         child: Container(
-          margin: const EdgeInsets.all(8),
+          margin: EdgeInsets.fromLTRB(8, 8 + topInset, 8, 8),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.6),

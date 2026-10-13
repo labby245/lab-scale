@@ -133,21 +133,19 @@ class _MediaStageState extends State<MediaStage> {
         fit: StackFit.expand,
         children: [
           _buildBody(),
-          // Centred: the corners belong to the comparison's Original/Result
-          // tags, and a corner toggle covered the "Result" one.
+          // Top-right, clear of the divider, which starts at the centre and
+          // must stay draggable from its top. The comparison drops its
+          // corner tags below this (see _kToggleClearance).
           if (offersToggle)
             Positioned(
               top: 8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _ModeToggle(
+              right: 8,
+              child: _ModeToggle(
                 playing: _playing,
-                  onChanged: (value) {
-                    setState(() => _playing = value);
-                    _syncPlayer();
-                  },
-                ),
+                onChanged: (value) {
+                  setState(() => _playing = value);
+                  _syncPlayer();
+                },
               ),
             ),
         ],
@@ -264,11 +262,16 @@ class _VideoCompareState extends State<_VideoCompare> {
           afterPath: frames[1]!,
           beforeLabel: S.of(context).beforeFrame,
           afterLabel: S.of(context).afterFrame,
+          tagTopInset: _kToggleClearance,
         );
       },
     );
   }
 }
+
+/// Height the Compare/Play toggle occupies at the top of a video stage, so
+/// the comparison's corner tags can sit below it instead of under it.
+const double _kToggleClearance = 40;
 
 class _ModeToggle extends StatelessWidget {
   const _ModeToggle({required this.playing, required this.onChanged});
