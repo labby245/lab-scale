@@ -97,10 +97,112 @@
         "Rilis publik pertama: LabScale kini gratis dan open source.",
         "Tampilan dalam Bahasa Indonesia dan Inggris, bisa diganti dari bagian atas jendela.",
         "Proses bisa dibatalkan kapan saja tanpa meninggalkan file setengah jadi.",
-        "Sebelum memproses video, LabScale mengecek apakah ruang disk cukup.",
+        "Sebelum memproses video dengan AI, LabScale mengecek apakah ruang disk cukup.",
         "Model UltraMix, UltraSharp, dan Remacri bisa diunduh dari dalam app saat dipilih (khusus pemakaian non-komersial).",
         "Ada pemberitahuan saat versi baru tersedia, dan folder log untuk melaporkan masalah."
       ]
     }
-  ]
+  ],
+  "en": {
+    "requirements": {
+      "intro": "The AI features (AI upscaling and RIFE 60 FPS video) run on the GPU through Vulkan. Without a supported GPU, LabScale still works for non-AI upscaling and FFmpeg 60 FPS — both run on the CPU.",
+      "platforms": [
+        {
+          "name": "Mac",
+          "rows": [
+            {
+              "label": "Minimum for AI",
+              "value": "Apple M1, macOS 14, 8 GB RAM"
+            },
+            {
+              "label": "Recommended",
+              "value": "Apple M1 or newer, 16 GB RAM for video"
+            },
+            {
+              "label": "Not supported",
+              "value": "Intel Macs"
+            }
+          ]
+        },
+        {
+          "name": "Windows 10 / 11 (64-bit)",
+          "rows": [
+            {
+              "label": "Minimum for AI",
+              "value": "A GPU with Vulkan, 2 GB VRAM, 8 GB RAM"
+            },
+            {
+              "label": "Recommended",
+              "value": "GeForce GTX 1650 / Radeon RX 570 class or better, 4 GB VRAM, 16 GB RAM"
+            },
+            {
+              "label": "Without Vulkan",
+              "value": "Basic features only: non-AI upscaling, FFmpeg 60 FPS (slow on old CPUs)"
+            }
+          ]
+        }
+      ],
+      "table": {
+        "columns": [
+          "Windows GPU",
+          "Examples"
+        ],
+        "rows": [
+          [
+            "Supports Vulkan",
+            "Intel HD/UHD 6th gen (2015) or newer · NVIDIA GeForce GTX 650 / GT 740M (Kepler) or newer · AMD Radeon HD 7000 / R7 / R9 (GCN) or newer"
+          ],
+          [
+            "Recommended",
+            "NVIDIA GTX 10 / 16 or RTX · AMD RX 400 or newer"
+          ],
+          [
+            "Basic features only",
+            "Intel HD 3rd to 5th gen (e.g. HD 4000) · older Fermi-based GeForce (e.g. GT 720M)"
+          ]
+        ]
+      },
+      "notes": [
+        {
+          "title": "The surest check",
+          "text": "Open LabScale and look at the dots in the bottom bar: green Real-ESRGAN and RIFE mean the AI features work. Grey? Click Setup & Status to see why."
+        },
+        {
+          "title": "Speed at a glance",
+          "text": "MacBook Pro M1: one 1920×1280 output photo takes ±6.5–7 seconds with the photo model, or ±0.7 seconds with “Quick draft”."
+        },
+        {
+          "title": "Disk space",
+          "text": "±400 MB for the app. AI video needs temporary space — keep 20 GB+ free for long videos."
+        },
+        {
+          "title": "What we've tested",
+          "text": "A MacBook Pro M1 (all features) and a Windows 10 laptop without Vulkan (basic features). The Windows GPU list is based on the manufacturers' official Vulkan support, not on our own testing of every GPU. The status dot in the app remains the surest check."
+        }
+      ]
+    },
+    "changelog": [
+      {
+        "version": "2.1.1",
+        "date": "2026-10-13",
+        "items": [
+          "On PCs whose GPU has no Vulkan support (common on older laptops), the AI features are now shown as unavailable with the reason, and the 60 FPS boost uses FFmpeg instead of failing.",
+          "On small screens such as 1366×768 laptops, the window now fits the screen.",
+          "The process log now shows every job through to its last line."
+        ]
+      },
+      {
+        "version": "2.1.0",
+        "date": "2026-10-13",
+        "items": [
+          "First public release: LabScale is now free and open source.",
+          "Interface in Indonesian and English, switchable from the top of the window.",
+          "Jobs can be cancelled at any time without leaving half-finished files behind.",
+          "Before processing video with AI, LabScale checks that there is enough disk space.",
+          "The UltraMix, UltraSharp and Remacri models can be downloaded from inside the app when selected (non-commercial use only).",
+          "A notice appears when a new version is available, plus a log folder for reporting problems."
+        ]
+      }
+    ]
+  }
 }
