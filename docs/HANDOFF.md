@@ -25,6 +25,19 @@ Yang masih terbuka:
 - **Sumber GPL untuk build Windows.** `collect_gpl_sources.sh` melampirkan source ffmpeg 9.0.2, tapi library di dalam build gyan.dev (x264/x265 dsb.) versinya mengikuti gyan, bukan Homebrew. Lebih rapi kalau nanti pindah ke build LGPL atau build sendiri.
 - **Developer ID Apple** ($99/tahun) menghapus langkah "Open Anyway". Script sudah mendukungnya lewat `SIGN_IDENTITY` + `NOTARY_PROFILE`.
 
+## Uji Windows sungguhan — winlap (13 Oktober 2026)
+
+`ssh winlap` → laptop Windows 10, i3-3110M, GeForce GT 720M + Intel HD 4000, layar 1366×768. **Tidak punya Vulkan** (tidak ada `vulkan-1.dll`), jadi Real-ESRGAN/RIFE mati dengan `0xC0000135`. Yang terbukti di sana dengan installer v2.1.1 dari CI:
+
+- Installer per-user tanpa admin; upgrade 2.1.0 → 2.1.1 bersih (satu entri uninstall).
+- App terbuka, tool AI terdeteksi tidak bisa jalan dengan alasan Vulkan, 60 FPS memakai FFmpeg.
+- UI lewat klik sungguhan: pilih file, upscale Lanczos, proses, viewer + pemutar video, Batalkan (ffmpeg berhenti, tidak ada sisa file), Setup & Status, Tentang + cek pembaruan, halaman lisensi.
+- `flutter test` penuh di Windows: 106 lolos, 0 gagal. Real-ESRGAN dijalankan lewat **SwiftShader** (Vulkan di CPU; `vk_swiftshader.dll` + `vulkan-1.dll` ikut terpasang bersama Flutter): set `VK_ICD_FILENAMES` ke json yang menunjuk `vk_swiftshader.dll`. Lambat — model x4plus tidak selesai dalam 8 menit di i3 ini, jadi test-nya dijalankan dengan `upscayl-lite`. RIFE v4.25 crash (access violation) di SwiftShader, jadi jalur RIFE di Windows **belum pernah teruji**.
+
+Cara mengulang: script di sesi itu menjalankan aksi UI lewat Scheduled Task berjenis Interactive (agar masuk sesi desktop), `SetCursorPos`/`mouse_event`/`SendKeys`, lalu `CopyFromScreen` untuk screenshot. Jangan dijalankan saat laptop sedang dipakai orang.
+
+Temuan dari uji itu, semua sudah diperbaiki: tool AI dianggap ada padahal tidak bisa jalan; jendela 900 px melewati layar 768 px; baris terakhir log hilang; sorotan fokus dropdown mengambang di atas header setelah digulir; tombol Banding/Putar menutupi label "Hasil".
+
 ## Di mana posisinya sekarang (Agustus 2026)
 
 Tiga commit di `main`, sudah di-push ke `labby245/lab-scale`:
