@@ -345,6 +345,7 @@ class S {
   String get website => _('Situs LabScale', 'LabScale website');
   String get sourceCode => _('Kode sumber', 'Source code');
   String get reportIssue => _('Laporkan masalah', 'Report a problem');
+  String get contact => _('Kontak', 'Contact');
   String get licenses => _('Lisensi', 'Licences');
   String get checkUpdates => _('Cek pembaruan', 'Check for updates');
   String get checkingUpdates => _('Memeriksa…', 'Checking…');

@@ -115,6 +115,8 @@ tersedia, dan 60 FPS lewat FFmpeg berjalan sangat lambat.
   memasang apa pun sendiri.
 - **Ada masalah?** Klik ikon ⓘ → **Buka folder log**, lalu lampirkan
   `labscale.log` di [issue baru](https://github.com/labby245/lab-scale/issues).
+- **Pertanyaan lain?** Kirim email ke
+  [hello@labstory.id](mailto:hello@labstory.id).
 
 ## Dibangun dengan
 

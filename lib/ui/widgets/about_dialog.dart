@@ -131,6 +131,11 @@ class _AboutDialogState extends State<_AboutDialog> {
                   onPressed: () => _open(kIssuesUrl),
                 ),
                 _LinkChip(
+                  icon: Icons.mail_outline,
+                  label: s.contact,
+                  onPressed: () => _open('mailto:$kContactEmail'),
+                ),
+                _LinkChip(
                   icon: Icons.gavel_outlined,
                   label: s.licenses,
                   onPressed: () => showLicensePage(

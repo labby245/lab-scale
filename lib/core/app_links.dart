@@ -15,3 +15,7 @@ const String kWebsiteUrl = 'https://labstory.id';
 
 const String kFotolaneUrl = 'https://apps.labstory.id/produk/fotolane';
 const String kInstagramUrl = 'https://www.instagram.com/labstory.studio/';
+
+/// Public contact. Labstory shows no WhatsApp number publicly; questions go
+/// by email, and bug reports to [kIssuesUrl].
+const String kContactEmail = 'hello@labstory.id';

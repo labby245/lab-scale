@@ -115,6 +115,8 @@ slow.
   anything by itself.
 - **Something went wrong?** Click the ⓘ icon → **Open log folder**, and attach
   `labscale.log` to a [new issue](https://github.com/labby245/lab-scale/issues).
+- **Other questions?** Email
+  [hello@labstory.id](mailto:hello@labstory.id).
 
 ## Built with
 
