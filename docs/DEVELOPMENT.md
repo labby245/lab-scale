@@ -139,7 +139,7 @@ Tanpa `SIGN_IDENTITY`, semuanya ditandatangani **ad hoc** — cara rilis saat in
 
 ## Rilis
 
-1. Naikkan `version:` di `pubspec.yaml`, tulis [`docs/release-notes.md`](release-notes.md).
+1. Naikkan `version:` di `pubspec.yaml`, tulis [`docs/release-notes.md`](release-notes.md), lalu perbarui [`labstory-product.json`](../labstory-product.json): `version`, `releasedAt`, dan entri `changelog` baru paling atas (teks biasa, Bahasa Indonesia, sapaan "kamu", maksimal 5 rilis). File ini dibaca apps.labstory.id tiap 10 menit untuk bagian "Spesifikasi" dan "Yang baru" di halaman produk, tanpa deploy situs. Formatnya ada di `labstory-platform/docs/API_CONTRACT.md` §11, dan `test/labstory_product_test.dart` gagal kalau versinya tidak sama dengan pubspec. Kalau spesifikasi berubah, ubah juga di sini. Teks pemasaran, FAQ, dan gambar tetap lewat sesi labstory-platform.
 2. `flutter analyze && flutter test` di Mac yang punya `bin/` lengkap (test ncnn hanya jalan di sana; CI ubuntu melewatinya).
 3. `git tag v<versi> && git push origin v<versi>`.
 4. Workflow [Release](../.github/workflows/release.yml) membangun `.dmg` (macos-14), installer + zip Windows, `ffmpeg-sources-<versi>.tar`, dan `SHA256SUMS.txt`, lalu menaruhnya di **draft** release.

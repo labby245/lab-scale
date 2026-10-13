@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "product": "labscale",
+  "version": "2.1.1",
+  "releasedAt": "2026-10-13",
+  "requirements": {
+    "intro": "Fitur AI (upscale AI dan video 60 FPS RIFE) berjalan di GPU lewat Vulkan. Tanpa GPU yang mendukungnya, LabScale tetap bisa dipakai untuk upscale tanpa AI dan 60 FPS lewat FFmpeg — keduanya berjalan di CPU.",
+    "platforms": [
+      {
+        "name": "Mac",
+        "rows": [
+          {
+            "label": "Minimum untuk AI",
+            "value": "Apple M1, macOS 14, RAM 8 GB"
+          },
+          {
+            "label": "Disarankan",
+            "value": "Apple M1 atau lebih baru, RAM 16 GB untuk video"
+          },
+          {
+            "label": "Tidak didukung",
+            "value": "Mac Intel"
+          }
+        ]
+      },
+      {
+        "name": "Windows 10 / 11 (64-bit)",
+        "rows": [
+          {
+            "label": "Minimum untuk AI",
+            "value": "GPU dengan Vulkan, VRAM 2 GB, RAM 8 GB"
+          },
+          {
+            "label": "Disarankan",
+            "value": "GPU kelas GeForce GTX 1650 / Radeon RX 570 ke atas, VRAM 4 GB, RAM 16 GB"
+          },
+          {
+            "label": "Tanpa Vulkan",
+            "value": "Hanya fitur dasar: upscale tanpa AI, 60 FPS lewat FFmpeg (lambat di CPU lama)"
+          }
+        ]
+      }
+    ],
+    "table": {
+      "columns": [
+        "GPU Windows",
+        "Contoh"
+      ],
+      "rows": [
+        [
+          "Fitur AI jalan",
+          "Intel HD/UHD generasi ke-6 (2015) ke atas · NVIDIA GeForce GTX 650 / GT 740M (Kepler) ke atas · AMD Radeon HD 7000 / R7 / R9 (GCN) ke atas"
+        ],
+        [
+          "Disarankan",
+          "NVIDIA GTX 10 / 16 atau RTX · AMD RX 400 ke atas"
+        ],
+        [
+          "Hanya fitur dasar",
+          "Intel HD generasi ke-3 sampai ke-5 (mis. HD 4000) · GeForce lama berbasis Fermi (mis. GT 720M)"
+        ]
+      ]
+    },
+    "notes": [
+      {
+        "title": "Cara paling pasti",
+        "text": "Buka LabScale dan lihat titik di bilah bawah: Real-ESRGAN dan RIFE hijau berarti fitur AI jalan. Abu-abu? Klik Setup & Status untuk melihat alasannya."
+      },
+      {
+        "title": "Gambaran kecepatan",
+        "text": "MacBook Pro M1: satu foto hasil 1920×1280 ±6,5 detik dengan model foto, atau ±0,7 detik dengan “Draf cepat”."
+      },
+      {
+        "title": "Ruang disk",
+        "text": "±400 MB untuk app. Video AI butuh ruang sementara — sisakan 20 GB+ untuk video yang panjang."
+      }
+    ]
+  },
+  "changelog": [
+    {
+      "version": "2.1.1",
+      "date": "2026-10-13",
+      "items": [
+        "Di PC yang GPU-nya tidak mendukung Vulkan (umum di laptop lama), fitur AI kini ditandai tidak tersedia beserta alasannya, dan boost 60 FPS memakai FFmpeg alih-alih gagal.",
+        "Di layar kecil seperti laptop 1366×768, jendela kini pas di layar.",
+        "Log proses kini tampil lengkap sampai baris terakhir."
+      ]
+    },
+    {
+      "version": "2.1.0",
+      "date": "2026-10-13",
+      "items": [
+        "Rilis publik pertama: LabScale kini gratis dan open source.",
+        "Tampilan dalam Bahasa Indonesia dan Inggris, bisa diganti dari bagian atas jendela.",
+        "Proses bisa dibatalkan kapan saja tanpa meninggalkan file setengah jadi.",
+        "Sebelum memproses video, LabScale mengecek apakah ruang disk cukup.",
+        "Model UltraMix, UltraSharp, dan Remacri bisa diunduh dari dalam app saat dipilih (khusus pemakaian non-komersial).",
+        "Ada pemberitahuan saat versi baru tersedia, dan folder log untuk melaporkan masalah."
+      ]
+    }
+  ]
+}
