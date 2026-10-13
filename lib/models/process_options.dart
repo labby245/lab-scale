@@ -1,9 +1,8 @@
 /// Immutable processing options shared by the image and video pipelines.
 library;
 
-/// The upscalers offered in the UI, labelled by what they are *for* rather
-/// than by model name — nobody picking a model knows what "ultramix-balanced"
-/// does, but everybody knows whether they are upscaling a photo or a logo.
+/// The upscalers offered in the UI. Their labels — by what each is *for*,
+/// not by model name — live in `S.modelLabel`.
 ///
 /// Ordering is the dropdown's order: the everyday choices first.
 ///
@@ -12,55 +11,32 @@ library;
 /// "detail" is how much fine detail came back relative to the original: 1.00x
 /// is right, below is blurry, above is invented.
 enum UpscaleModel {
-  lanczos('lanczos', 'Cepat — tanpa AI (Lanczos)', null, 'lanczos',
-      nativeScales: {}),
+  lanczos('lanczos', null, 'lanczos', nativeScales: {}),
 
   /// Design SSIM 0.9931 (best of every model tried), photo detail 0.99x.
   /// The strongest all-rounder, and markedly better than x4plus on flat
   /// colour and type, where x4plus fills in letter counters and rings edges.
-  ultramix(
-    'ultramix-balanced-4x',
-    'Desain & ilustrasi — paling seimbang',
-    'ultramix-balanced-4x',
-    'ultramix',
-  ),
+  ultramix('ultramix-balanced-4x', 'ultramix-balanced-4x', 'ultramix'),
 
   /// Design SSIM 0.9875, photo detail 1.05x — a touch crisper than the
   /// original rather than faithful to it.
-  ultrasharp(
-    'ultrasharp-4x',
-    'Desain tepi tajam — lebih renyah',
-    'ultrasharp-4x',
-    'ultrasharp',
-  ),
+  ultrasharp('ultrasharp-4x', 'ultrasharp-4x', 'ultrasharp'),
 
   /// Design SSIM 0.9827, photo detail 0.93x. Kept as the familiar baseline.
-  realesrganX4Plus(
-    'realesrgan-x4plus',
-    'Foto realistis — ESRGAN x4+',
-    'realesrgan-x4plus',
-    'esrgan-real',
-  ),
+  realesrganX4Plus('realesrgan-x4plus', 'realesrgan-x4plus', 'esrgan-real'),
 
   /// Photo detail 1.59x — invents a lot of texture. Some people want exactly
   /// that on soft sources; it is the wrong default for a faithful upscale.
-  remacri(
-    'remacri-4x',
-    'Foto lembut — tambah tekstur (agresif)',
-    'remacri-4x',
-    'remacri',
-  ),
+  remacri('remacri-4x', 'remacri-4x', 'remacri'),
 
   realesrganX4PlusAnime(
     'realesrgan-x4plus-anime',
-    'Anime & manga — garis bersih',
     'realesrgan-x4plus-anime',
     'esrgan-anime',
   ),
 
   realesrAnimeVideoV3(
     'realesr-animevideov3',
-    'Video anime — jauh lebih cepat',
     'realesr-animevideov3',
     'esrgan-video',
     // The only model shipping separate weights per scale.
@@ -69,16 +45,10 @@ enum UpscaleModel {
 
   /// ~0.7s where the 32 MB networks take ~6.5s, at a real but modest quality
   /// cost. Meant for checking a batch before committing to it.
-  upscaylLite(
-    'upscayl-lite-4x',
-    'Draf cepat — 9× lebih cepat',
-    'upscayl-lite-4x',
-    'lite',
-  );
+  upscaylLite('upscayl-lite-4x', 'upscayl-lite-4x', 'lite');
 
   const UpscaleModel(
     this.id,
-    this.label,
     this.ncnnName,
     this.suffix, {
     this.nativeScales = const {4},
@@ -86,7 +56,6 @@ enum UpscaleModel {
 
   /// Stable identifier used for preferences and output filename suffixes.
   final String id;
-  final String label;
 
   /// Model name passed to `realesrgan-ncnn-vulkan -n`; null means "no AI".
   final String? ncnnName;
@@ -110,55 +79,50 @@ enum UpscaleModel {
   final Set<int> nativeScales;
 
   static UpscaleModel fromId(String? id) => UpscaleModel.values.firstWhere(
-        (m) => m.id == id,
-        orElse: () => UpscaleModel.lanczos,
-      );
+    (m) => m.id == id,
+    orElse: () => UpscaleModel.lanczos,
+  );
 }
 
 enum InterpEngine {
-  ffmpeg('ffmpeg', 'FFmpeg (MCI bidir) — bawaan, lambat'),
-  rife('rife', 'RIFE AI — 5–10× lebih cepat & halus');
+  ffmpeg('ffmpeg'),
+  rife('rife');
 
-  const InterpEngine(this.id, this.label);
+  const InterpEngine(this.id);
   final String id;
-  final String label;
 
   static InterpEngine fromId(String? id) => InterpEngine.values.firstWhere(
-        (e) => e.id == id,
-        orElse: () => InterpEngine.ffmpeg,
-      );
+    (e) => e.id == id,
+    orElse: () => InterpEngine.ffmpeg,
+  );
 }
 
 enum Quality {
-  fast('fast', 'Fast'),
-  balanced('balanced', 'Balanced'),
-  better('better', 'Better'),
-  best('best', 'Best'),
-  ultra('ultra', 'Ultra (lossless)');
+  fast('fast'),
+  balanced('balanced'),
+  better('better'),
+  best('best'),
+  ultra('ultra');
 
-  const Quality(this.id, this.label);
+  const Quality(this.id);
   final String id;
-  final String label;
 
-  static Quality fromId(String? id) => Quality.values.firstWhere(
-        (q) => q.id == id,
-        orElse: () => Quality.ultra,
-      );
+  static Quality fromId(String? id) =>
+      Quality.values.firstWhere((q) => q.id == id, orElse: () => Quality.ultra);
 }
 
 enum VideoCodec {
-  h264('h264', 'H.264 (kompatibel)'),
-  hevc('hevc', 'HEVC / H.265 (file lebih kecil)'),
-  av1('av1', 'AV1 (terkecil — perlu HW/SW)');
+  h264('h264'),
+  hevc('hevc'),
+  av1('av1');
 
-  const VideoCodec(this.id, this.label);
+  const VideoCodec(this.id);
   final String id;
-  final String label;
 
   static VideoCodec fromId(String? id) => VideoCodec.values.firstWhere(
-        (c) => c.id == id,
-        orElse: () => VideoCodec.h264,
-      );
+    (c) => c.id == id,
+    orElse: () => VideoCodec.h264,
+  );
 }
 
 const int kTargetFps = 60;

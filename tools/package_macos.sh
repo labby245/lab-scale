@@ -9,9 +9,11 @@
 #   4. package a .dmg into ./dist
 #   5. optionally notarize + staple
 #
-# Signing is optional. Without SIGN_IDENTITY the script still produces a working
-# local build; it just cannot be distributed to other Macs without Gatekeeper
-# warnings.
+# Without SIGN_IDENTITY everything is signed ad hoc. That build runs on any
+# Apple Silicon Mac, but Gatekeeper asks the user to approve it once in
+# System Settings → Privacy & Security ("Open Anyway"). Unsigned is not an
+# option: copying bin/ into the bundle breaks the seal Xcode made, and a
+# downloaded app with a broken seal is reported as "damaged" with no way past.
 #
 # Environment:
 #   SIGN_IDENTITY   "Developer ID Application: Your Name (TEAMID)"
@@ -57,7 +59,12 @@ rm -rf "$RESOURCE_BIN"
 mkdir -p "$RESOURCE_BIN"
 
 PAYLOAD_FILES=(ffmpeg ffprobe realesrgan-ncnn-vulkan rife-ncnn-vulkan)
-PAYLOAD_DIRS=(models)             # Real-ESRGAN weights
+PAYLOAD_DIRS=()
+BUNDLED_MODELS=()
+while IFS= read -r line; do
+  line="${line%%#*}"; line="${line//[[:space:]]/}"
+  [[ -n "$line" ]] && BUNDLED_MODELS+=("$line")
+done < "$ROOT/tools/bundled_models.txt"
 
 # Only the RIFE model the app would actually pick, in the same order as
 # Binaries._modelDirNames. Shipping the rest would add ~10 MB each for weights
@@ -82,12 +89,70 @@ for name in "${PAYLOAD_FILES[@]}"; do
   fi
 done
 
+# The libraries a Homebrew ffmpeg loads, made relative by
+# tools/bundle_ffmpeg_dylibs.sh. A static ffmpeg has none.
+for lib in "$BIN_DIR"/*.dylib; do
+  [[ -e "$lib" ]] || continue
+  cp -f "$lib" "$RESOURCE_BIN/"
+done
+
 for name in "${PAYLOAD_DIRS[@]}"; do
   if [[ -d "$BIN_DIR/$name" ]]; then
     cp -R "$BIN_DIR/$name" "$RESOURCE_BIN/$name"
     echo "  $name/"
   fi
 done
+
+# Only the Real-ESRGAN weights whose licences allow redistribution go in the
+# bundle. The rest are offered for download inside the app (lib/core/
+# model_store.dart), which also keeps the download ~130 MB smaller.
+mkdir -p "$RESOURCE_BIN/models"
+for stem in "${BUNDLED_MODELS[@]}"; do
+  for ext in param bin; do
+    src="$BIN_DIR/models/$stem.$ext"
+    [[ -f "$src" ]] || { echo "ERROR: bin/models/$stem.$ext tidak ada" >&2; exit 1; }
+    cp -f "$src" "$RESOURCE_BIN/models/"
+  done
+  echo "  models/$stem"
+done
+
+# Homebrew bottles target the macOS they were built on, so an ffmpeg fetched
+# on macOS 15 refuses to start on 14 — while the app itself would launch there
+# and only fail at the first encode. Compare against the app's own minimum.
+app_min="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$BUILD_APP/Contents/Info.plist")"
+too_new=()
+for f in "$RESOURCE_BIN"/*; do
+  [[ -f "$f" ]] || continue
+  minos="$(otool -l "$f" 2>/dev/null | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')"
+  [[ -n "$minos" ]] || continue
+  if [[ "$(printf '%s\n%s\n' "$app_min" "$minos" | sort -V | tail -1)" != "$app_min" ]]; then
+    too_new+=("$(basename "$f") (macOS $minos)")
+  fi
+done
+if ((${#too_new[@]})); then
+  echo "ERROR: app mendukung macOS $app_min, tapi binary ini butuh yang lebih baru:" >&2
+  printf '  %s\n' "${too_new[@]}" >&2
+  echo "Bangun rilis di CI (macos-14), atau set ALLOW_NEWER_TOOLS=1 untuk build pribadi." >&2
+  [[ "${ALLOW_NEWER_TOOLS:-}" == 1 ]] || exit 1
+fi
+
+# The licences travel with the binaries they cover.
+cp -f "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$BUILD_APP/Contents/Resources/"
+rm -rf "$BUILD_APP/Contents/Resources/licenses"
+cp -R "$ROOT/licenses" "$BUILD_APP/Contents/Resources/licenses"
+
+# Refuse to ship an ffmpeg that still reaches outside the bundle. This is the
+# exact failure that once made every build work here and nowhere else.
+outside="$(for f in "$RESOURCE_BIN"/ffmpeg "$RESOURCE_BIN"/ffprobe "$RESOURCE_BIN"/*.dylib; do
+  [[ -e "$f" ]] || continue
+  otool -L "$f" | tail -n +2 | sed -E 's/^[[:space:]]+//; s/ \(compatibility.*$//'
+done | grep -vE '^(/usr/lib/|/System/|@loader_path/)' | sort -u || true)"
+if [[ -n "$outside" ]]; then
+  echo "ERROR: ffmpeg masih memuat library dari luar bundle:" >&2
+  echo "$outside" >&2
+  echo "Jalankan: tools/bundle_ffmpeg_dylibs.sh bin" >&2
+  exit 1
+fi
 
 # ── Sign ─────────────────────────────────────────────────────────────────────
 #
@@ -97,41 +162,44 @@ done
 # with the enclosing bundle's options rather than their own, which is a routine
 # cause of notarization rejections. --deep on *--verify* is fine and is used
 # below.
+ENTITLEMENTS="$ROOT/macos/Runner/Release.entitlements"
 if [[ -n "$SIGN_IDENTITY" ]]; then
-  info "codesign"
-  ENTITLEMENTS="$ROOT/macos/Runner/Release.entitlements"
-
-  sign_one() {
-    codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" "$1"
-    echo "  signed $(basename "$1")"
-  }
-
-  # Stale extended attributes make codesign fail with "resource fork ... not allowed".
-  xattr -cr "$BUILD_APP"
-
-  # 1. Dylibs and frameworks, deepest path first.
-  while IFS= read -r item; do
-    sign_one "$item"
-  done < <(find "$BUILD_APP/Contents/Frameworks" \
-             \( -name '*.dylib' -o -name '*.framework' \) -depth 2>/dev/null | awk '{ print length, $0 }' \
-           | sort -rn | cut -d' ' -f2-)
-
-  # 2. The bundled CLI helpers.
-  while IFS= read -r binary; do
-    sign_one "$binary"
-  done < <(find "$RESOURCE_BIN" -type f -perm -u+x)
-
-  # 3. The app bundle itself — the only place entitlements apply.
-  codesign --force --timestamp --options runtime \
-    --entitlements "$ENTITLEMENTS" \
-    --sign "$SIGN_IDENTITY" "$BUILD_APP"
-
-  codesign --verify --deep --strict --verbose=2 "$BUILD_APP"
-  ok "app ditandatangani"
+  info "codesign (Developer ID)"
+  SIGN_ARGS=(--timestamp --options runtime --sign "$SIGN_IDENTITY")
 else
-  warn "SIGN_IDENTITY tidak diset — melewati codesign."
-  warn "Build ini hanya untuk mesin ini sendiri, belum bisa didistribusikan."
+  info "codesign (ad hoc)"
+  warn "SIGN_IDENTITY tidak diset — ditandatangani ad hoc."
+  warn "Pengguna perlu menyetujui app sekali di Privacy & Security."
+  # Ad hoc signatures reject --timestamp, and the hardened runtime's library
+  # validation would refuse dylibs that share no Team ID with the app.
+  SIGN_ARGS=(--sign -)
 fi
+
+sign_one() {
+  codesign --force "${SIGN_ARGS[@]}" "$1"
+  echo "  signed ${1#"$BUILD_APP"/}"
+}
+
+# Stale extended attributes make codesign fail with "resource fork ... not allowed".
+xattr -cr "$BUILD_APP"
+
+# 1. Dylibs and frameworks, deepest path first.
+while IFS= read -r item; do
+  sign_one "$item"
+done < <(find "$BUILD_APP/Contents/Frameworks" \
+           \( -name '*.dylib' -o -name '*.framework' \) -depth 2>/dev/null | awk '{ print length, $0 }' \
+         | sort -rn | cut -d' ' -f2-)
+
+# 2. The bundled CLI helpers and the libraries ffmpeg loads.
+while IFS= read -r binary; do
+  sign_one "$binary"
+done < <(find "$RESOURCE_BIN" -type f \( -perm -u+x -o -name '*.dylib' \))
+
+# 3. The app bundle itself — the only place entitlements apply.
+codesign --force "${SIGN_ARGS[@]}" --entitlements "$ENTITLEMENTS" "$BUILD_APP"
+
+codesign --verify --deep --strict --verbose=2 "$BUILD_APP"
+ok "app ditandatangani"
 
 # ── DMG ──────────────────────────────────────────────────────────────────────
 info "mengemas dmg"
@@ -144,6 +212,7 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp -R "$BUILD_APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
+cp -f "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$STAGE/"
 
 hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" \
   -ov -format UDZO "$DMG_PATH" >/dev/null

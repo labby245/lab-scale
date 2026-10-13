@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/binaries.dart';
+import '../../l10n/strings.dart';
 import '../../state/app_controller.dart';
 import '../theme.dart';
 
@@ -21,6 +22,7 @@ class SetupStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final caps = controller.capabilities;
     final allReady = caps.readyCount == caps.totalCount;
 
@@ -42,7 +44,7 @@ class SetupStatusBar extends StatelessWidget {
           const SizedBox(width: 16),
           Flexible(
             child: Text(
-              caps.encoderSummary,
+              caps.encoderSummary(s),
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11.5, color: LabColors.textMuted),
             ),
@@ -52,7 +54,7 @@ class SetupStatusBar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 10),
               child: Text(
-                '${caps.readyCount}/${caps.totalCount} fitur AI aktif',
+                s.aiReady(caps.readyCount, caps.totalCount),
                 style: const TextStyle(fontSize: 11.5, color: LabColors.warning),
               ),
             ),
@@ -62,7 +64,7 @@ class SetupStatusBar extends StatelessWidget {
               builder: (_) => _SetupDetailsDialog(controller: controller),
             ),
             icon: const Icon(Icons.settings_outlined, size: 15),
-            label: const Text('Setup & Status'),
+            label: Text(s.setupStatus),
             style: TextButton.styleFrom(
               foregroundColor: LabColors.textSecondary,
               textStyle: const TextStyle(fontSize: 12),
@@ -131,6 +133,7 @@ class _SetupDetailsDialog extends StatelessWidget {
   }
 
   Widget _build(BuildContext context) {
+    final s = S.of(context);
     final caps = controller.capabilities;
 
     return AlertDialog(
@@ -138,9 +141,9 @@ class _SetupDetailsDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(LabSpacing.cardRadius),
       ),
-      title: const Text(
-        'Setup & Status',
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      title: Text(
+        s.setupStatus,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
       content: SizedBox(
         width: 460,
@@ -151,25 +154,25 @@ class _SetupDetailsDialog extends StatelessWidget {
             _ToolRow(
               available: caps.ffmpeg,
               name: 'FFmpeg',
-              detail: 'Dekode, enkode, dan filter — wajib ada',
-              hint: 'Install FFmpeg, atau salin ffmpeg + ffprobe ke bin/',
+              detail: s.ffmpegDetail,
+              hint: s.ffmpegHint,
             ),
             _ToolRow(
               available: caps.esrgan,
-              name: 'Upscale AI (Real-ESRGAN)',
-              detail: 'realesrgan-ncnn-vulkan — GPU Vulkan / Metal',
-              hint: 'Salin realesrgan-ncnn-vulkan + folder models ke bin/',
+              name: s.esrganName,
+              detail: s.esrganDetail,
+              hint: s.esrganHint,
             ),
             _ToolRow(
               available: caps.rife,
-              name: 'Interpolasi AI (RIFE)',
-              detail: 'rife-ncnn-vulkan — 5–10× lebih cepat dari FFmpeg',
-              hint: 'Salin rife-ncnn-vulkan + folder model ke bin/',
+              name: s.rifeName,
+              detail: s.rifeDetail,
+              hint: s.rifeHint,
             ),
-            _EncoderRow(summary: caps.encoderSummary),
+            _EncoderRow(summary: caps.encoderSummary(s)),
             const SizedBox(height: 12),
             Text(
-              'Dicari di: ${Binaries.searchDirs.first}',
+              s.searchedIn(Binaries.searchDirs.first),
               style: const TextStyle(
                 fontSize: 10.5,
                 fontFamily: 'monospace',
@@ -183,7 +186,7 @@ class _SetupDetailsDialog extends StatelessWidget {
         TextButton.icon(
           onPressed: controller.refreshCapabilities,
           icon: const Icon(Icons.refresh, size: 15),
-          label: const Text('Cek ulang'),
+          label: Text(s.recheck),
           style: TextButton.styleFrom(
             foregroundColor: LabColors.primaryBright,
             textStyle: const TextStyle(fontSize: 12),
@@ -191,7 +194,7 @@ class _SetupDetailsDialog extends StatelessWidget {
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Tutup'),
+          child: Text(s.close),
         ),
       ],
     );
@@ -247,7 +250,7 @@ class _ToolRow extends StatelessWidget {
           ),
           if (!available)
             IconButton(
-              tooltip: 'Salin petunjuk',
+              tooltip: S.of(context).copyHint,
               iconSize: 15,
               color: LabColors.textFaint,
               icon: const Icon(Icons.copy_outlined),
@@ -276,9 +279,12 @@ class _EncoderRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Video Encoder',
-                  style: TextStyle(fontSize: 12.5, color: LabColors.textPrimary),
+                Text(
+                  S.of(context).videoEncoder,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: LabColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(

@@ -2,7 +2,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../l10n/strings.dart';
 import '../../state/app_controller.dart';
 import '../theme.dart';
 
@@ -41,6 +43,7 @@ class _LogCardState extends State<LogCard> {
   @override
   Widget build(BuildContext context) {
     final lines = widget.controller.logLines;
+    final s = S.of(context);
 
     return LabCard(
       child: Column(
@@ -48,14 +51,33 @@ class _LogCardState extends State<LogCard> {
         children: [
           LabCardTitle(
             badge: '⚙',
-            title: 'Log Proses',
-            trailing: widget.controller.isRunning
-                ? const SizedBox(
+            title: s.logTitle,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.controller.isRunning)
+                  const SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : null,
+                  ),
+                // For pasting into a bug report: the panel is not selectable.
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+                    ScaffoldMessenger.of(context)
+                      ..clearSnackBars()
+                      ..showSnackBar(SnackBar(content: Text(s.logCopied)));
+                  },
+                  icon: const Icon(Icons.copy_outlined, size: 14),
+                  tooltip: s.copyLog,
+                  color: LabColors.textFaint,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
           ),
           Container(
             height: widget.height,

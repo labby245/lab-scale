@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-  Builds LabScale for Windows and produces a distributable zip.
+  Builds LabScale for Windows: a per-user installer plus a portable zip.
 
 .DESCRIPTION
   Runs `flutter build windows --release`, copies ./bin (ffmpeg + ncnn tools)
-  next to the executable so the packaged app finds them, and zips the result
-  into ./dist.
+  next to the executable so the packaged app finds them, then writes
+  dist/LabScale-<version>-windows-x64.zip and, when Inno Setup's ISCC is on
+  PATH, dist/LabScale-Setup-<version>.exe.
 
 .EXAMPLE
   pwsh tools/package_windows.ps1
@@ -48,7 +49,13 @@ try {
         'rife-ncnn-vulkan.exe',
         'vcomp140.dll'          # OpenMP runtime the ncnn binaries link against
     )
-    $payloadDirs = @('models')   # Real-ESRGAN weights
+    $payloadDirs = @()
+
+    # Only the Real-ESRGAN weights whose licences allow redistribution; the
+    # rest are downloaded by the app on demand. Same list as package_macos.sh.
+    $bundledModels = Get-Content (Join-Path $PSScriptRoot 'bundled_models.txt') |
+        ForEach-Object { ($_ -replace '#.*$', '').Trim() } |
+        Where-Object { $_ }
 
     # Only the RIFE model the app would actually pick, in the same order as
     # Binaries._modelDirNames. Shipping the rest would add ~10 MB each for
@@ -86,7 +93,26 @@ try {
                 Write-Host "  $name/"
             }
         }
+
+        $payloadModels = Join-Path $payloadBin 'models'
+        New-Item -ItemType Directory -Force $payloadModels | Out-Null
+        foreach ($stem in $bundledModels) {
+            foreach ($ext in @('param', 'bin')) {
+                $src = Join-Path $binDir "models\$stem.$ext"
+                if (-not (Test-Path $src)) { throw "bin/models/$stem.$ext tidak ada" }
+                Copy-Item $src $payloadModels -Force
+            }
+            Write-Host "  models/$stem"
+        }
     }
+
+    # The licences travel with the binaries they cover.
+    foreach ($doc in @('LICENSE', 'THIRD_PARTY_NOTICES.md')) {
+        Copy-Item (Join-Path $root $doc) (Join-Path $releaseDir $doc) -Force
+    }
+    $licensesOut = Join-Path $releaseDir 'licenses'
+    if (Test-Path $licensesOut) { Remove-Item $licensesOut -Recurse -Force }
+    Copy-Item (Join-Path $root 'licenses') $licensesOut -Recurse -Force
     else {
         Write-Host 'bin/ kosong — app akan mencari tool di PATH' -ForegroundColor Yellow
     }
@@ -102,7 +128,25 @@ try {
     Compress-Archive -Path (Join-Path $releaseDir '*') -DestinationPath $zipPath
 
     $sizeMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
-    Write-Host "`nSelesai: $zipPath ($sizeMb MB)" -ForegroundColor Green
+    Write-Host "zip: $zipPath ($sizeMb MB)" -ForegroundColor Green
+
+    # The installer is what most people should download: Start menu entry,
+    # uninstaller, no admin prompt. The zip stays for those who want portable.
+    $iscc = Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue
+    if (-not $iscc) {
+        $default = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+        if (Test-Path $default) { $iscc = Get-Item $default }
+    }
+    if ($iscc) {
+        Write-Host "`n== membangun installer ==" -ForegroundColor Cyan
+        & $iscc.Source "/DAppVersion=$versionName" "/DSourceDir=$releaseDir" `
+            "/DOutputDir=$distDir" (Join-Path $PSScriptRoot 'windows\labscale.iss')
+        if ($LASTEXITCODE -ne 0) { throw "ISCC gagal (exit $LASTEXITCODE)" }
+        Write-Host "installer: $(Join-Path $distDir "LabScale-Setup-$versionName.exe")" -ForegroundColor Green
+    }
+    else {
+        Write-Host 'Inno Setup (ISCC) tidak ditemukan — installer dilewati, zip saja.' -ForegroundColor Yellow
+    }
 }
 finally {
     Pop-Location

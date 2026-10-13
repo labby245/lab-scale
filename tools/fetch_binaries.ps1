@@ -8,7 +8,7 @@
   the gitignored ./bin folder that both `flutter run` and the packaged app look
   in.
 
-    ffmpeg / ffprobe        decode, encode, filter        (LGPL/GPL build)
+    ffmpeg / ffprobe        decode, encode, filter        (GPLv3, gyan.dev)
     realesrgan-ncnn-vulkan  AI upscaling on Vulkan        (BSD-3)
     rife-ncnn-vulkan        AI frame interpolation        (MIT)
 
@@ -25,11 +25,9 @@ param(
     # registered"), and the only published Windows build of it ships inside one
     # archive with ~50 models. Only what is needed is kept.
     [switch]$RifeLatest,
-    # ESRGAN weights from Upscayl (resources/models). The binary loads any
-    # ESRGAN-architecture model via `-n <name>`, so this is purely dropping
-    # files in. Off by default: ~100 MB, and each model carries its own
-    # provenance and terms (Upscayl itself is AGPL-3.0) — check the licence
-    # before redistributing them.
+    # UltraMix / UltraSharp / Remacri into bin/models, for development. They
+    # are CC BY-NC-SA 4.0, so the installer leaves them out and the app
+    # downloads them when picked (lib/core/model_store.dart).
     [switch]$ExtraModels
 )
 
@@ -112,8 +110,11 @@ try {
     # ── FFmpeg ────────────────────────────────────────────────────────────────
     Write-Host "[1/4] FFmpeg" -ForegroundColor Cyan
     if (-not (Test-AlreadyPresent 'ffmpeg.exe')) {
+        # Pinned to one version, not gyan.dev's moving "latest": a GPL binary
+        # has to be matched by its exact source in every release, which a URL
+        # that changes under us cannot promise.
         $dir = Get-Archive `
-            -Url 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' `
+            -Url 'https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip' `
             -FileName 'ffmpeg.zip'
         Copy-Payload -SourceDir $dir -Executables @('ffmpeg.exe', 'ffprobe.exe')
     }
@@ -159,11 +160,21 @@ try {
 
     # ── Model upscale tambahan ────────────────────────────────────────────────
     Write-Host "`n[4/4] Model upscale tambahan" -ForegroundColor Cyan
+    # Pinned to the commit whose hashes lib/core/model_store.dart checks.
+    # upscayl-lite-4x is xinntao's realesr-general-x4v3 (BSD-3) renamed, and
+    # ships in the installer; the other three only with -ExtraModels.
+    $names = @('upscayl-lite-4x')
     if ($ExtraModels) {
-        $base = 'https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models'
+        $names += @('ultramix-balanced-4x', 'ultrasharp-4x', 'remacri-4x')
+    }
+    else {
+        Write-Host '  UltraMix / UltraSharp / Remacri dilewati - app mengunduhnya saat dipilih.' -ForegroundColor Yellow
+    }
+    & {
+        $base = 'https://raw.githubusercontent.com/upscayl/upscayl/a00d55fee90e0f9435d5eaa86e76700df8199af8/resources/models'
         $modelsDir = Join-Path $BinDir 'models'
         New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
-        foreach ($name in @('ultramix-balanced-4x', 'ultrasharp-4x', 'remacri-4x', 'upscayl-lite-4x')) {
+        foreach ($name in $names) {
             $paramPath = Join-Path $modelsDir "$name.param"
             if ((-not $Force) -and (Test-Path $paramPath)) {
                 Write-Host "  $name sudah ada - lewati" -ForegroundColor Yellow
@@ -191,9 +202,6 @@ try {
                 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
             }
         }
-    }
-    else {
-        Write-Host '  dilewati. Pakai -ExtraModels untuk Ultramix / UltraSharp / Remacri / Lite.' -ForegroundColor Yellow
     }
 
     Write-Host "`nSelesai. Isi bin/:" -ForegroundColor Cyan

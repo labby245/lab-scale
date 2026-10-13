@@ -13,6 +13,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/strings.dart';
 import '../theme.dart';
 
 class CompareSlider extends StatefulWidget {
@@ -20,14 +21,16 @@ class CompareSlider extends StatefulWidget {
     super.key,
     required this.beforePath,
     required this.afterPath,
-    this.beforeLabel = 'Asli',
-    this.afterLabel = 'Hasil',
+    this.beforeLabel,
+    this.afterLabel,
   });
 
   final String beforePath;
   final String afterPath;
-  final String beforeLabel;
-  final String afterLabel;
+
+  /// Null means the plain "Original" / "Result" in the current language.
+  final String? beforeLabel;
+  final String? afterLabel;
 
   @override
   State<CompareSlider> createState() => _CompareSliderState();
@@ -97,6 +100,10 @@ class _CompareSliderState extends State<CompareSlider> {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
+    final beforeLabel = widget.beforeLabel ?? s.before;
+    final afterLabel = widget.afterLabel ?? s.after;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -121,19 +128,20 @@ class _CompareSliderState extends State<CompareSlider> {
                   ),
                   if (split > 0.001 && split < 0.999) _Handle(x: width * split),
                   _Tag(
-                    label: widget.beforeLabel,
+                    label: beforeLabel,
                     alignment: Alignment.topLeft,
                     visible: split > 0.12,
                   ),
                   _Tag(
-                    label: widget.afterLabel,
+                    label: afterLabel,
                     alignment: Alignment.topRight,
                     visible: split < 0.88,
                   ),
                   _SnapBar(
                     split: split,
-                    beforeLabel: widget.beforeLabel,
-                    afterLabel: widget.afterLabel,
+                    beforeLabel: beforeLabel,
+                    afterLabel: afterLabel,
+                    compareLabel: s.compare,
                     onSnap: _snapTo,
                   ),
                   // Covers rather than replaces the comparison: the widgets
@@ -163,12 +171,14 @@ class _SnapBar extends StatelessWidget {
     required this.split,
     required this.beforeLabel,
     required this.afterLabel,
+    required this.compareLabel,
     required this.onSnap,
   });
 
   final double split;
   final String beforeLabel;
   final String afterLabel;
+  final String compareLabel;
   final ValueChanged<double> onSnap;
 
   @override
@@ -200,7 +210,7 @@ class _SnapBar extends StatelessWidget {
             onPressed: () => onSnap(1),
           ),
           _SnapChip(
-            label: 'Banding',
+            label: compareLabel,
             selected: split > 0.001 && split < 0.999,
             onPressed: () => onSnap(0.5),
           ),

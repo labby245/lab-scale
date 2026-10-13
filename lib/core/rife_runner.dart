@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../l10n/strings.dart';
 import '../models/process_options.dart';
 import 'binaries.dart';
 import 'job_log.dart';
@@ -36,7 +37,7 @@ class RifeRunner {
         .where((e) => e.path.endsWith('.png'))
         .length;
     if (sourceCount == 0) {
-      throw PipelineException('Tidak ada frame untuk diinterpolasi');
+      throw PipelineException(S.current.noFramesToInterpolate);
     }
 
     await Directory(outputDir).create(recursive: true);
@@ -45,8 +46,12 @@ class RifeRunner {
     final targetCount = (duration * targetFps).round().clamp(2, 1 << 30);
 
     reporter.log(
-      'RIFE: $sourceCount frame @ ${sourceFps.toStringAsFixed(2)}fps → '
-      '$targetCount frame @ ${targetFps.toStringAsFixed(0)}fps',
+      S.current.logRifeStart(
+        sourceCount,
+        sourceFps.toStringAsFixed(2),
+        targetCount,
+        targetFps.toStringAsFixed(0),
+      ),
     );
 
     final binary = Binaries.require(Tool.rife);
@@ -61,7 +66,7 @@ class RifeRunner {
       if (modelsDir != null) ...['-m', modelsDir],
     ];
 
-    final process = await Process.start(binary, args);
+    final process = reporter.track(await Process.start(binary, args));
     final stderrTail = <String>[];
 
     final stderrDone = process.stderr
@@ -90,18 +95,20 @@ class RifeRunner {
     final exitCode = await process.exitCode;
     poller?.cancel();
     await Future.wait([stdoutDone, stderrDone]);
+    reporter.throwIfCancelled();
 
     if (exitCode != 0) {
       throw PipelineException(
-        'RIFE gagal (exit $exitCode)',
+        S.current.toolFailed('RIFE', exitCode),
         detail: stderrTail.join('\n'),
       );
     }
 
     await _normalizeFrameNames(outputDir);
     progress?.call(1.0);
-    reporter.log('RIFE selesai → $targetCount frame @ '
-        '${targetFps.toStringAsFixed(0)}fps.');
+    reporter.log(
+      S.current.logRifeDone(targetCount, targetFps.toStringAsFixed(0)),
+    );
     return targetFps;
   }
 

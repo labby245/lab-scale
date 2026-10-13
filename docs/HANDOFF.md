@@ -4,7 +4,28 @@ Catatan serah-terima dari sesi migrasi Flask/Python → Flutter (25 Agustus 2026
 
 **Status per sesi macOS (MacBook Apple M1, macOS 15.7.7, arm64):** jalur macOS kini terverifikasi ujung ke ujung — analyze, 38 test, GPU lewat Metal, build release, `.app` yang jalan, dan `.dmg`. Yang belum: signing dengan Developer ID sungguhan dan notarisasi.
 
-## Di mana posisinya sekarang
+## Persiapan rilis publik (13 Oktober 2026)
+
+Branch `release/public-1`: LabScale disiapkan untuk rilis gratis & open source (MIT), macOS + Windows, Indonesia + Inggris, brand Labstory Studio seperti Fotolane. Yang ditambahkan dan statusnya:
+
+| Hal | Status |
+|---|---|
+| ffmpeg macOS mandiri (17 dylib, `@loader_path`) | terverifikasi: `DYLD_PRINT_LIBRARIES` tidak memuat apa pun dari `/opt/homebrew`; packager menolak kalau masih ada |
+| App arm64 saja, minimum macOS 14 | terverifikasi di build; packager menolak binary dengan `minos` lebih baru dari app |
+| Signing ad hoc (tanpa Developer ID) | `codesign --verify --deep --strict` lolos; persetujuan Gatekeeper dijelaskan di README |
+| Model CC BY-NC-SA diunduh dalam app | sha256 cocok dengan berkas sungguhan; jalur unduh diuji dengan server lokal |
+| Batalkan, cek ruang disk, log persisten, cek update, dialog Tentang, dua bahasa | test unit/widget/integrasi; UI dicek lewat screenshot build release |
+| DMG | 115 MB (dari 200 MB) |
+| Installer Windows (Inno Setup) + CI | **belum pernah dijalankan** — tidak ada mesin Windows; pertama kali jalan di workflow Release |
+| Workflow Release (draft) + Test | **belum pernah dijalankan** — repo masih private |
+
+Yang masih terbuka:
+
+- **Windows belum teruji sama sekali di sesi ini.** Jalankan workflow Release sekali (atau `tools/package_windows.ps1` di PC Windows) dan coba installernya sebelum Publish.
+- **Sumber GPL untuk build Windows.** `collect_gpl_sources.sh` melampirkan source ffmpeg 9.0.2, tapi library di dalam build gyan.dev (x264/x265 dsb.) versinya mengikuti gyan, bukan Homebrew. Lebih rapi kalau nanti pindah ke build LGPL atau build sendiri.
+- **Developer ID Apple** ($99/tahun) menghapus langkah "Open Anyway". Script sudah mendukungnya lewat `SIGN_IDENTITY` + `NOTARY_PROFILE`.
+
+## Di mana posisinya sekarang (Agustus 2026)
 
 Tiga commit di `main`, sudah di-push ke `labby245/lab-scale`:
 

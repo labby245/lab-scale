@@ -11,6 +11,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../../l10n/strings.dart';
 import '../../state/app_controller.dart';
 import '../theme.dart';
 import 'file_grid.dart';
@@ -31,16 +32,17 @@ class FileStage extends StatefulWidget {
 class _FileStageState extends State<FileStage> {
   bool _dragging = false;
 
-  static const _typeGroup = XTypeGroup(
-    label: 'Media',
-    extensions: [
-      'mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv',
-      'jpg', 'jpeg', 'png', 'webp', 'tiff', 'bmp',
-    ],
-  );
+  static const _extensions = [
+    'mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv',
+    'jpg', 'jpeg', 'png', 'webp', 'tiff', 'bmp',
+  ];
 
   Future<void> _browseFiles() async {
-    final picked = await openFiles(acceptedTypeGroups: const [_typeGroup]);
+    final picked = await openFiles(
+      acceptedTypeGroups: [
+        XTypeGroup(label: S.current.mediaTypeGroup, extensions: _extensions),
+      ],
+    );
     if (picked.isEmpty) return;
     widget.controller.addPaths(picked.map((f) => f.path));
   }
@@ -78,7 +80,7 @@ class _FileStageState extends State<FileStage> {
           children: [
             LabCardTitle(
               badge: '1',
-              title: 'File',
+              title: S.of(context).filesTitle,
               trailing: hasFiles
                   ? _GridActions(
                       controller: controller,
@@ -144,30 +146,31 @@ class _GridActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = controller.files.length;
+    final s = S.of(context);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           controller.isRunning || controller.phase == JobPhase.done
-              ? '$done/$count selesai'
-              : '$count file',
+              ? s.doneOf(done, count)
+              : s.fileCount(count),
           style: const TextStyle(fontSize: 12, color: LabColors.textMuted),
         ),
         const SizedBox(width: 10),
         _MiniButton(
           icon: Icons.insert_drive_file_outlined,
-          tooltip: 'Tambah file',
+          tooltip: s.addFiles,
           onPressed: controller.isRunning ? null : onBrowseFiles,
         ),
         _MiniButton(
           icon: Icons.folder_open_outlined,
-          tooltip: 'Tambah folder',
+          tooltip: s.addFolder,
           onPressed: controller.isRunning ? null : onBrowseFolder,
         ),
         _MiniButton(
           icon: Icons.close,
-          tooltip: 'Kosongkan',
+          tooltip: s.clearAll,
           onPressed: controller.isRunning ? null : controller.clearSelection,
         ),
       ],
@@ -213,6 +216,7 @@ class _DropInvitation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return DottedPanel(
       active: dragging,
       child: Center(
@@ -227,9 +231,7 @@ class _DropInvitation extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                dragging
-                    ? 'Lepas di sini'
-                    : 'Drag & drop file video / foto atau folder di sini',
+                dragging ? s.dropHere : s.dropInvitation,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 13.5,
@@ -242,22 +244,21 @@ class _DropInvitation extends StatelessWidget {
                 children: [
                   _OutlineButton(
                     icon: Icons.insert_drive_file_outlined,
-                    label: 'Pilih File',
+                    label: s.pickFiles,
                     onPressed: onBrowseFiles,
                   ),
                   _OutlineButton(
                     icon: Icons.folder_open_outlined,
-                    label: 'Pilih Folder',
+                    label: s.pickFolder,
                     onPressed: onBrowseFolder,
                   ),
                 ],
               ),
               const SizedBox(height: 14),
-              const Text(
-                'Video: MP4 · MOV · WEBM · MKV · AVI   |   '
-                'Foto: JPG · PNG · WEBP · TIFF',
+              Text(
+                s.supportedFormats,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: LabColors.textFaint),
+                style: const TextStyle(fontSize: 11, color: LabColors.textFaint),
               ),
             ],
           ),
@@ -321,8 +322,10 @@ class _OutlineButton extends StatelessWidget {
 
 /// Extension used by the home page header badge.
 extension MediaSelectionLabel on AppController {
-  String get selectionBadge {
+  String selectionBadge(S s) {
     if (!hasFiles) return '';
-    return isBulk ? 'Bulk · ${files.length} file' : 'Single File';
+    return isBulk
+        ? '${s.bulkBadge} · ${s.fileCount(files.length)}'
+        : s.singleBadge;
   }
 }

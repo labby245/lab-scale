@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../l10n/strings.dart';
 import '../models/process_options.dart';
 import 'binaries.dart';
 import 'job_log.dart';
@@ -61,8 +62,9 @@ class EncoderSupport {
   bool get hasNvenc =>
       has('h264_nvenc') || has('hevc_nvenc') || has('av1_nvenc');
 
-  /// Short human-readable summary shown under the codec selector.
-  String get summary {
+  /// Short human-readable summary shown under the codec selector, in [s] or
+  /// the current language.
+  String summary([S? s]) {
     final hw = <String>[
       if (has('h264_nvenc')) 'H.264 NVENC',
       if (has('hevc_nvenc')) 'HEVC NVENC',
@@ -70,7 +72,7 @@ class EncoderSupport {
       if (has('h264_videotoolbox')) 'H.264 VideoToolbox',
       if (has('hevc_videotoolbox')) 'HEVC VideoToolbox',
     ];
-    return hw.isEmpty ? 'encoder CPU saja' : hw.join(' · ');
+    return hw.isEmpty ? (s ?? S.current).cpuEncoderOnly : hw.join(' · ');
   }
 
   static const EncoderSupport none = EncoderSupport(<String>{});
@@ -409,7 +411,10 @@ class FfmpegRunner {
       sharpness: options.effectiveSharpness,
     );
 
-    reporter.log('Enkode langsung [${options.quality.label}] via ${encoder.name}…');
+    final s = S.current;
+    reporter.log(
+      s.logDirectEncode(s.qualityLabel(options.quality), encoder.name),
+    );
 
     final expectedFrames = options.fpsBoost
         ? (info.durationSeconds * kTargetFps).round()
@@ -431,7 +436,7 @@ class FfmpegRunner {
       progress: progress,
       totalFrames: expectedFrames,
     );
-    reporter.log('Enkode selesai.');
+    reporter.log(s.logEncodeDone);
   }
 
   /// Decodes every frame to lossless PNG in [framesDir].
@@ -443,14 +448,14 @@ class FfmpegRunner {
     ProgressSink? progress,
   }) async {
     await Directory(framesDir).create(recursive: true);
-    reporter.log('Ekstrak frame dari video (${info.frameCount} frame)…');
+    reporter.log(S.current.logExtract(info.frameCount));
     await _run(
       ['-y', '-i', input, p.join(framesDir, 'frame_%06d.png')],
       reporter: reporter,
       progress: progress,
       totalFrames: info.frameCount,
     );
-    reporter.log('Ekstrak frame selesai.');
+    reporter.log(S.current.logExtractDone);
   }
 
   /// Re-assembles PNG frames into the final video, muxing the source audio.
@@ -474,7 +479,8 @@ class FfmpegRunner {
   }) async {
     final encoder = await selectEncoder(options.codec);
     final pixelFormat = _pixelFormat(info, encoder.name);
-    reporter.log('Enkode [${options.quality.label}] via ${encoder.name}…');
+    final s = S.current;
+    reporter.log(s.logEncode(s.qualityLabel(options.quality), encoder.name));
 
     final filterParts = <String>[
       if (postWidth != null && postHeight != null)
@@ -511,7 +517,7 @@ class FfmpegRunner {
       progress: progress,
       totalFrames: totalFrames,
     );
-    reporter.log('Enkode selesai.');
+    reporter.log(s.logEncodeDone);
   }
 
   /// Applies a resize and/or unsharp mask to a single still image.
@@ -570,7 +576,7 @@ class FfmpegRunner {
       ...args,
     ];
 
-    final process = await Process.start(ffmpeg, fullArgs);
+    final process = reporter.track(await Process.start(ffmpeg, fullArgs));
     final stderrTail = <String>[];
 
     final stdoutDone = process.stdout
@@ -596,10 +602,11 @@ class FfmpegRunner {
 
     final exitCode = await process.exitCode;
     await Future.wait([stdoutDone, stderrDone]);
+    reporter.throwIfCancelled();
 
     if (exitCode != 0) {
       throw PipelineException(
-        'FFmpeg gagal (exit $exitCode)',
+        S.current.toolFailed('FFmpeg', exitCode),
         detail: stderrTail.join('\n'),
       );
     }

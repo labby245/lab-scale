@@ -12,6 +12,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../l10n/strings.dart';
 import '../models/process_options.dart';
 import 'binaries.dart';
 import 'job_log.dart';
@@ -60,14 +61,11 @@ class EsrganRunner {
         .where((e) => e.path.endsWith('.png'))
         .length;
     if (totalFrames == 0) {
-      throw PipelineException('Tidak ada frame untuk di-upscale');
+      throw PipelineException(S.current.noFramesToUpscale);
     }
 
     await Directory(outputDir).create(recursive: true);
-    reporter.log(
-      'Real-ESRGAN: model ${model.id} pada $totalFrames frame '
-      '($scale×)…',
-    );
+    reporter.log(S.current.logEsrganFrames(model.id, totalFrames, scale));
 
     await _run(
       inputPath: inputDir,
@@ -80,7 +78,7 @@ class EsrganRunner {
       outputDirToWatch: outputDir,
     );
 
-    reporter.log('Real-ESRGAN selesai.');
+    reporter.log(S.current.logEsrganDone);
   }
 
   /// Upscales a single still image.
@@ -94,12 +92,11 @@ class EsrganRunner {
     final ncnnScale = ncnnScaleFor(model, scale);
     reporter.log(
       ncnnScale == scale
-          ? 'Real-ESRGAN: model ${model.id} ($scale×)…'
+          ? S.current.logEsrganImage(model.id, scale)
           // Says why a 2x job is about to cost what a 4x one does: this model
           // has no weights at the requested scale, so it runs wide and FFmpeg
           // resizes down afterwards.
-          : 'Real-ESRGAN: model ${model.id} ($scale× — jaringan '
-              '$ncnnScale× lalu diperkecil)…',
+          : S.current.logEsrganImageWide(model.id, scale, ncnnScale),
     );
     await _run(
       inputPath: input,
@@ -108,7 +105,7 @@ class EsrganRunner {
       scale: scale,
       reporter: reporter,
     );
-    reporter.log('Real-ESRGAN selesai.');
+    reporter.log(S.current.logEsrganDone);
   }
 
   /// The exact argv handed to `realesrgan-ncnn-vulkan`.
@@ -144,7 +141,11 @@ class EsrganRunner {
     String? outputDirToWatch,
   }) async {
     final binary = Binaries.require(Tool.realesrgan);
-    final modelsDir = Binaries.modelsDir(Tool.realesrgan);
+    final modelsDir = Binaries.esrganModelsDirFor(
+          model.ncnnName!,
+          scales: model.nativeScales,
+        ) ??
+        Binaries.modelsDir(Tool.realesrgan);
 
     final args = buildArgs(
       inputPath: inputPath,
@@ -154,7 +155,7 @@ class EsrganRunner {
       modelsDir: modelsDir,
     );
 
-    final process = await Process.start(binary, args);
+    final process = reporter.track(await Process.start(binary, args));
     final stderrTail = <String>[];
 
     // The tool prints "N.NN%" to stderr; when that is unavailable we fall back
@@ -191,10 +192,11 @@ class EsrganRunner {
     final exitCode = await process.exitCode;
     poller?.cancel();
     await Future.wait([stdoutDone, stderrDone]);
+    reporter.throwIfCancelled();
 
     if (exitCode != 0) {
       throw PipelineException(
-        'Real-ESRGAN gagal (exit $exitCode)',
+        S.current.toolFailed('Real-ESRGAN', exitCode),
         detail: stderrTail.join('\n'),
       );
     }

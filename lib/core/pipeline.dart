@@ -12,9 +12,11 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
+import '../l10n/strings.dart';
 import '../models/media_file.dart';
 import '../models/process_options.dart';
 import 'binaries.dart';
+import 'disk_space.dart';
 import 'esrgan_runner.dart';
 import 'ffmpeg_runner.dart';
 import 'job_log.dart';
@@ -25,21 +27,37 @@ class JobResult {
     required this.sourceName,
     required this.outputPath,
     this.error,
+    this.cancelled = false,
   });
+
+  /// A file the user stopped, or never reached because the batch was
+  /// cancelled before it.
+  const JobResult.cancelled(this.sourceName)
+      : outputPath = '',
+        error = null,
+        cancelled = true;
 
   final String sourceName;
   final String outputPath;
   final String? error;
+  final bool cancelled;
 
-  bool get isSuccess => error == null;
+  bool get isSuccess => error == null && !cancelled;
   String get outputName => p.basename(outputPath);
 }
 
 class Pipeline {
-  Pipeline({required this.outputDir, required this.tempDir});
+  Pipeline({
+    required this.outputDir,
+    required this.tempDir,
+    Future<int?> Function(String path)? freeSpace,
+  }) : _freeSpace = freeSpace ?? DiskSpace.freeBytes;
 
   final String outputDir;
   final String tempDir;
+
+  /// Free bytes on the volume holding a path. Injected by tests.
+  final Future<int?> Function(String path) _freeSpace;
 
   /// Processes [file] and returns where the result landed.
   Future<JobResult> process({
@@ -56,6 +74,12 @@ class Pipeline {
         await _processVideo(file.path, output, options, reporter);
       }
       return JobResult(sourceName: file.displayName, outputPath: output);
+    } on JobCancelled {
+      // The tool was killed mid-write; what it left is a truncated file that
+      // would look like a real result in the output folder.
+      _deleteFile(output);
+      reporter.log(S.current.logCancelled);
+      return JobResult.cancelled(file.displayName);
     } on PipelineException catch (e) {
       return JobResult(
         sourceName: file.displayName,
@@ -86,7 +110,7 @@ class Pipeline {
     JobReporter reporter,
   ) {
     if (options.useRife && !RifeRunner.isAvailable) {
-      reporter.log('RIFE tidak ditemukan — pakai FFmpeg minterpolate.');
+      reporter.log(S.current.logRifeFallback);
       return options.copyWith(interpEngine: InterpEngine.ffmpeg);
     }
     return options;
@@ -172,8 +196,7 @@ class Pipeline {
   ) async {
     final info = await FfmpegRunner.probe(input);
     reporter.log(
-      'Video ${info.width}×${info.height} @ ${info.fps.toStringAsFixed(1)}fps '
-      '(${info.frameCount} frame).',
+      S.current.logVideo(info.width, info.height, info.fps, info.frameCount),
     );
 
     if (!options.needsFrames) {
@@ -187,6 +210,8 @@ class Pipeline {
       );
       return;
     }
+
+    await _checkTempSpace(info, options, reporter);
 
     final workDir = await Directory(tempDir).createTemp('labscale_');
     try {
@@ -294,11 +319,11 @@ class Pipeline {
     JobReporter reporter,
   ) async {
     if (!options.upscale) {
-      throw PipelineException('Tidak ada operasi yang berlaku untuk foto');
+      throw PipelineException(S.current.noOpForPhoto);
     }
 
     final info = await FfmpegRunner.probe(input);
-    reporter.log('Gambar ${info.width}×${info.height} dimuat.');
+    reporter.log(S.current.logImage(info.width, info.height));
 
     if (!options.useEsrgan) {
       reporter.report(null);
@@ -311,7 +336,7 @@ class Pipeline {
         quality: options.quality,
       );
       reporter.report(1.0);
-      reporter.log('Gambar tersimpan.');
+      reporter.log(S.current.logImageSaved);
       return;
     }
 
@@ -341,9 +366,45 @@ class Pipeline {
         quality: options.quality,
       );
       reporter.report(1.0);
-      reporter.log('Gambar tersimpan.');
+      reporter.log(S.current.logImageSaved);
     } finally {
       await _deleteDir(workDir.path);
+    }
+  }
+
+  /// Refuses a frames-path job the temp volume cannot hold.
+  ///
+  /// The estimate comes from the probed size and frame count, so rotation does
+  /// not matter here (width × height is the same either way). When free space
+  /// cannot be read the job proceeds — refusing work on a guess would be
+  /// worse than the failure this guards against.
+  Future<void> _checkTempSpace(
+    MediaInfo info,
+    ProcessOptions options,
+    JobReporter reporter,
+  ) async {
+    if (info.frameCount <= 0) return;
+    final needed = DiskSpace.estimatePeakBytes(
+      width: info.width,
+      height: info.height,
+      frameCount: info.frameCount,
+      fps: info.fps,
+      options: options,
+    );
+    final free = await _freeSpace(tempDir);
+    if (free == null) return;
+    reporter.log(S.current.logTempEstimate(needed, free));
+    if (needed + kDiskReserveBytes > free) {
+      throw PipelineException(S.current.notEnoughDisk(needed, free, tempDir));
+    }
+  }
+
+  static void _deleteFile(String path) {
+    try {
+      final file = File(path);
+      if (file.existsSync()) file.deleteSync();
+    } on FileSystemException {
+      // Best effort: a leftover partial file is untidy, not harmful.
     }
   }
 

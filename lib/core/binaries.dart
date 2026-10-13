@@ -13,6 +13,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../l10n/strings.dart';
+
 enum Tool {
   ffmpeg('ffmpeg'),
   ffprobe('ffprobe'),
@@ -126,17 +128,39 @@ class Binaries {
     return null;
   }
 
-  /// Whether the Real-ESRGAN weights for [ncnnName] are actually installed.
+  /// Writable per-user folder for weights downloaded inside the app (see
+  /// `ModelStore`). Set once at startup; null in tests and before then.
+  static String? userModelsDir;
+
+  /// Whether the Real-ESRGAN weights for [ncnnName] are actually installed,
+  /// either bundled or downloaded.
   ///
   /// The model list is fixed in the UI so people can see what exists, but only
-  /// some of it ships by default — the rest arrives with
-  /// `tools/fetch_binaries --extra-models`. Without this the dropdown would
-  /// happily offer a model whose weights are absent, and the job would only
-  /// fail once it had been queued.
-  static bool hasEsrganModel(String ncnnName, {Set<int> scales = const {}}) {
-    final dir = modelsDir(Tool.realesrgan);
-    if (dir == null) return false;
+  /// some of it ships in the installer — the rest is downloaded on demand.
+  /// Without this the dropdown would happily offer a model whose weights are
+  /// absent, and the job would only fail once it had been queued.
+  static bool hasEsrganModel(String ncnnName, {Set<int> scales = const {}}) =>
+      esrganModelsDirFor(ncnnName, scales: scales) != null;
 
+  /// The folder holding [ncnnName]'s weights, to pass as `-m`.
+  ///
+  /// realesrgan-ncnn-vulkan takes exactly one models folder per run, and
+  /// downloaded weights cannot live beside the bundled ones (inside the app
+  /// bundle, writing would break the code signature) — so the folder is chosen
+  /// per model. The user's folder is checked first so a re-download can
+  /// replace a damaged bundled copy.
+  static String? esrganModelsDirFor(
+    String ncnnName, {
+    Set<int> scales = const {},
+  }) {
+    for (final dir in [userModelsDir, modelsDir(Tool.realesrgan)]) {
+      if (dir == null || !Directory(dir).existsSync()) continue;
+      if (_hasModelIn(dir, ncnnName, scales)) return dir;
+    }
+    return null;
+  }
+
+  static bool _hasModelIn(String dir, String ncnnName, Set<int> scales) {
     bool pairExists(String stem) =>
         File(p.join(dir, '$stem.param')).existsSync() &&
         File(p.join(dir, '$stem.bin')).existsSync();
@@ -181,15 +205,9 @@ class ToolMissingException implements Exception {
   final Tool tool;
 
   String get installHint => switch (tool) {
-        Tool.ffmpeg || Tool.ffprobe =>
-          'FFmpeg tidak ditemukan. Install FFmpeg dan pastikan ada di PATH, '
-              'atau letakkan ${tool.fileName} di folder bin/ milik aplikasi.',
-        Tool.realesrgan =>
-          'Real-ESRGAN tidak ditemukan. Unduh realesrgan-ncnn-vulkan dan '
-              'letakkan di folder bin/ milik aplikasi.',
-        Tool.rife =>
-          'RIFE tidak ditemukan. Unduh rife-ncnn-vulkan dan letakkan di '
-              'folder bin/ milik aplikasi.',
+        Tool.ffmpeg || Tool.ffprobe => S.current.ffmpegMissingHint,
+        Tool.realesrgan => S.current.esrganMissingHint,
+        Tool.rife => S.current.rifeMissingHint,
       };
 
   @override

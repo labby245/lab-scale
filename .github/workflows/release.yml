@@ -1,0 +1,132 @@
+# Builds both installers for a version tag and attaches them to a DRAFT
+# GitHub Release. Nothing is published until someone reviews the draft and
+# presses "Publish" — the app's update check only ever sees published ones.
+#
+#   git tag v2.1.0 && git push origin v2.1.0
+#
+# The version in the tag must match pubspec.yaml; the first job checks.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build, e.g. v2.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  FLUTTER_VERSION: '3.47.1'
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Tag matches pubspec version
+        run: |
+          version="$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)"
+          [ "v$version" = "$TAG" ] || { echo "tag $TAG != pubspec v$version"; exit 1; }
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --draft --title "LabScale ${TAG#v}" \
+              --notes-file docs/release-notes.md
+
+  macos:
+    needs: draft
+    runs-on: macos-14   # Apple Silicon — the ffmpeg bundled is arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Fetch tools
+        run: tools/fetch_binaries.sh --rife-latest
+
+      - name: Build .dmg (signed ad hoc)
+        run: tools/package_macos.sh
+
+      - name: Collect GPL sources
+        run: tools/collect_gpl_sources.sh
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/*.dmg dist/ffmpeg-sources-*.tar --clobber
+
+  windows:
+    needs: draft
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Fetch tools
+        shell: pwsh
+        run: tools/fetch_binaries.ps1 -RifeLatest
+
+      # Fail here rather than ship an ffmpeg that cannot encode H.264 on a
+      # PC without an NVIDIA card.
+      - name: ffmpeg has the CPU encoders the app relies on
+        shell: pwsh
+        run: |
+          $enc = (& bin/ffmpeg.exe -hide_banner -encoders 2>&1 | Out-String)
+          foreach ($e in @('libx264', 'libx265')) {
+            if ($enc -notmatch [regex]::Escape($e)) { throw "encoder '$e' missing" }
+            Write-Host "encoder OK: $e"
+          }
+
+      - name: Build installer + zip
+        shell: pwsh
+        run: tools/package_windows.ps1
+
+      - name: Upload
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem dist -File | Where-Object { $_.Name -like 'LabScale-*' }
+          gh release upload $env:TAG @($files.FullName) --clobber
+
+  checksums:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets && cd assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'LabScale-*'
+          sha256sum LabScale-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber

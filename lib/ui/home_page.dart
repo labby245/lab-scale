@@ -8,13 +8,16 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/strings.dart';
 import '../state/app_controller.dart';
 import 'theme.dart';
+import 'widgets/about_dialog.dart';
 import 'widgets/log_card.dart';
 import 'widgets/ops_card.dart';
 import 'widgets/results_card.dart';
 import 'widgets/setup_panel.dart';
 import 'widgets/file_stage.dart';
+import 'widgets/update_banner.dart';
 
 /// Below this width the two columns stack instead of sitting side by side.
 const double _kTwoColumnBreakpoint = 1040;
@@ -65,6 +68,7 @@ class _HomePageState extends State<HomePage> {
       body: Column(
         children: [
           _Header(controller: controller),
+          UpdateBanner(controller: controller),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -198,42 +202,39 @@ class _ProcessButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = !controller.hasFiles
-        ? 'Proses File'
-        : controller.isBulk
-            ? 'Proses ${controller.files.length} File'
-            : 'Proses File';
+    final s = S.of(context);
+    final label = controller.isBulk
+        ? s.processNFiles(controller.files.length)
+        : s.processFiles;
+    final status = controller.statusText(s);
 
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: controller.canProcess ? controller.run : null,
-            icon: controller.isRunning
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.arrow_forward, size: 18),
-            label: Text(controller.isRunning ? 'Memproses…' : label),
-            style: FilledButton.styleFrom(
-              backgroundColor: LabColors.primary,
-              disabledBackgroundColor: LabColors.primary.withValues(alpha: 0.25),
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              textStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+        Row(
+          children: [
+            Expanded(child: _processButton(s, label)),
+            if (controller.isRunning) ...[
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: controller.isCancelling ? null : controller.cancel,
+                icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                label: Text(controller.isCancelling ? s.cancelling : s.cancel),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: LabColors.danger,
+                  side: BorderSide(
+                    color: LabColors.danger.withValues(alpha: 0.45),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 18,
+                    horizontal: 18,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
+            ],
+          ],
         ),
         if (controller.isRunning || controller.progress != null) ...[
           const SizedBox(height: 10),
@@ -246,14 +247,40 @@ class _ProcessButton extends StatelessWidget {
             ),
           ),
         ],
-        if (controller.statusText.isNotEmpty) ...[
+        if (status.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
-            controller.statusText,
+            status,
             style: const TextStyle(fontSize: 12, color: LabColors.textMuted),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _processButton(S s, String label) {
+    return FilledButton.icon(
+      onPressed: controller.canProcess ? controller.run : null,
+      icon: controller.isRunning
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.arrow_forward, size: 18),
+      label: Text(controller.isRunning ? s.processing : label),
+      style: FilledButton.styleFrom(
+        backgroundColor: LabColors.primary,
+        disabledBackgroundColor: LabColors.primary.withValues(alpha: 0.25),
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
     );
   }
 }
@@ -265,7 +292,8 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badge = controller.selectionBadge;
+    final s = S.of(context);
+    final badge = controller.selectionBadge(s);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -284,10 +312,10 @@ class _Header extends StatelessWidget {
             filterQuality: FilterQuality.medium,
           ),
           const SizedBox(width: 12),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'LabScale',
                 style: TextStyle(
                   fontSize: 16,
@@ -297,8 +325,8 @@ class _Header extends StatelessWidget {
                 ),
               ),
               Text(
-                'Foto · Video · Upscale · 60 FPS',
-                style: TextStyle(fontSize: 11, color: LabColors.textFaint),
+                s.tagline,
+                style: const TextStyle(fontSize: 11, color: LabColors.textFaint),
               ),
             ],
           ),
@@ -320,11 +348,57 @@ class _Header extends StatelessWidget {
               ),
             ),
           const SizedBox(width: 14),
-          const Text(
-            'Diproses lokal · file asli tidak diubah',
-            style: TextStyle(fontSize: 11, color: LabColors.textFaint),
+          Flexible(
+            child: Text(
+              s.privacyNote,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: LabColors.textFaint),
+            ),
+          ),
+          const SizedBox(width: 12),
+          _LanguageSwitch(controller: controller),
+          IconButton(
+            onPressed: () => showLabScaleAbout(context, controller),
+            icon: const Icon(Icons.info_outline, size: 18),
+            tooltip: s.aboutTooltip,
+            color: LabColors.textMuted,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// ID | EN, always visible: someone who cannot read the current language
+/// cannot be expected to find a setting buried in a menu written in it.
+class _LanguageSwitch extends StatelessWidget {
+  const _LanguageSwitch({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return Tooltip(
+      message: s.languageTooltip,
+      child: SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(value: false, label: Text('ID')),
+          ButtonSegment(value: true, label: Text('EN')),
+        ],
+        selected: {s.isEnglish},
+        showSelectedIcon: false,
+        onSelectionChanged: (choice) =>
+            controller.setLanguage(choice.first ? S.en : S.id),
+        style: SegmentedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          foregroundColor: LabColors.textMuted,
+          selectedForegroundColor: LabColors.primaryBright,
+          selectedBackgroundColor: LabColors.primary.withValues(alpha: 0.18),
+          side: const BorderSide(color: LabColors.borderStrong),
+        ),
       ),
     );
   }

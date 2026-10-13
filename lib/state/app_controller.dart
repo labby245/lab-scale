@@ -6,17 +6,22 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/app_log.dart';
 import '../core/binaries.dart';
 import '../core/esrgan_runner.dart';
 import '../core/ffmpeg_runner.dart';
 import '../core/job_log.dart';
+import '../core/model_store.dart';
 import '../core/pipeline.dart';
 import '../core/rife_runner.dart';
 import '../core/thumbnailer.dart';
+import '../core/update_check.dart';
+import '../l10n/strings.dart';
 import '../models/media_file.dart';
 import '../models/process_options.dart';
 
@@ -26,13 +31,23 @@ class Capabilities {
     this.ffmpeg = false,
     this.esrgan = false,
     this.rife = false,
-    this.encoderSummary = 'memuat…',
+    this.encoders,
   });
 
   final bool ffmpeg;
   final bool esrgan;
   final bool rife;
-  final String encoderSummary;
+
+  /// Verified encoders, or null until the probe has answered.
+  final EncoderSupport? encoders;
+
+  /// One line for the status bar and the codec hint, in [s].
+  String encoderSummary(S s) {
+    final support = encoders;
+    if (support == null) return s.loading;
+    if (!ffmpeg) return s.ffmpegNotFound;
+    return support.summary(s);
+  }
 
   int get readyCount => [esrgan, rife].where((v) => v).length;
   int get totalCount => 2;
@@ -41,7 +56,7 @@ class Capabilities {
 enum JobPhase { idle, running, done }
 
 /// Where a single queued file stands, for the selection grid.
-enum FileStatus { queued, running, done, failed }
+enum FileStatus { queued, running, done, failed, cancelled }
 
 class AppController extends ChangeNotifier {
   AppController();
@@ -71,6 +86,7 @@ class AppController extends ChangeNotifier {
   static const _kSharpness = 'pref_sharpness';
   static const _kScale = 'pref_upscale_scale';
   static const _kOutputDir = 'pref_output_dir';
+  static const _kLanguage = 'pref_language';
 
   // ── State ─────────────────────────────────────────────────────────────────
   List<MediaFile> _files = const [];
@@ -78,7 +94,9 @@ class AppController extends ChangeNotifier {
   Capabilities _capabilities = const Capabilities();
   JobPhase _phase = JobPhase.idle;
   double? _progress;
-  String _statusText = '';
+  bool _cancelRequested = false;
+  bool _stoppedByError = false;
+  JobReporter? _activeReporter;
   List<String> _logLines = const [];
   List<JobResult> _results = const [];
   String? _errorMessage;
@@ -90,8 +108,19 @@ class AppController extends ChangeNotifier {
   double? _fileProgress;
   MediaFile? _previewFile;
   Thumbnailer? _thumbnailer;
+  String _version = '';
+  AppLog? _appLog;
+  ModelStore? _modelStore;
+  final Map<UpscaleModel, double?> _downloads = {};
+  AvailableUpdate? _update;
+  bool _updateDismissed = false;
 
   SharedPreferences? _prefs;
+
+  /// The interface language. Separate from [notifyListeners] so a language
+  /// switch rebuilds the app root once, instead of the root rebuilding on
+  /// every progress tick.
+  final ValueNotifier<S> language = ValueNotifier<S>(S.current);
   StreamSubscription<String>? _logSub;
   StreamSubscription<double?>? _progressSub;
 
@@ -106,7 +135,28 @@ class AppController extends ChangeNotifier {
   JobPhase get phase => _phase;
   bool get isRunning => _phase == JobPhase.running;
   double? get progress => _progress;
-  String get statusText => _statusText;
+
+  /// True between a cancel request and the batch actually stopping.
+  bool get isCancelling => isRunning && _cancelRequested;
+
+  /// One line under the progress bar describing where the batch stands.
+  String statusText(S s) {
+    if (isRunning) {
+      final index = _activeIndex;
+      if (index == null || index >= _files.length) return '';
+      final name = _files[index].displayName;
+      return _files.length == 1
+          ? s.processingFile(name)
+          : '[${index + 1}/${_files.length}] $name';
+    }
+    if (_phase != JobPhase.done) return '';
+    if (_stoppedByError) return s.stoppedOnError;
+    final ok = _results.where((r) => r.isSuccess).length;
+    return _results.any((r) => r.cancelled)
+        ? s.succeededCancelled(ok, _results.length)
+        : s.succeeded(ok, _results.length);
+  }
+
   List<String> get logLines => _logLines;
   List<JobResult> get results => _results;
   String? get errorMessage => _errorMessage;
@@ -126,13 +176,24 @@ class AppController extends ChangeNotifier {
   /// Shared poster cache for the grid. Null until [initialize] has run.
   Thumbnailer? get thumbnailer => _thumbnailer;
 
+  /// The running version, e.g. "2.1.0". Empty until [initialize] has run.
+  String get version => _version;
+
+  /// The persistent log file, for the "open log folder" action.
+  String? get logPath => _appLog?.path;
+
+  /// A newer release, while the user has not dismissed the banner.
+  AvailableUpdate? get pendingUpdate => _updateDismissed ? null : _update;
+
   /// Where [index] stands in the queue.
   ///
   /// Results are appended in queue order, so a file has a result exactly when
   /// its index is below the number collected so far.
   FileStatus statusFor(int index) {
     if (index < _results.length) {
-      return _results[index].isSuccess ? FileStatus.done : FileStatus.failed;
+      final result = _results[index];
+      if (result.cancelled) return FileStatus.cancelled;
+      return result.isSuccess ? FileStatus.done : FileStatus.failed;
     }
     if (isRunning && index == _activeIndex) return FileStatus.running;
     return FileStatus.queued;
@@ -157,26 +218,73 @@ class AppController extends ChangeNotifier {
   MediaInfo? get sourceInfo => _sourceInfo;
 
   /// Human-readable output size estimate for the upscale panel.
-  String get dimensionEstimate {
+  String dimensionEstimate(S s) {
     final info = _sourceInfo;
-    if (!_options.upscale) return 'Aktifkan Upscale untuk melihat estimasi.';
+    if (!_options.upscale) return s.estimateNeedsUpscale;
     if (info == null) {
-      return hasFiles
-          ? 'Membaca dimensi…'
-          : 'Pilih file untuk melihat estimasi dimensi.';
+      return hasFiles ? s.estimateReading : s.estimateNeedsFile;
     }
     final scale = _options.upscaleScale;
     final source = '${info.width}×${info.height}';
-    if (scale == 1) return '$source → $source (enhance saja, resolusi tetap)';
+    if (scale == 1) return s.estimateEnhanceOnly(source);
     return '$source → ${info.width * scale}×${info.height * scale}';
   }
 
-  bool get canProcess => hasFiles && _options.hasAnyOp && !isRunning;
+  /// A selected model whose weights are missing would fail every file, so
+  /// the button waits for the download instead.
+  bool get canProcess =>
+      hasFiles && _options.hasAnyOp && !isRunning && !esrganMissing;
 
   /// The selected AI model is unavailable, so processing would fail.
   bool get esrganMissing =>
       _options.useEsrgan &&
       (!_capabilities.esrgan || !isModelInstalled(_options.upscaleModel));
+
+  /// Download progress for [model]: absent when not downloading, null while
+  /// the size is still unknown, otherwise 0–1.
+  bool isDownloading(UpscaleModel model) => _downloads.containsKey(model);
+  double? downloadProgress(UpscaleModel model) => _downloads[model];
+
+  /// Fetches [model]'s weights into the per-user models folder. Errors arrive
+  /// as a snackbar; the dropdown simply keeps offering the download.
+  Future<void> downloadModel(UpscaleModel model) async {
+    final entry = downloadableFor(model);
+    final store = _modelStore;
+    if (entry == null || store == null || isDownloading(model)) return;
+    _downloads[model] = 0;
+    notifyListeners();
+    try {
+      await store.download(entry, onProgress: (fraction) {
+        _downloads[model] = fraction;
+        notifyListeners();
+      });
+      _appLog?.write('model downloaded: ${model.id}');
+    } on ModelDownloadException catch (e) {
+      _errorMessage = S.current.downloadFailed(e);
+      _appLog?.write('model download failed: ${model.id}: $e');
+    } finally {
+      _downloads.remove(model);
+      notifyListeners();
+    }
+  }
+
+  /// Asks GitHub whether a newer release exists. [manual] re-shows a banner
+  /// the user dismissed earlier — they asked, so they want the answer.
+  Future<UpdateStatus> checkForUpdates({bool manual = false}) async {
+    if (_version.isEmpty) return UpdateStatus.failed;
+    final result = await UpdateChecker().check(_version);
+    if (result.status == UpdateStatus.available) {
+      _update = result.update;
+      if (manual) _updateDismissed = false;
+      notifyListeners();
+    }
+    return result.status;
+  }
+
+  void dismissUpdate() {
+    _updateDismissed = true;
+    notifyListeners();
+  }
 
   /// Whether [model] can actually run here — the binary plus its weights.
   bool isModelInstalled(UpscaleModel model) {
@@ -199,11 +307,43 @@ class AppController extends ChangeNotifier {
     await Directory(_tempDir).create(recursive: true);
     _thumbnailer = Thumbnailer(cacheDir: p.join(_tempDir, 'thumbs'));
 
+    // Downloaded weights and the log live in the per-user support folder:
+    // writable, and outside the app bundle whose signature must not change.
+    final support = await getApplicationSupportDirectory();
+    Binaries.userModelsDir = p.join(support.path, 'models');
+    _modelStore = ModelStore(Binaries.userModelsDir!);
+    _appLog = AppLog(p.join(support.path, 'logs'))..open();
+
+    try {
+      _version = (await PackageInfo.fromPlatform()).version;
+    } on Object {
+      _version = '';
+    }
+
     _prefs = await SharedPreferences.getInstance();
+    _restoreLanguage();
     await _probeCapabilities();
     _restorePreferences();
     await _restoreOutputDir();
+    _logEnvironment();
     notifyListeners();
+
+    // In the background: a slow or absent network must not delay the window.
+    unawaited(checkForUpdates());
+  }
+
+  /// One line per launch saying what this session runs on — the first thing
+  /// anyone reading a bug report needs.
+  void _logEnvironment() {
+    final caps = _capabilities;
+    _appLog?.write(
+      'LabScale $_version · ${Platform.operatingSystem} '
+      '${Platform.operatingSystemVersion} · ${Platform.localeName}',
+    );
+    _appLog?.write(
+      'tools: ffmpeg=${caps.ffmpeg} esrgan=${caps.esrgan} rife=${caps.rife} '
+      '· encoders: ${caps.encoderSummary(S.en)}',
+    );
   }
 
   /// Reinstates a folder the user picked previously.
@@ -228,10 +368,26 @@ class AppController extends ChangeNotifier {
       ffmpeg: Binaries.isAvailable(Tool.ffmpeg),
       esrgan: EsrganRunner.isAvailable,
       rife: RifeRunner.isAvailable,
-      encoderSummary: Binaries.isAvailable(Tool.ffmpeg)
-          ? support.summary
-          : 'FFmpeg tidak ditemukan',
+      encoders: support,
     );
+  }
+
+  /// Starts in the language last chosen, or the system's on first launch.
+  void _restoreLanguage() {
+    final stored = _prefs?.getString(_kLanguage);
+    final strings = switch (stored) {
+      'en' => S.en,
+      'id' => S.id,
+      _ => S.forLocale(Platform.localeName),
+    };
+    S.current = strings;
+    language.value = strings;
+  }
+
+  Future<void> setLanguage(S strings) async {
+    S.current = strings;
+    language.value = strings;
+    await _prefs?.setString(_kLanguage, strings.code);
   }
 
   /// Re-probes after the user drops binaries into `bin/` without restarting.
@@ -304,7 +460,6 @@ class AppController extends ChangeNotifier {
     _logLines = const [];
     _errorMessage = null;
     _phase = JobPhase.idle;
-    _statusText = '';
     _sourceInfo = null;
     _activeIndex = null;
     _fileProgress = null;
@@ -332,13 +487,13 @@ class AppController extends ChangeNotifier {
 
   void addPaths(Iterable<String> paths) {
     if (isRunning) {
-      _errorMessage = 'Sedang memproses — tunggu sampai selesai';
+      _errorMessage = S.current.busy;
       notifyListeners();
       return;
     }
     final found = MediaFile.collectFromPaths(paths);
     if (found.isEmpty) {
-      _errorMessage = 'Tidak ada file yang didukung di lokasi tersebut';
+      _errorMessage = S.current.noSupportedFiles;
       notifyListeners();
       return;
     }
@@ -361,7 +516,6 @@ class AppController extends ChangeNotifier {
     _logLines = const [];
     _errorMessage = null;
     _phase = JobPhase.idle;
-    _statusText = '';
     _progress = null;
     _sourceInfo = null;
     _activeIndex = null;
@@ -396,7 +550,7 @@ class AppController extends ChangeNotifier {
     try {
       await Directory(dir).create(recursive: true);
     } on FileSystemException {
-      _errorMessage = 'Tidak bisa menulis ke folder itu';
+      _errorMessage = S.current.cannotWriteFolder;
       notifyListeners();
       return;
     }
@@ -436,6 +590,8 @@ class AppController extends ChangeNotifier {
     }
 
     _phase = JobPhase.running;
+    _cancelRequested = false;
+    _stoppedByError = false;
     _progress = null;
     _fileProgress = null;
     _activeIndex = null;
@@ -445,6 +601,12 @@ class AppController extends ChangeNotifier {
     notifyListeners();
 
     final pipeline = Pipeline(outputDir: _outputDir, tempDir: _tempDir);
+    _appLog?.write(
+      'run: ${_files.length} file(s) · upscale=${_options.upscale} '
+      'model=${_options.upscaleModel.id} scale=${_options.upscaleScale} '
+      'fps=${_options.fpsBoost} engine=${_options.interpEngine.id} '
+      'quality=${_options.quality.id} codec=${_options.codec.id}',
+    );
     final collected = <JobResult>[];
     // Snapshot the queue: selection is locked while running, but reading from a
     // local list makes that guarantee independent of the UI.
@@ -454,14 +616,19 @@ class AppController extends ChangeNotifier {
     try {
       for (var i = 0; i < total; i++) {
         final file = queue[i];
+        // Everything not yet started when the user cancelled is recorded as
+        // cancelled rather than dropped: statusFor reads position in
+        // [results], and the grid should say what became of every file.
+        if (_cancelRequested) {
+          collected.add(JobResult.cancelled(file.displayName));
+          continue;
+        }
         _activeIndex = i;
         _fileProgress = null;
-        _statusText = total == 1
-            ? 'Memproses ${file.displayName}…'
-            : '[${i + 1}/$total] ${file.displayName}';
         notifyListeners();
 
         final reporter = JobReporter();
+        _activeReporter = reporter;
         _attachReporter(reporter, index: i, total: total);
         try {
           collected.add(await pipeline.process(
@@ -480,24 +647,32 @@ class AppController extends ChangeNotifier {
             error: '$e',
           ));
         } finally {
+          _activeReporter = null;
           await _detachReporter(reporter);
         }
 
+        final result = collected.last;
+        _appLog?.write(
+          result.cancelled
+              ? 'cancelled: ${result.sourceName}'
+              : result.isSuccess
+                  ? 'ok: ${result.sourceName} -> ${result.outputName}'
+                  : 'FAILED: ${result.sourceName}: ${result.error}',
+        );
         _results = List.unmodifiable(collected);
         notifyListeners();
       }
-
-      final ok = collected.where((r) => r.isSuccess).length;
-      _statusText = '$ok/$total berhasil diproses';
     } catch (e) {
       // Pipeline.process handles its own expected failures; anything reaching
       // here is unexpected (a ProcessException from an unlaunchable binary, a
       // filesystem error). Without this the phase would stay `running` forever
       // and the Process button would never re-enable.
-      _errorMessage = 'Proses berhenti tak terduga: $e';
-      _statusText = 'Berhenti karena error';
+      _errorMessage = S.current.unexpectedStop(e);
+      _stoppedByError = true;
+      _appLog?.write('UNEXPECTED: $e');
     } finally {
       _phase = JobPhase.done;
+      _cancelRequested = false;
       _progress = 1.0;
       _activeIndex = null;
       _fileProgress = null;
@@ -509,12 +684,22 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Stops the batch: the file in progress is abandoned (its tools are
+  /// killed and its partial output deleted) and the rest are not started.
+  void cancel() {
+    if (!isRunning || _cancelRequested) return;
+    _cancelRequested = true;
+    _activeReporter?.cancel();
+    notifyListeners();
+  }
+
   void _attachReporter(
     JobReporter reporter, {
     required int index,
     required int total,
   }) {
     _logSub = reporter.logs.listen((line) {
+      _appLog?.write('  $line');
       _logLines = [..._logLines, line];
       notifyListeners();
     });
@@ -551,7 +736,7 @@ class AppController extends ChangeNotifier {
         await Process.start('xdg-open', [target]);
       }
     } on ProcessException {
-      _errorMessage = 'Gagal membuka folder';
+      _errorMessage = S.current.cannotOpenFolder;
       notifyListeners();
     }
   }
@@ -560,6 +745,8 @@ class AppController extends ChangeNotifier {
   void dispose() {
     _logSub?.cancel();
     _progressSub?.cancel();
+    language.dispose();
+    unawaited(_appLog?.close());
     super.dispose();
   }
 }

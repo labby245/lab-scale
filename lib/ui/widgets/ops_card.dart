@@ -5,7 +5,10 @@ library;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as pth;
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/model_store.dart';
+import '../../l10n/strings.dart';
 import '../../models/process_options.dart';
 import '../../state/app_controller.dart';
 import '../theme.dart';
@@ -17,18 +20,19 @@ class OpsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final options = controller.options;
 
     return LabCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const LabCardTitle(badge: '2', title: 'Operasi'),
+          LabCardTitle(badge: '2', title: s.opsTitle),
 
           _OpToggle(
             icon: Icons.zoom_out_map,
-            name: 'Upscale',
-            description: 'Perbesar resolusi dengan AI atau Lanczos',
+            name: s.upscale,
+            description: s.upscaleDescription,
             value: options.upscale,
             onChanged: (v) =>
                 controller.updateOptions((o) => o.copyWith(upscale: v)),
@@ -41,14 +45,14 @@ class OpsCard extends StatelessWidget {
           // subtitle advertises; greyed out with a reason is honest instead.
           _OpToggle(
             icon: Icons.speed,
-            name: 'Boost ke $kTargetFps FPS',
+            name: s.fpsBoost,
             description: controller.capabilities.rife
-                ? 'Motion interpolation via RIFE AI'
-                : 'Motion interpolation via FFmpeg minterpolate',
+                ? s.fpsViaRife
+                : s.fpsViaFfmpeg,
             enabled: controller.showFpsOption,
             disabledReason: controller.hasFiles
-                ? 'Hanya untuk video — pilihan saat ini foto semua'
-                : 'Hanya untuk video — pilih klip dulu',
+                ? s.fpsOnlyVideoPhotos
+                : s.fpsOnlyVideoEmpty,
             value: options.fpsBoost,
             onChanged: (v) =>
                 controller.updateOptions((o) => o.copyWith(fpsBoost: v)),
@@ -65,10 +69,10 @@ class OpsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _LabeledDropdown<Quality>(
-                  label: 'Kualitas Output',
+                  label: s.outputQuality,
                   value: options.quality,
                   items: Quality.values,
-                  labelOf: (q) => q.label,
+                  labelOf: s.qualityLabel,
                   onChanged: (q) =>
                       controller.updateOptions((o) => o.copyWith(quality: q)),
                 ),
@@ -77,11 +81,11 @@ class OpsCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _LabeledDropdown<VideoCodec>(
-                    label: 'Codec Video',
+                    label: s.videoCodec,
                     value: options.codec,
                     items: VideoCodec.values,
-                    labelOf: (c) => c.label,
-                    hint: controller.capabilities.encoderSummary,
+                    labelOf: s.codecLabel,
+                    hint: controller.capabilities.encoderSummary(s),
                     onChanged: (c) =>
                         controller.updateOptions((o) => o.copyWith(codec: c)),
                   ),
@@ -118,7 +122,7 @@ class _OutputFolderRow extends StatelessWidget {
 
   Future<void> _pick() async {
     final dir = await getDirectoryPath(
-      confirmButtonText: 'Pilih folder output',
+      confirmButtonText: S.current.pickOutputFolder,
     );
     if (dir == null) return;
     await controller.setOutputDir(dir);
@@ -126,12 +130,13 @@ class _OutputFolderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final sub = _subfolder;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FieldLabel('Folder Output'),
+        _FieldLabel(s.outputFolder),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
@@ -179,7 +184,7 @@ class _OutputFolderRow extends StatelessWidget {
               IconButton(
                 onPressed: controller.isRunning ? null : _pick,
                 icon: const Icon(Icons.edit_outlined, size: 15),
-                tooltip: 'Ubah folder output',
+                tooltip: s.changeOutputFolder,
                 color: LabColors.textMuted,
                 visualDensity: VisualDensity.compact,
                 constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -190,7 +195,7 @@ class _OutputFolderRow extends StatelessWidget {
                   onPressed:
                       controller.isRunning ? null : controller.resetOutputDir,
                   icon: const Icon(Icons.settings_backup_restore, size: 15),
-                  tooltip: 'Kembalikan ke folder bawaan',
+                  tooltip: s.resetOutputFolder,
                   color: LabColors.textMuted,
                   visualDensity: VisualDensity.compact,
                   constraints:
@@ -200,7 +205,7 @@ class _OutputFolderRow extends StatelessWidget {
               IconButton(
                 onPressed: () => controller.revealInFileManager(),
                 icon: const Icon(Icons.open_in_new, size: 15),
-                tooltip: 'Buka folder',
+                tooltip: s.openFolder,
                 color: LabColors.textMuted,
                 visualDensity: VisualDensity.compact,
                 constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -221,30 +226,43 @@ class _UpscaleSettings extends StatelessWidget {
 
   final AppController controller;
 
+  /// Downloadable models stay pickable — choosing one is how you get to its
+  /// download button. Only a model that can neither run nor be fetched is
+  /// greyed out.
+  String _modelLabel(S s, UpscaleModel m) {
+    final download = downloadableFor(m);
+    if (download != null && !controller.isModelInstalled(m)) {
+      return '${s.modelLabel(m)}${s.modelDownloadSuffix(download.sizeBytes)}';
+    }
+    return s.modelLabel(m);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final options = controller.options;
     final first = controller.firstFile;
+    final model = options.upscaleModel;
+    final download = downloadableFor(model);
 
     return _SubSettings(
       children: [
         _LabeledDropdown<UpscaleModel>(
-          label: 'Model Upscale',
-          value: options.upscaleModel,
+          label: s.upscaleModel,
+          value: model,
           items: UpscaleModel.values,
-          labelOf: (m) => m.label,
-          disabledOf: (m) => !controller.isModelInstalled(m),
-          hint: UpscaleModel.values.every(controller.isModelInstalled)
-              ? null
-              : 'Model yang redup belum terpasang — jalankan '
-                  'tools/fetch_binaries --extra-models',
+          labelOf: (m) => _modelLabel(s, m),
+          disabledOf: (m) =>
+              !controller.isModelInstalled(m) && downloadableFor(m) == null,
           onChanged: (m) =>
               controller.updateOptions((o) => o.copyWith(upscaleModel: m)),
         ),
+        if (download != null)
+          _ModelDownloadPanel(controller: controller, download: download),
         const SizedBox(height: 14),
         Row(
           children: [
-            const _FieldLabel('Skala Output'),
+            _FieldLabel(s.outputScale),
             const Spacer(),
             for (var scale = kMinScale; scale <= kMaxScale; scale++)
               Padding(
@@ -260,19 +278,22 @@ class _UpscaleSettings extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          controller.dimensionEstimate,
+          controller.dimensionEstimate(s),
           style: const TextStyle(fontSize: 11.5, color: LabColors.textMuted),
         ),
         const SizedBox(height: 14),
         Row(
           children: [
-            _FieldLabel('Sharpness  ${(options.sharpness * 100).round()}%'),
+            _FieldLabel(s.sharpness((options.sharpness * 100).round())),
             if ((options.sharpness - 0.3).abs() < 0.001)
-              const Padding(
-                padding: EdgeInsets.only(left: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
                 child: Text(
-                  '(default)',
-                  style: TextStyle(fontSize: 11, color: LabColors.textFaint),
+                  s.defaultTag,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: LabColors.textFaint,
+                  ),
                 ),
               ),
           ],
@@ -283,18 +304,100 @@ class _UpscaleSettings extends StatelessWidget {
               controller.updateOptions((o) => o.copyWith(sharpness: v)),
         ),
         if (options.useEsrgan && first != null && first.isVideo)
-          const _Notice(
-            tone: LabColors.warning,
-            text: 'Real-ESRGAN pada video diproses per-frame — '
-                'gunakan untuk klip pendek.',
-          ),
-        if (controller.esrganMissing)
-          const _Notice(
-            tone: LabColors.danger,
-            text: 'realesrgan-ncnn-vulkan tidak ditemukan — '
-                'lihat panel Setup & Status di bawah.',
-          ),
+          _Notice(tone: LabColors.warning, text: s.esrganVideoNotice),
+        // A missing binary is a broken install; a missing downloadable model
+        // is already explained by the download panel above.
+        if (controller.esrganMissing && !controller.capabilities.esrgan)
+          _Notice(tone: LabColors.danger, text: s.esrganMissingNotice)
+        else if (controller.esrganMissing && download == null)
+          _Notice(tone: LabColors.danger, text: s.modelWeightsMissing),
       ],
+    );
+  }
+}
+
+/// Credit, licence and the download button for a model that is not part of
+/// the installer. The credit shows whether or not it is installed: the
+/// licence asks for attribution wherever the model is used.
+class _ModelDownloadPanel extends StatelessWidget {
+  const _ModelDownloadPanel({
+    required this.controller,
+    required this.download,
+  });
+
+  final AppController controller;
+  final DownloadableModel download;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final model = download.model;
+    final installed = controller.isModelInstalled(model);
+    final downloading = controller.isDownloading(model);
+    final progress = controller.downloadProgress(model);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: LabColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: LabColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!installed) ...[
+            Text(
+              s.modelNotInstalled(download.sizeBytes),
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: LabColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (downloading) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(value: progress, minHeight: 4),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                s.downloading(((progress ?? 0) * 100).round()),
+                style: const TextStyle(fontSize: 11, color: LabColors.textMuted),
+              ),
+            ] else
+              FilledButton.tonalIcon(
+                onPressed: controller.isRunning
+                    ? null
+                    : () => controller.downloadModel(model),
+                icon: const Icon(Icons.download_outlined, size: 16),
+                label: Text(s.downloadModel),
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: const TextStyle(fontSize: 12),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+          InkWell(
+            onTap: () => launchUrl(Uri.parse(download.licenseUrl)),
+            child: Text(
+              s.modelCredit(download.author, download.license),
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: LabColors.textFaint,
+                decoration: TextDecoration.underline,
+                decorationColor: LabColors.textFaint,
+              ),
+            ),
+          ),
+          Text(
+            s.nonCommercialNote,
+            style: const TextStyle(fontSize: 10.5, color: LabColors.textFaint),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -308,18 +411,17 @@ class _FpsSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final caps = controller.capabilities;
     return _SubSettings(
       children: [
         _LabeledDropdown<InterpEngine>(
-          label: 'Engine Interpolasi',
+          label: s.interpEngine,
           value: controller.options.interpEngine,
           items: InterpEngine.values,
-          labelOf: (e) => e.label,
+          labelOf: s.interpLabel,
           disabledOf: (e) => e == InterpEngine.rife && !caps.rife,
-          hint: caps.rife
-              ? '✓ RIFE aktif'
-              : '⚠ RIFE belum tersedia — pakai FFmpeg',
+          hint: caps.rife ? s.rifeActive : s.rifeUnavailable,
           onChanged: (e) =>
               controller.updateOptions((o) => o.copyWith(interpEngine: e)),
         ),

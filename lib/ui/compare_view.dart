@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/strings.dart';
 import '../models/media_file.dart';
 import '../state/app_controller.dart';
 import 'theme.dart';
@@ -170,6 +171,7 @@ class _ViewerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
       child: Row(
@@ -178,7 +180,7 @@ class _ViewerBar extends StatelessWidget {
             onPressed: onClose,
             icon: const Icon(Icons.arrow_back, size: 19),
             color: LabColors.textSecondary,
-            tooltip: 'Kembali (Esc)',
+            tooltip: s.back,
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -196,9 +198,7 @@ class _ViewerBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  comparing
-                      ? 'Geser pembatas untuk membandingkan asli dan hasil'
-                      : 'Belum diproses — yang tampil file aslinya',
+                  comparing ? s.dragToCompare : s.notProcessedYet,
                   style: const TextStyle(
                     fontSize: 11.5,
                     color: LabColors.textMuted,
@@ -212,9 +212,7 @@ class _ViewerBar extends StatelessWidget {
               onPressed: onReveal,
               icon: const Icon(Icons.folder_open_outlined, size: 15),
               label: Text(
-                Platform.isWindows
-                    ? 'Tampilkan di Explorer'
-                    : 'Tampilkan di Finder',
+                Platform.isWindows ? s.revealInExplorer : s.revealInFinder,
               ),
               style: TextButton.styleFrom(
                 foregroundColor: LabColors.textSecondary,
@@ -227,7 +225,7 @@ class _ViewerBar extends StatelessWidget {
               onPressed: onPrevious,
               icon: const Icon(Icons.chevron_left, size: 21),
               color: LabColors.textSecondary,
-              tooltip: 'Sebelumnya (←)',
+              tooltip: s.previous,
             ),
             Text(
               position,
@@ -240,7 +238,7 @@ class _ViewerBar extends StatelessWidget {
               onPressed: onNext,
               icon: const Icon(Icons.chevron_right, size: 21),
               color: LabColors.textSecondary,
-              tooltip: 'Berikutnya (→)',
+              tooltip: s.next,
             ),
           ],
         ],

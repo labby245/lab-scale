@@ -13,6 +13,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../core/pipeline.dart';
 import '../../core/thumbnailer.dart';
+import '../../l10n/strings.dart';
 import '../../models/media_file.dart';
 import '../theme.dart';
 import 'compare_slider.dart';
@@ -169,8 +170,8 @@ class _MediaStageState extends State<MediaStage> {
       return Image.file(
         File(file.path),
         fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => const _EmptyStage(
-          message: 'Tidak dapat menampilkan gambar ini',
+        errorBuilder: (_, _, _) => _EmptyStage(
+          message: S.of(context).cannotShowImage,
         ),
       );
     }
@@ -240,7 +241,7 @@ class _VideoCompareState extends State<_VideoCompare> {
   Widget build(BuildContext context) {
     final frames = _frames;
     if (frames == null) {
-      return const _EmptyStage(message: 'Preview tidak tersedia');
+      return _EmptyStage(message: S.of(context).previewUnavailable);
     }
 
     return FutureBuilder<List<String?>>(
@@ -251,15 +252,13 @@ class _VideoCompareState extends State<_VideoCompare> {
         }
         final frames = snapshot.data;
         if (frames == null || frames[0] == null || frames[1] == null) {
-          return const _EmptyStage(
-            message: 'Tidak dapat mengambil frame pembanding',
-          );
+          return _EmptyStage(message: S.of(context).cannotGrabFrames);
         }
         return CompareSlider(
           beforePath: frames[0]!,
           afterPath: frames[1]!,
-          beforeLabel: 'Asli (frame)',
-          afterLabel: 'Hasil (frame)',
+          beforeLabel: S.of(context).beforeFrame,
+          afterLabel: S.of(context).afterFrame,
         );
       },
     );
@@ -285,14 +284,14 @@ class _ModeToggle extends StatelessWidget {
         children: [
           _ModeChip(
             icon: Icons.compare_arrows,
-            label: 'Banding',
+            label: S.of(context).compare,
             selected: !playing,
             onPressed: () => onChanged(false),
           ),
           const SizedBox(width: 4),
           _ModeChip(
             icon: Icons.play_arrow,
-            label: 'Putar',
+            label: S.of(context).play,
             selected: playing,
             onPressed: () => onChanged(true),
           ),
@@ -368,7 +367,7 @@ class _EmptyStage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            message ?? 'Pilih file video atau foto untuk melihat preview',
+            message ?? S.of(context).emptyPreview,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12.5, color: LabColors.textFaint),
           ),

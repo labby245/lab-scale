@@ -1,0 +1,34 @@
+# analyze + every test on each push and pull request.
+#
+# Ubuntu rather than macOS: the tests need a real ffmpeg, and apt installs one
+# in seconds. The ncnn integration groups skip themselves there (no
+# Real-ESRGAN/RIFE binaries), so they still run locally before each release.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

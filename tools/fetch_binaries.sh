@@ -109,6 +109,10 @@ if ! already_present ffmpeg; then
     d2="$(fetch_zip 'https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip' ffprobe)"
     install_exe "$d2" ffprobe
   fi
+  # Homebrew's build loads a dozen libraries from /opt/homebrew; without this
+  # step the packaged app only works on Macs that happen to have Homebrew.
+  # A static build simply has nothing to collect, and still gets verified.
+  "$ROOT/tools/bundle_ffmpeg_dylibs.sh" "$BIN_DIR"
 fi
 
 # ── Real-ESRGAN ──────────────────────────────────────────────────────────────
@@ -148,17 +152,21 @@ fi
 
 # ── Model upscale tambahan ───────────────────────────────────────────────────
 #
-# Bobot ESRGAN dari Upscayl (resources/models). Binary realesrgan-ncnn-vulkan
-# memuat model apa pun berarsitektur ESRGAN lewat `-n <nama>`, jadi ini murni
-# menaruh berkas — tidak ada kode yang berubah.
+# Bobot ESRGAN dari Upscayl (resources/models), dikunci ke satu commit supaya
+# berkasnya sama persis dengan sha256 di lib/core/model_store.dart. Binary
+# realesrgan-ncnn-vulkan memuat model apa pun berarsitektur ESRGAN lewat
+# `-n <nama>`, jadi ini murni menaruh berkas.
 #
-# Tidak diunduh secara default: empat model ini ~100 MB, dan masing-masing
-# punya asal-usul serta ketentuan sendiri (Upscayl sendiri AGPL-3.0). Periksa
-# lisensinya sebelum ikut mendistribusikannya.
-fetch_extra_models() {
-  local base='https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models'
+# upscayl-lite-4x selalu diambil: itu realesr-general-x4v3 milik xinntao
+# (BSD-3) dengan nama lain, dan ikut di installer (tools/bundled_models.txt).
+# Tiga lainnya berlisensi CC BY-NC-SA 4.0 — tidak masuk installer, diunduh app
+# saat dipilih. --extra-models menaruhnya di bin/ hanya untuk development.
+UPSCAYL_MODELS='https://raw.githubusercontent.com/upscayl/upscayl/a00d55fee90e0f9435d5eaa86e76700df8199af8/resources/models'
+
+fetch_models() {
+  local base="$UPSCAYL_MODELS"
   mkdir -p "$BIN_DIR/models"
-  for name in ultramix-balanced-4x ultrasharp-4x remacri-4x upscayl-lite-4x; do
+  for name in "$@"; do
     if [[ $FORCE -eq 0 && -e "$BIN_DIR/models/$name.param" ]]; then
       skip "$name sudah ada — lewati"
       continue
@@ -180,10 +188,11 @@ fetch_extra_models() {
 }
 
 info $'\n[4/4] Model upscale tambahan'
+fetch_models upscayl-lite-4x
 if [[ $EXTRA_MODELS -eq 1 ]]; then
-  fetch_extra_models
+  fetch_models ultramix-balanced-4x ultrasharp-4x remacri-4x
 else
-  skip "dilewati. Pakai --extra-models untuk Ultramix / UltraSharp / Remacri / Lite."
+  skip "Ultramix / UltraSharp / Remacri dilewati — app mengunduhnya saat dipilih (--extra-models untuk menaruhnya di bin/)."
 fi
 
 info $'\nSelesai. Isi bin/:'

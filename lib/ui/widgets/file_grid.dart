@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/strings.dart';
 import '../../models/media_file.dart';
 import '../../state/app_controller.dart';
 import '../compare_view.dart';
@@ -244,6 +245,7 @@ class _StatusMark extends StatelessWidget {
     final (IconData icon, Color color) = switch (status) {
       FileStatus.done => (Icons.check_circle, LabColors.success),
       FileStatus.failed => (Icons.error, LabColors.danger),
+      FileStatus.cancelled => (Icons.remove_circle, LabColors.warning),
       _ => (Icons.circle, Colors.transparent),
     };
     if (color == Colors.transparent) return const SizedBox.shrink();
@@ -309,6 +311,7 @@ class _Caption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(7, 5, 7, 6),
@@ -328,9 +331,10 @@ class _Caption extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             switch (status) {
-              FileStatus.done => 'selesai',
-              FileStatus.failed => 'gagal',
-              FileStatus.running => 'memproses…',
+              FileStatus.done => s.tileDone,
+              FileStatus.failed => s.tileFailed,
+              FileStatus.running => s.tileRunning,
+              FileStatus.cancelled => s.tileCancelled,
               FileStatus.queued => file.formattedSize,
             },
             style: TextStyle(
@@ -339,6 +343,7 @@ class _Caption extends StatelessWidget {
                 FileStatus.done => LabColors.success,
                 FileStatus.failed => LabColors.danger,
                 FileStatus.running => LabColors.primaryBright,
+                FileStatus.cancelled => LabColors.warning,
                 FileStatus.queued => LabColors.textFaint,
               },
             ),

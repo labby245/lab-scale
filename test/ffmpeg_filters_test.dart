@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labscale/core/ffmpeg_runner.dart';
+import 'package:labscale/l10n/strings.dart';
 import 'package:labscale/models/process_options.dart';
 
 void main() {
@@ -53,14 +54,15 @@ void main() {
     test('reports hardware encoders in the summary', () {
       const support = EncoderSupport({'libx264', 'h264_nvenc', 'hevc_nvenc'});
       expect(support.hasNvenc, isTrue);
-      expect(support.summary, contains('H.264 NVENC'));
-      expect(support.summary, contains('HEVC NVENC'));
+      expect(support.summary(), contains('H.264 NVENC'));
+      expect(support.summary(), contains('HEVC NVENC'));
     });
 
     test('falls back to a CPU-only message', () {
       const support = EncoderSupport({'libx264'});
       expect(support.hasNvenc, isFalse);
-      expect(support.summary, 'encoder CPU saja');
+      expect(support.summary(), 'encoder CPU saja');
+      expect(support.summary(S.en), 'CPU encoder only');
     });
   });
 }

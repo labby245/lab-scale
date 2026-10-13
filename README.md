@@ -1,206 +1,110 @@
+<div align="center">
+
+<img src="assets/logo.png" width="96" alt="LabScale">
+
 # LabScale
 
-Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untuk **Windows dan macOS**. Semua pemrosesan berjalan **lokal**, tidak ada yang dikirim ke cloud, dan file asli tidak pernah diubah.
+**AI upscaling and 60 FPS boost for photos and video** — by Labstory Studio
 
-## Fitur
+Free · open source · runs entirely on your computer
 
-- **Upscale** — delapan pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: foto realistis, desain & ilustrasi, anime & manga, video anime, draf cepat, atau Lanczos tanpa AI. Skala 1×–4×.
-- **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
-- **Boost ke 60 FPS** — motion interpolation via RIFE AI (5–10× lebih cepat dan jauh lebih halus) atau FFmpeg `minterpolate`.
-- **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan, dan hasilnya dikumpulkan ke satu folder `<nama folder>_upscaled` di dalam folder output. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
-- **Bandingkan sebelum/sesudah** — klik foto mana pun untuk membukanya di viewer **setinggi jendela penuh**, dengan pembatas yang bisa digeser kiri-kanan. Panah ←/→ berpindah antar file, Esc menutup. Untuk video, yang dibandingkan satu frame, dan tombol **Putar** memutar hasilnya.
-- **Kualitas & codec** — Fast → Ultra (lossless), H.264 / HEVC / AV1, dengan NVENC (Windows) atau VideoToolbox (macOS) otomatis bila tersedia.
-- **Audio dipertahankan** — audio AAC di-copy apa adanya, format lain di-transcode ke AAC 192k.
+macOS (Apple Silicon) · Windows
 
-## Arsitektur
+[Download](https://github.com/labby245/lab-scale/releases/latest) ·
+[Baca dalam Bahasa Indonesia](README.id.md) ·
+[Instagram @labstory.studio](https://www.instagram.com/labstory.studio/)
 
-LabScale adalah aplikasi Flutter murni. Tidak ada runtime Python, tidak ada server lokal. Dart mengorkestrasi tiga binary CLI:
+</div>
 
-| Tool | Peran | GPU |
-|---|---|---|
-| `ffmpeg` / `ffprobe` | probe, ekstrak frame, filter, enkode | NVENC / VideoToolbox |
-| `realesrgan-ncnn-vulkan` | upscale AI | Vulkan (Win) / Metal via MoltenVK (Mac) |
-| `rife-ncnn-vulkan` | interpolasi frame AI (RIFE v4.25) | Vulkan / Metal |
+---
 
-Video mengambil salah satu dari dua jalur:
+LabScale makes small photos and videos bigger and sharper with AI, and makes
+choppy video smooth at 60 frames per second. Drop in a file or a whole folder,
+pick what you want, press **Process**.
 
-- **Direct** — satu pass FFmpeg yang mencakup Lanczos, `minterpolate`, dan unsharp. Dipakai bila tidak ada stage AI.
-- **Frames** — dekode ke PNG → (RIFE) → (Real-ESRGAN) → enkode ulang. Wajib bila ada stage ncnn.
+Nothing is uploaded anywhere. Every step runs on your own machine, on your own
+GPU, and your original files are never modified.
 
-> Melanjutkan pekerjaan ini di mesin lain (khususnya macOS)? Baca [HANDOFF.md](HANDOFF.md) — berisi status verifikasi per platform, apa yang belum teruji, dan jebakan yang sudah pernah kena.
+## What it does
 
-## Setup development
+- **Upscale 1×–4×** with models picked by what they are *for*: realistic
+  photos, design & illustration, anime & manga, anime video, or a quick draft.
+  Or plain Lanczos, no AI at all.
+- **Boost to 60 FPS** with RIFE AI frame interpolation (or FFmpeg's built-in
+  one).
+- **Whole folders at once.** Every file shows as a thumbnail, and the one being
+  worked on carries its own progress bar. Results from a folder are collected
+  in one `<folder>_upscaled` folder.
+- **Before / after viewer.** Click any file to compare the original and the
+  result full-window, with a divider you drag across. ←/→ moves between files.
+- **Quality & codec control** — H.264, HEVC or AV1, using your GPU's hardware
+  encoder (VideoToolbox on Mac, NVENC on NVIDIA) when it has one. Audio is kept.
+- **Cancel anytime**, and LabScale checks there is enough free disk space
+  before starting a long video job, instead of filling your disk halfway.
+- **English and Indonesian** interface, switchable in one click.
 
-```bash
-flutter pub get
+## Install
 
-# Unduh ffmpeg + binary ncnn ke ./bin
-#   Windows:
-pwsh tools/fetch_binaries.ps1
-#   macOS:
-tools/fetch_binaries.sh
+### macOS (Apple Silicon, macOS 14 or newer)
 
-flutter run -d windows    # atau: flutter run -d macos
-```
+1. Download `LabScale-<version>-macos.dmg` from
+   [Releases](https://github.com/labby245/lab-scale/releases/latest).
+2. Open it and drag **LabScale** into **Applications**.
+3. The first time, macOS will say it cannot verify the app — LabScale is not
+   (yet) signed with a paid Apple developer certificate. Click **Done**, then
+   open **System Settings → Privacy & Security**, scroll down, and click
+   **Open Anyway** next to LabScale. You only do this once.
 
-`bin/` sengaja tidak masuk git — isinya besar dan berlisensi terpisah.
+Intel Macs are not supported.
 
-**Model upscale tambahan (opsional).** Empat model terbaik untuk desain dan foto tidak ikut secara default (~100 MB, dan masing-masing punya ketentuan lisensi sendiri). Tambahkan `--extra-models` / `-ExtraModels` untuk mengambil Ultramix Balanced, UltraSharp, Remacri, dan Upscayl Lite. Di dalam app, model yang belum terpasang tampil redup dan tidak bisa dipilih.
+### Windows (10 / 11, 64-bit)
 
-Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai terhadap aslinya:
+1. Download `LabScale-Setup-<version>.exe` from
+   [Releases](https://github.com/labby245/lab-scale/releases/latest).
+   (Prefer no installer? Take the `.zip` and run `labscale.exe` from it.)
+2. If Windows SmartScreen shows "Windows protected your PC", click
+   **More info → Run anyway**. The installer does not need administrator
+   rights.
 
-| Model | Desain (SSIM) | Foto (rasio detail) | Detik |
-|---|---|---|---|
-| Ultramix Balanced | **0,9931** | **0,99×** | 6,6 |
-| UltraSharp | 0,9875 | 1,05× | 6,4 |
-| Remacri | 0,9871 | 1,59× | 6,6 |
-| ESRGAN x4+ *(bawaan)* | 0,9827 | 0,93× | 6,5 |
-| Upscayl Lite | 0,9784 | 0,72× | **0,7** |
-| Lanczos | 0,9768 | 0,18× | 0,4 |
+The AI features need a GPU with Vulkan support — practically any NVIDIA, AMD
+or Intel GPU from the last several years, with an up-to-date driver.
 
-Rasio detail 1,00× berarti detail halus kembali sebanyak aslinya; di bawah itu buram, di atas itu mengarang.
+## Good to know
 
-**Kenapa 2× tidak lebih cepat dari 4×.** Hanya AnimeVideoV3 yang punya bobot terpisah untuk 2× dan 3×. Model lain 4× saja, jadi permintaan 2× dijalankan di 4× lalu diperkecil FFmpeg — waktu GPU dan ruang sementara sama seperti 4× penuh. Log menyebutkannya (`jaringan 4× lalu diperkecil`). Pada jalur video ini berarti frame sementara berukuran 4×, bukan 2×: klip 1080p panjang bisa memakan puluhan GB di folder temp. Kalau ruang sempit, pilih AnimeVideoV3 atau proses per potongan.
+- **Video upscaling with AI is heavy.** Every frame is upscaled one by one, so
+  it suits short clips. LabScale estimates the temporary disk space a job needs
+  and tells you up front if it will not fit.
+- **2× costs as much as 4×** with most AI models — they only have 4× weights,
+  so LabScale runs at 4× and scales down. "Anime video" is the exception: it
+  has its own 2× and 3× weights and is much faster.
+- **Three optional models are downloaded when you pick them** — UltraMix
+  Balanced, UltraSharp and Remacri (about 33 MB each). They are licensed for
+  **non-commercial use only** (CC BY-NC-SA 4.0); the models that come with the
+  installer have no such restriction.
+- **Updates.** LabScale checks GitHub for a newer version when it starts and
+  shows a small banner if there is one. It never downloads or installs
+  anything by itself.
+- **Something went wrong?** Click the ⓘ icon → **Open log folder**, and attach
+  `labscale.log` to a [new issue](https://github.com/labby245/lab-scale/issues).
 
-**RIFE v4.25 (opsional).** Default-nya v4.6 dari rilis nihui 2022, karena unduhannya ringan. Untuk model yang jauh lebih baik, tambahkan `--rife-latest` (bash) atau `-RifeLatest` (PowerShell). Harganya unduhan ~790 MB: **setiap model RIFE setelah v4.6 butuh build ncnn yang lebih baru** — binary lama menolak semuanya dengan `layer MemoryData not exists or registered` — dan satu-satunya build yang dipublikasikan ada di dalam satu arsip berisi ~50 model. Hanya yang diperlukan yang disimpan.
+## Built with
 
-Diukur di M1, 24 frame 1920×1080: v4.6 4,5 detik, v4.25 6,0 detik. Binary barunya tidak menurunkan performa model lama (4,4 detik).
+LabScale is a Flutter app that drives three excellent open-source tools:
 
-### Di mana binary dicari
+- [FFmpeg](https://ffmpeg.org) — decoding, encoding, filters
+- [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) (ncnn Vulkan) — AI upscaling
+- [RIFE](https://github.com/hzwer/Practical-RIFE) (ncnn Vulkan) — AI frame interpolation
 
-Berurutan:
+Full credits and licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Building from source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (Indonesian).
 
-1. `<folder exe>/bin/` — Windows
-2. `<LabScale.app>/Contents/Resources/bin/` — macOS
-3. folder yang sama dengan executable
-4. `bin/` di root proyek (agar `flutter run` jalan tanpa bundling)
-5. `PATH`
+## Also from Labstory Studio
 
-Status bar di dasar jendela menunjukkan sekilas mana yang ketemu (satu titik per tool). Tombol **Setup & Status** di sebelah kanannya membuka rincian lengkap beserta **Cek ulang**, kalau Anda baru menaruh binary tanpa restart.
+**[Fotolane](https://github.com/labby245/fotolane-releases)** — automatic event
+photo prep. Thousands of event photos, resized and sorted for upload without
+babysitting.
 
-FFmpeg wajib ada. Real-ESRGAN dan RIFE opsional — tanpa keduanya, upscale tetap jalan lewat Lanczos dan 60 FPS tetap jalan lewat `minterpolate`.
+## Licence
 
-## Build & bundle
-
-### Windows
-
-```powershell
-pwsh tools/package_windows.ps1
-```
-
-Menghasilkan `dist/LabScale-<versi>-windows-x64.zip` berisi `labscale.exe`, DLL Flutter, dan `bin/`.
-
-Butuh Visual Studio 2022 dengan workload **Desktop development with C++**.
-
-Script PowerShell-nya bisa diperiksa dari macOS juga — `brew install powershell` memberi `pwsh`, cukup untuk mem-parse dan menjalankan jalur unduhan model.
-
-### macOS
-
-```bash
-tools/package_macos.sh
-```
-
-Menghasilkan `dist/LabScale-<versi>-macos.dmg`.
-
-Butuh **Xcode lengkap** (Command Line Tools saja tidak cukup) dan **CocoaPods** — media_kit punya podspec:
-
-```bash
-brew install cocoapods
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-sudo xcodebuild -runFirstLaunch
-```
-
-Untuk distribusi ke Mac lain, set identitas signing dulu:
-
-```bash
-export SIGN_IDENTITY="Developer ID Application: Nama Anda (TEAMID)"
-
-# Sekali saja — simpan kredensial notarisasi di keychain:
-xcrun notarytool store-credentials labscale-notary \
-  --apple-id you@example.com --team-id TEAMID --password APP_SPECIFIC_PW
-export NOTARY_PROFILE=labscale-notary
-
-tools/package_macos.sh
-```
-
-Tanpa `SIGN_IDENTITY`, script tetap menghasilkan `.app` dan `.dmg` yang jalan di mesin Anda sendiri, hanya belum bisa didistribusikan tanpa peringatan Gatekeeper.
-
-**Catatan App Sandbox:** LabScale menargetkan Developer ID, bukan Mac App Store. Sandbox sengaja dimatikan di `macos/Runner/*.entitlements` karena app men-spawn binary helper dan menulis ke `~/Documents/LabScale` — keduanya tidak mungkin di dalam sandbox tanpa security-scoped bookmark per file.
-
-## Output
-
-Folder default `~/Documents/LabScale` (Windows: `%USERPROFILE%\Documents\LabScale`), bisa diganti lewat **Folder Output** di kartu Operasi — pilihannya diingat antar sesi, dan kembali ke default kalau folder itu hilang saat app dibuka lagi.
-
-File yang dipilih satu-satu mendarat langsung di folder output. **Folder yang di-drop hasilnya dikumpulkan** ke `<nama folder>_upscaled` di dalamnya, apa pun struktur di dalam folder aslinya:
-
-```
-~/Documents/LabScale/
-  foto_lanczos-4x.png                    ← file yang dipilih sendiri
-  Foto Liburan_upscaled/                 ← dari folder "Foto Liburan"
-    pantai_esrgan-real-4x.png
-    sunset_esrgan-real-4x.png
-```
-
-Nama file membawa suffix yang menjelaskan operasinya:
-
-```
-klip_esrgan-real-2x_sharp30_60fps.mp4
-foto_lanczos-4x.png
-```
-
-## Struktur proyek
-
-```text
-lib/
-  main.dart
-  core/
-    binaries.dart          # resolusi path tool eksternal
-    ffmpeg_runner.dart     # preset codec, probe, filter, enkode
-    esrgan_runner.dart     # realesrgan-ncnn-vulkan
-    rife_runner.dart       # rife-ncnn-vulkan
-    pipeline.dart          # orkestrasi stage + routing direct/frames
-    job_log.dart           # stream log & progress
-  models/
-    process_options.dart   # opsi immutable + keputusan routing
-    media_file.dart        # penemuan file & folder
-  state/
-    app_controller.dart    # state app, preferensi, eksekusi job
-  core/
-    thumbnailer.dart       # poster frame lewat FFmpeg untuk grid & pembanding
-  ui/
-    theme.dart  home_page.dart
-    widgets/
-      file_stage.dart      # drop zone yang berubah jadi grid
-      file_grid.dart       # tile + status per file
-      media_stage.dart     # panggung gambar/video/pembanding
-      compare_slider.dart  # pembatas sebelum/sesudah
-      ops_card.dart  log_card.dart  setup_panel.dart  ...
-    compare_view.dart      # viewer setinggi jendela penuh
-
-tools/
-  fetch_binaries.ps1 / .sh    # unduh ffmpeg + ncnn ke bin/
-  package_windows.ps1         # build + zip
-  package_macos.sh            # build + sign + dmg + notarize
-
-test/                         # unit test routing & filter chain
-windows/  macos/              # runner native
-```
-
-## Test
-
-```bash
-flutter analyze
-flutter test
-```
-
-## Troubleshooting
-
-- **"FFmpeg tidak ditemukan"** — jalankan `tools/fetch_binaries.*`, atau install FFmpeg ke PATH.
-- **Upscale AI abu-abu / gagal** — `realesrgan-ncnn-vulkan` belum ada di `bin/`. Cek Setup & Status di status bar.
-- **Real-ESRGAN lambat pada video** — diproses per-frame; pakai untuk klip pendek atau pilih Lanczos.
-- **Vulkan error di Windows** — update driver GPU; ncnn butuh driver Vulkan yang layak.
-- **Gatekeeper menolak app di Mac** — build belum di-notarisasi. Lihat bagian Build & bundle.
-
-## Lisensi
-
-MIT. Binary yang diunduh `tools/fetch_binaries.*` punya lisensi masing-masing (FFmpeg: LGPL/GPL, Real-ESRGAN: BSD-3, RIFE ncnn: MIT).
+LabScale's code is [MIT](LICENSE). The bundled tools and models keep their own
+licences — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

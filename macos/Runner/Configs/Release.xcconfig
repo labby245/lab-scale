@@ -1,2 +1,8 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
+
+// Apple Silicon only. The bundled ffmpeg (Homebrew, see
+// tools/bundle_ffmpeg_dylibs.sh) is arm64, so a universal app would launch on
+// an Intel Mac and then fail at the first encode. Excluding x86_64 makes macOS
+// say up front that the app does not run on that Mac.
+EXCLUDED_ARCHS[sdk=macosx*] = x86_64

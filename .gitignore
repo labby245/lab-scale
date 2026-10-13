@@ -34,7 +34,7 @@ macos/Flutter/ephemeral/
 /dist/
 # A ready-to-double-click copy of the release build, parked at the project root
 # for convenience. Anchored to root like every other folder entry here — see
-# the .gitignore trap in HANDOFF.md.
+# the .gitignore trap in docs/HANDOFF.md.
 /LabScale.app/
 
 # ── Runtime ─────────────────────────────────────────────────────────────────

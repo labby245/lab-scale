@@ -354,4 +354,91 @@ void main() {
   }, skip: _noFfmpeg ?? (Binaries.isAvailable(Tool.rife)
       ? false
       : 'rife-ncnn-vulkan tidak terpasang di bin/'));
+
+  group('cancellation', () {
+    test('cancel kills the running tool and leaves no partial output',
+        () async {
+      // minterpolate on a few seconds of 640x360 runs for many seconds, so the
+      // cancel lands while ffmpeg is still writing.
+      final path = p.join(workspace.path, 'src_cancel.mp4');
+      final made = await Process.run(Binaries.require(Tool.ffmpeg), [
+        '-y', '-hide_banner', '-loglevel', 'error',
+        '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=8',
+        '-pix_fmt', 'yuv420p', path,
+      ]);
+      expect(made.exitCode, 0, reason: made.stderr.toString());
+      final clip = MediaFile.tryFrom(path)!;
+
+      final pipeline = Pipeline(outputDir: outputDir, tempDir: tempDir);
+      final reporter = JobReporter();
+      final pending = pipeline.process(
+        file: clip,
+        rawOptions: const ProcessOptions(
+          fpsBoost: true,
+          interpEngine: InterpEngine.ffmpeg,
+          quality: Quality.fast,
+        ),
+        reporter: reporter,
+      );
+      // Wait for ffmpeg to report frames, so the kill hits a live encode.
+      await reporter.progress.firstWhere((f) => f != null && f > 0);
+      final cancelledAt = DateTime.now();
+      reporter.cancel();
+      final result = await pending;
+      final stopTook = DateTime.now().difference(cancelledAt);
+      await reporter.close();
+
+      expect(result.cancelled, isTrue);
+      expect(result.isSuccess, isFalse);
+      expect(result.error, isNull, reason: 'batal bukan kegagalan');
+      expect(
+        Directory(outputDir)
+            .listSync()
+            .any((e) => p.basename(e.path).startsWith('src_cancel')),
+        isFalse,
+        reason: 'file hasil setengah jadi tertinggal',
+      );
+      // Left alone this encode runs ~9s on an M1; a killed one returns at
+      // once.
+      expect(
+        stopTook,
+        lessThan(const Duration(seconds: 3)),
+        reason: 'ffmpeg tetap jalan sampai selesai setelah dibatalkan',
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
+  }, skip: _noFfmpeg);
+
+  group('disk space', () {
+    test('a frames-path job the temp volume cannot hold is refused up front',
+        () async {
+      final clip = await makeClip('src_nodisk.mp4');
+      final pipeline = Pipeline(
+        outputDir: outputDir,
+        tempDir: tempDir,
+        freeSpace: (_) async => 10 * 1024 * 1024, // 10 MB free
+      );
+      final reporter = JobReporter();
+      final result = await pipeline.process(
+        file: clip,
+        rawOptions: const ProcessOptions(
+          fpsBoost: true,
+          interpEngine: InterpEngine.rife,
+          quality: Quality.fast,
+        ),
+        reporter: reporter,
+      );
+      await reporter.close();
+
+      expect(result.error, contains('Ruang disk tidak cukup'));
+      // Refused before extraction: no work folder was ever created.
+      expect(
+        Directory(tempDir)
+            .listSync()
+            .where((e) => p.basename(e.path).startsWith('labscale_')),
+        isEmpty,
+      );
+    });
+  }, skip: _noFfmpeg ?? (Binaries.isAvailable(Tool.rife)
+      ? false
+      : 'rife-ncnn-vulkan tidak terpasang di bin/'));
 }
