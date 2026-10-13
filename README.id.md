@@ -10,8 +10,9 @@ Gratis · open source · semuanya diproses di komputermu sendiri
 
 macOS (Apple Silicon) · Windows
 
-[Unduh](https://github.com/labby245/lab-scale/releases/latest) ·
+[Unduh](https://apps.labstory.id/produk/labscale) ·
 [Read in English](README.md) ·
+[labstory.id](https://labstory.id) ·
 [Instagram @labstory.studio](https://www.instagram.com/labstory.studio/)
 
 </div>
@@ -110,7 +111,7 @@ Membangun dari source: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Juga dari Labstory Studio
 
-**[Fotolane](https://github.com/labby245/fotolane-releases)** — siapkan foto
+**[Fotolane](https://apps.labstory.id/produk/fotolane)** — siapkan foto
 event secara otomatis. Ribuan foto event di-resize dan dipilah siap unggah
 tanpa perlu ditunggui.
 
