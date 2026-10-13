@@ -31,11 +31,21 @@ so the binary as distributed is under the **GNU General Public License v3**
   <https://www.gyan.dev/ffmpeg/builds/> (version pinned in
   `tools/fetch_binaries.ps1`).
 
-**Source code.** Every GitHub Release of LabScale carries the source of the
-exact FFmpeg version it ships, plus x264 and x265, as release assets
-(`ffmpeg-sources-<version>.tar`), collected by `tools/collect_gpl_sources.sh`.
-If an asset is ever missing, open an issue at
-<https://github.com/labby245/lab-scale/issues> and we will provide it.
+**Source code.** Every GitHub Release of LabScale carries, as the release
+asset `ffmpeg-sources-<version>.tar` (collected by
+`tools/collect_gpl_sources.sh`):
+
+- macOS: the FFmpeg release tarball it was built from, plus x264 and x265 at
+  the versions Homebrew built;
+- Windows: FFmpeg at the exact commit gyan.dev built from, the GPL libraries
+  in that build (x264, x265, vid.stab, Xvid), and gyan's list of every bundled
+  library with its exact version.
+
+**Written offer.** For three years after we distribute a given release, we
+will provide the complete corresponding source of any other library inside
+these FFmpeg builds (the LGPL and permissively licensed ones listed in the
+build information) on request, at no charge beyond the cost of providing
+it: email **hello@labstory.id**.
 
 ### Real-ESRGAN ncnn Vulkan — MIT
 

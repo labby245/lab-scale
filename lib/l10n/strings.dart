@@ -463,6 +463,10 @@ class S {
         'Perkiraan ruang sementara: ±${gb(needed)} (tersedia ${gb(free)}).',
         'Estimated temporary space: ~${gb(needed)} (${gb(free)} free).',
       );
+  String logHardwareFallback(String hw, String cpu) => _(
+        'Encoder $hw gagal — diulang dengan encoder CPU $cpu.',
+        'Encoder $hw failed — encoding again with the CPU encoder $cpu.',
+      );
   String get logCancelled =>
       _('Dibatalkan oleh pengguna.', 'Cancelled by the user.');
 

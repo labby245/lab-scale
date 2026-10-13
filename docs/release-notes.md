@@ -1,4 +1,10 @@
-**New in 2.1.1:** on PCs whose GPU has no Vulkan support (common on older laptops), the AI features are now shown as unavailable with the reason, and the 60 FPS boost uses FFmpeg instead of failing. On small screens such as 1366×768 laptops, the window now fits the screen. The process log now shows every job through to its last line.
+**New in 2.1.2:**
+
+- Results are now saved to a LabScale folder in your user folder (for example C:\Users\name\LabScale or ~/LabScale) instead of Documents, so large videos don't get synced to OneDrive or iCloud. A folder you picked yourself is kept.
+- On Windows, LabScale now also tries Intel (Quick Sync) and AMD (AMF) hardware encoders. We haven't tested this on Intel/AMD GPUs ourselves yet, so if a hardware encoder fails, the video is automatically encoded again on the CPU.
+- Temporary files from interrupted jobs (for example after a force quit) are now cleaned up automatically when LabScale starts.
+- The About dialog now has a Contact button (hello@labstory.id) and a link to the LabScale website.
+- The 60 FPS engine labels no longer make speed claims we couldn't back up.
 
 **LabScale** enlarges small, low-resolution photos and videos with AI, and makes choppy video smoother at 60 FPS.
 
@@ -23,8 +29,13 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 - **Windows:** if SmartScreen says "Windows protected your PC", click **More info → Run anyway**. No administrator rights needed.
 
 ---
+**Baru di 2.1.2:**
 
-**Baru di 2.1.1:** di PC yang GPU-nya tidak mendukung Vulkan (umum di laptop lama), fitur AI kini ditandai tidak tersedia beserta alasannya, dan boost 60 FPS memakai FFmpeg alih-alih gagal. Di layar kecil seperti laptop 1366×768, jendela kini pas di layar. Log proses kini tampil lengkap sampai baris terakhir.
+- Hasil kini disimpan di folder LabScale di folder pengguna (misalnya C:\Users\nama\LabScale atau ~/LabScale), bukan di Dokumen, supaya video besar tidak ikut tersinkron ke OneDrive atau iCloud. Folder yang sudah kamu pilih sendiri tetap dipakai.
+- Di Windows, LabScale kini juga mencoba encoder hardware Intel (Quick Sync) dan AMD (AMF). Dukungan ini belum kami uji langsung di GPU Intel/AMD, jadi kalau encoder hardware gagal, video otomatis dienkode ulang dengan CPU.
+- File sementara dari proses yang terhenti (misalnya karena app ditutup paksa) kini dibersihkan otomatis saat LabScale dibuka.
+- Dialog Tentang kini punya tombol Kontak (hello@labstory.id) dan tautan ke situs LabScale.
+- Label engine 60 FPS tidak lagi menyebut klaim kecepatan yang tidak terbukti.
 
 **LabScale** memperbesar foto dan video beresolusi rendah dengan AI, dan membuat video patah-patah jadi lebih mulus di 60 FPS.
 

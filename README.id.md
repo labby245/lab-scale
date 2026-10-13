@@ -53,8 +53,10 @@ folder, pilih yang kamu mau, tekan **Proses**.
   juga mengecek ruang disk, bukan baru ketahuan penuh di tengah jalan.
 - **Bahasa Indonesia dan Inggris**, ganti dengan satu klik.
 - Untuk yang ingin tahu detail teknis: video disimpan sebagai H.264, HEVC,
-  atau AV1, memakai encoder hardware GPU kalau ada (VideoToolbox di Mac,
-  NVENC di NVIDIA), dan audionya tetap ikut.
+  atau AV1, dan audionya tetap ikut. LabScale memakai encoder hardware kalau
+  ada: VideoToolbox di Mac, NVENC di NVIDIA. Di GPU Intel dan AMD, LabScale
+  mencoba Quick Sync dan AMF, yang belum diuji di perangkat sungguhan; kalau
+  encoder hardware gagal, file dienkode ulang dengan CPU.
 
 ## Cara pasang
 

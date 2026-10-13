@@ -51,9 +51,11 @@ you want, press **Process**.
 - **Cancel anytime.** Before an AI video job, LabScale also checks there is
   enough free disk space, instead of filling your disk halfway.
 - **English and Indonesian**, switchable in one click.
-- For the technically curious: video comes out as H.264, HEVC or AV1, using
-  your GPU's hardware encoder when it has one (VideoToolbox on Mac, NVENC on
-  NVIDIA), and the audio is kept.
+- For the technically curious: video comes out as H.264, HEVC or AV1, and the
+  audio is kept. LabScale uses the hardware encoder when there is one:
+  VideoToolbox on Mac, NVENC on NVIDIA. On Intel and AMD GPUs it tries Quick
+  Sync and AMF, not yet tested on real hardware; if a hardware encoder fails,
+  the file is encoded again on the CPU.
 
 ## Install
 

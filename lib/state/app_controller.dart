@@ -66,6 +66,24 @@ enum JobPhase { idle, running, done }
 /// Where a single queued file stands, for the selection grid.
 enum FileStatus { queued, running, done, failed, cancelled }
 
+/// Where results go until the user picks a folder: `<home>/LabScale`.
+///
+/// Not Documents. On many PCs Documents is redirected into OneDrive, and on
+/// Macs with "Desktop & Documents" in iCloud it syncs too — so multi-gigabyte
+/// results would quietly upload to the cloud, the opposite of what a "your
+/// files stay on your computer" app should do. The home folder is synced by
+/// neither by default. Documents remains the fallback when no home is known.
+@visibleForTesting
+String defaultOutputDirFor(
+  Map<String, String> env, {
+  required bool isWindows,
+  required String documentsFallback,
+}) {
+  final home = isWindows ? env['USERPROFILE'] : env['HOME'];
+  final base = (home == null || home.isEmpty) ? documentsFallback : home;
+  return p.join(base, 'LabScale');
+}
+
 class AppController extends ChangeNotifier {
   AppController();
 
@@ -313,8 +331,11 @@ class AppController extends ChangeNotifier {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   Future<void> initialize() async {
-    final documents = await getApplicationDocumentsDirectory();
-    _defaultOutputDir = p.join(documents.path, 'LabScale');
+    _defaultOutputDir = defaultOutputDirFor(
+      Platform.environment,
+      isWindows: Platform.isWindows,
+      documentsFallback: (await getApplicationDocumentsDirectory()).path,
+    );
     _outputDir = _defaultOutputDir;
     await Directory(_outputDir).create(recursive: true);
 

@@ -37,10 +37,31 @@ trap 'rm -rf "$OUT"' EXIT
 mac_version="$(env -i "$BIN_DIR/ffmpeg" -version | head -1 | awk '{print $3}')"
 echo "macOS ffmpeg $mac_version · Windows ffmpeg $WINDOWS_FFMPEG_VERSION" >&2
 
-for v in $(printf '%s\n' "$mac_version" "$WINDOWS_FFMPEG_VERSION" | sort -u); do
-  echo "  ffmpeg-$v.tar.xz" >&2
-  curl -fL --retry 3 -s -o "$OUT/ffmpeg-$v.tar.xz" "https://ffmpeg.org/releases/ffmpeg-$v.tar.xz"
-done
+echo "  ffmpeg-$mac_version.tar.xz (macOS)" >&2
+curl -fL --retry 3 -s -o "$OUT/ffmpeg-$mac_version.tar.xz" "https://ffmpeg.org/releases/ffmpeg-$mac_version.tar.xz"
+
+# ── Windows: gyan.dev essentials build ───────────────────────────────────────
+#
+# gyan builds from a git commit, not the release tarball, and lists every
+# bundled library's version in its README (kept in tools/windows/). The GPL
+# components are attached as source; the full component list goes alongside,
+# and THIRD_PARTY_NOTICES.md offers the rest on request.
+GYAN_README="$ROOT/tools/windows/ffmpeg-$WINDOWS_FFMPEG_VERSION-essentials-README.txt"
+[[ -f "$GYAN_README" ]] || { echo "ERROR: $GYAN_README tidak ada — salin README.txt dari zip gyan versi ini" >&2; exit 1; }
+win_commit="$(sed -n 's#^Source Code: https://github.com/FFmpeg/FFmpeg/commit/##p' "$GYAN_README")"
+mkdir -p "$OUT/windows"
+cp "$GYAN_README" "$OUT/windows/gyan-build-README.txt"
+fetch() {  # name url
+  echo "  windows/$1" >&2
+  curl -fL --retry 3 -s -o "$OUT/windows/$1" "$2"
+}
+fetch "ffmpeg-$win_commit.tar.gz" "https://github.com/FFmpeg/FFmpeg/archive/$win_commit.tar.gz"
+# GPL components, at the versions in the README above. x264 "v0.165.3223"
+# is revision 3223 on master: the commit right after r3222 (b35605ac).
+fetch "x264-r3223-0480cb05.tar.bz2" "https://code.videolan.org/videolan/x264/-/archive/0480cb05fa18/x264-0480cb05fa18.tar.bz2"
+fetch "x265-4.3-45-g116b875.tar.gz" "https://github.com/Multicorewareinc/x265/archive/116b875.tar.gz"
+fetch "vid.stab-e2445c4.tar.gz" "https://github.com/georgmartius/vid.stab/archive/e2445c4.tar.gz"
+fetch "xvidcore-1.3.7.tar.gz" "https://downloads.xvid.com/downloads/xvidcore-1.3.7.tar.gz"
 
 # x264 and x265 at the versions Homebrew built from. Read off the formula,
 # which describes the *installed* build only while the two versions match —
@@ -75,7 +96,10 @@ done
   echo
   echo "== Windows: gyan.dev essentials build $WINDOWS_FFMPEG_VERSION =="
   echo "https://github.com/GyanD/codexffmpeg/releases/tag/$WINDOWS_FFMPEG_VERSION"
-  echo "Component versions and configure flags: https://www.gyan.dev/ffmpeg/builds/"
+  echo "Built from FFmpeg commit $win_commit. Every bundled library and its"
+  echo "version: windows/gyan-build-README.txt. Source of FFmpeg and of the GPL"
+  echo "libraries (x264, x265, vid.stab, Xvid) is in windows/. Source of any other"
+  echo "listed library is available on request: hello@labstory.id"
 } > "$OUT/BUILD-INFO.txt"
 
 mkdir -p "$DIST_DIR"

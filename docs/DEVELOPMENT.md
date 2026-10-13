@@ -135,7 +135,7 @@ tools/package_macos.sh
 
 Tanpa `SIGN_IDENTITY`, semuanya ditandatangani **ad hoc** — cara rilis saat ini, sama seperti Fotolane. App jalan di Mac mana pun (Apple Silicon), tapi saat pertama dibuka pengguna perlu menyetujuinya sekali di **System Settings → Privacy & Security → Open Anyway** (README menjelaskannya). Tidak menandatangani sama sekali bukan pilihan: menyalin `bin/` ke bundle merusak segel Xcode, dan app hasil unduhan dengan segel rusak dilaporkan "damaged" tanpa jalan keluar. Developer ID ($99/tahun) menghilangkan langkah persetujuan itu.
 
-**Catatan App Sandbox:** LabScale menargetkan Developer ID, bukan Mac App Store. Sandbox sengaja dimatikan di `macos/Runner/*.entitlements` karena app men-spawn binary helper dan menulis ke `~/Documents/LabScale` — keduanya tidak mungkin di dalam sandbox tanpa security-scoped bookmark per file.
+**Catatan App Sandbox:** LabScale menargetkan Developer ID, bukan Mac App Store. Sandbox sengaja dimatikan di `macos/Runner/*.entitlements` karena app men-spawn binary helper dan menulis ke `~/LabScale` — keduanya tidak mungkin di dalam sandbox tanpa security-scoped bookmark per file.
 
 ## Rilis
 
@@ -149,12 +149,12 @@ Tanpa `SIGN_IDENTITY`, semuanya ditandatangani **ad hoc** — cara rilis saat in
 
 ## Output
 
-Folder default `~/Documents/LabScale` (Windows: `%USERPROFILE%\Documents\LabScale`), bisa diganti lewat **Folder Output** di kartu Operasi — pilihannya diingat antar sesi, dan kembali ke default kalau folder itu hilang saat app dibuka lagi.
+Folder default `~/LabScale` (Windows: `%USERPROFILE%\LabScale`) — sengaja bukan Documents, yang di banyak PC dialihkan ke OneDrive dan di Mac bisa tersinkron ke iCloud, sehingga hasil video berukuran besar ikut terunggah diam-diam. Sebelum 2.1.2 default-nya Documents\LabScale. Bisa diganti lewat **Folder Output** di kartu Operasi — pilihannya diingat antar sesi, dan kembali ke default kalau folder itu hilang saat app dibuka lagi.
 
 File yang dipilih satu-satu mendarat langsung di folder output. **Folder yang di-drop hasilnya dikumpulkan** ke `<nama folder>_upscaled` di dalamnya, apa pun struktur di dalam folder aslinya:
 
 ```
-~/Documents/LabScale/
+~/LabScale/
   foto_lanczos-4x.png                    ← file yang dipilih sendiri
   Foto Liburan_upscaled/                 ← dari folder "Foto Liburan"
     pantai_esrgan-real-4x.png

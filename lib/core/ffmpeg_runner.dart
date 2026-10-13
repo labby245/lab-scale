@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../l10n/strings.dart';
@@ -71,6 +72,8 @@ class EncoderSupport {
       if (has('av1_nvenc')) 'AV1 NVENC',
       if (has('h264_videotoolbox')) 'H.264 VideoToolbox',
       if (has('hevc_videotoolbox')) 'HEVC VideoToolbox',
+      if (has('h264_qsv') || has('hevc_qsv') || has('av1_qsv')) 'Intel Quick Sync',
+      if (has('h264_amf') || has('hevc_amf') || has('av1_amf')) 'AMD AMF',
     ];
     return hw.isEmpty ? (s ?? S.current).cpuEncoderOnly : hw.join(' · ');
   }
@@ -137,6 +140,27 @@ class FfmpegRunner {
     Quality.better: ['-q:v', '65'],
     Quality.best: ['-q:v', '75'],
     Quality.ultra: ['-q:v', '90'],
+  };
+
+  /// Intel Quick Sync. `-global_quality` is ICQ, the constant-quality mode,
+  /// on the scale the CRF tables above use. Not yet verified on real Intel
+  /// hardware; a failure falls back to the CPU (see [_encodeWithFallback]).
+  static const _qsv = {
+    Quality.fast: ['-preset', 'veryfast', '-global_quality', '25'],
+    Quality.balanced: ['-preset', 'medium', '-global_quality', '22'],
+    Quality.better: ['-preset', 'slow', '-global_quality', '20'],
+    Quality.best: ['-preset', 'slower', '-global_quality', '18'],
+    Quality.ultra: ['-preset', 'veryslow', '-global_quality', '15'],
+  };
+
+  /// AMD AMF in constant-QP mode. Same caveat as [_qsv]: not yet verified on
+  /// real AMD hardware, CPU fallback on failure.
+  static const _amf = {
+    Quality.fast: ['-quality', 'speed', '-rc', 'cqp', '-qp_i', '26', '-qp_p', '26'],
+    Quality.balanced: ['-quality', 'balanced', '-rc', 'cqp', '-qp_i', '22', '-qp_p', '22'],
+    Quality.better: ['-quality', 'quality', '-rc', 'cqp', '-qp_i', '20', '-qp_p', '20'],
+    Quality.best: ['-quality', 'quality', '-rc', 'cqp', '-qp_i', '18', '-qp_p', '18'],
+    Quality.ultra: ['-quality', 'quality', '-rc', 'cqp', '-qp_i', '14', '-qp_p', '14'],
   };
 
   static const jpegQuality = {
@@ -227,29 +251,65 @@ class FfmpegRunner {
   }
 
   /// Forgets the probed encoder set. Used by tests and after a driver change.
-  static void invalidateEncoderCache() => _encoderCache = null;
+  static void invalidateEncoderCache() {
+    _encoderCache = null;
+    _brokenEncoders.clear();
+  }
+
+  /// Hardware encoders that passed the one-frame trial but then failed on a
+  /// real job this session. Skipped from then on, so a batch does not pay
+  /// for a failed attempt on every file.
+  static final Set<String> _brokenEncoders = {};
+
+  @visibleForTesting
+  static void debugSetEncoderSupport(EncoderSupport support) {
+    _encoderCache = support;
+    _brokenEncoders.clear();
+  }
+
+  static bool _isHardware(String encoder) => _hardwareEncoders.contains(encoder);
 
   /// Picks the best available encoder for [codec].
   /// Returns the encoder name plus its quality preset table.
+  ///
+  /// Hardware first — NVIDIA, then Apple, then Intel, then AMD — and the
+  /// CPU encoder last. [cpuOnly] skips hardware entirely, for the retry after
+  /// a hardware encoder fails mid-job.
   static Future<({String name, Map<Quality, List<String>> presets})>
-      selectEncoder(VideoCodec codec) async {
+      selectEncoder(VideoCodec codec, {bool cpuOnly = false}) async {
     final support = await encoders();
+    bool usable(String name) =>
+        support.has(name) &&
+        !(_isHardware(name) && (cpuOnly || _brokenEncoders.contains(name)));
 
-    if (codec == VideoCodec.hevc) {
-      if (support.has('hevc_nvenc')) return (name: 'hevc_nvenc', presets: _hevcNvenc);
-      if (support.has('hevc_videotoolbox')) {
-        return (name: 'hevc_videotoolbox', presets: _videoToolbox);
-      }
-      if (support.has('libx265')) return (name: 'libx265', presets: _x265);
+    final candidates = switch (codec) {
+      VideoCodec.hevc => [
+          ('hevc_nvenc', _hevcNvenc),
+          ('hevc_videotoolbox', _videoToolbox),
+          ('hevc_qsv', _qsv),
+          ('hevc_amf', _amf),
+          ('libx265', _x265),
+        ],
+      VideoCodec.av1 => [
+          ('av1_nvenc', _av1Nvenc),
+          ('av1_qsv', _qsv),
+          ('av1_amf', _amf),
+          ('libsvtav1', _av1Cpu),
+          ('libaom-av1', _av1Cpu),
+        ],
+      VideoCodec.h264 => const <(String, Map<Quality, List<String>>)>[],
+    };
+    for (final (name, presets) in candidates) {
+      if (usable(name)) return (name: name, presets: presets);
     }
-    if (codec == VideoCodec.av1) {
-      if (support.has('av1_nvenc')) return (name: 'av1_nvenc', presets: _av1Nvenc);
-      if (support.has('libsvtav1')) return (name: 'libsvtav1', presets: _av1Cpu);
-      if (support.has('libaom-av1')) return (name: 'libaom-av1', presets: _av1Cpu);
-    }
-    if (support.has('h264_nvenc')) return (name: 'h264_nvenc', presets: _h264Nvenc);
-    if (support.has('h264_videotoolbox')) {
-      return (name: 'h264_videotoolbox', presets: _videoToolbox);
+    // H.264, and the last resort for a codec this build cannot encode.
+    for (final (name, presets) in [
+      ('h264_nvenc', _h264Nvenc),
+      ('h264_videotoolbox', _videoToolbox),
+      ('h264_qsv', _qsv),
+      ('h264_amf', _amf),
+    ]) {
+      if (usable(name)) return (name: name, presets: presets);
     }
     return (name: 'libx264', presets: _x264);
   }
@@ -354,14 +414,22 @@ class FfmpegRunner {
   static const _tenBitCapable = {
     'libx264', 'libx265', 'libsvtav1', 'libaom-av1',
     'hevc_nvenc', 'av1_nvenc', 'hevc_videotoolbox',
+    'hevc_qsv', 'av1_qsv',
   };
 
   /// Picks the pixel format, keeping 10 bits when the source is HDR and the
   /// chosen encoder can carry it.
-  static String _pixelFormat(MediaInfo info, String encoder) {
-    if (info.isHdr && _tenBitCapable.contains(encoder)) return 'yuv420p10le';
-    return 'yuv420p';
+  ///
+  /// Quick Sync takes only its native NV12 / P010 layouts and rejects
+  /// planar yuv420p outright.
+  @visibleForTesting
+  static String pixelFormatFor(MediaInfo info, String encoder) {
+    final tenBit = info.isHdr && _tenBitCapable.contains(encoder);
+    if (encoder.endsWith('_qsv')) return tenBit ? 'p010le' : 'nv12';
+    return tenBit ? 'yuv420p10le' : 'yuv420p';
   }
+
+  static const _tenBitFormats = {'yuv420p10le', 'p010le'};
 
   /// Colour tags must describe the pixels we actually wrote.
   ///
@@ -370,7 +438,7 @@ class FfmpegRunner {
   /// produces a file players trust and then render with crushed, banded
   /// highlights. In that case the honest answer is bt709.
   static List<String> _colorArgs(MediaInfo info, String pixelFormat) {
-    final keepsHdr = info.isHdr && pixelFormat != 'yuv420p';
+    final keepsHdr = info.isHdr && _tenBitFormats.contains(pixelFormat);
     if (keepsHdr) {
       return [
         '-color_primaries', info.colorPrimaries,
@@ -403,40 +471,84 @@ class FfmpegRunner {
     required JobReporter reporter,
     ProgressSink? progress,
   }) async {
-    final encoder = await selectEncoder(options.codec);
-    final pixelFormat = _pixelFormat(info, encoder.name);
     final filters = buildFilters(
       lanczosScale: options.lanczosScale,
       minterpolate: options.fpsBoost && options.interpEngine == InterpEngine.ffmpeg,
       sharpness: options.effectiveSharpness,
     );
-
     final s = S.current;
-    reporter.log(
-      s.logDirectEncode(s.qualityLabel(options.quality), encoder.name),
-    );
-
     final expectedFrames = options.fpsBoost
         ? (info.durationSeconds * kTargetFps).round()
         : info.frameCount;
 
-    await _run(
-      [
-        '-y', '-i', input,
-        '-c:v', encoder.name,
-        ...encoder.presets[options.quality]!,
-        '-pix_fmt', pixelFormat,
-        ..._colorArgs(info, pixelFormat),
-        '-movflags', '+faststart',
-        ..._audioArgs(info),
-        if (filters != null) ...['-filter:v', filters],
-        output,
-      ],
+    await _encodeWithFallback(
+      options: options,
+      output: output,
       reporter: reporter,
       progress: progress,
       totalFrames: expectedFrames,
+      announce: (encoder) => reporter.log(
+        s.logDirectEncode(s.qualityLabel(options.quality), encoder),
+      ),
+      args: (encoder, presets) {
+        final pixelFormat = pixelFormatFor(info, encoder);
+        return [
+          '-y', '-i', input,
+          '-c:v', encoder,
+          ...presets[options.quality]!,
+          '-pix_fmt', pixelFormat,
+          ..._colorArgs(info, pixelFormat),
+          '-movflags', '+faststart',
+          ..._audioArgs(info),
+          if (filters != null) ...['-filter:v', filters],
+          output,
+        ];
+      },
     );
     reporter.log(s.logEncodeDone);
+  }
+
+  /// Runs an encode, and if a hardware encoder fails partway — a driver that
+  /// passed the one-frame trial but chokes on a real stream, or an encoder
+  /// this app has not been able to test on that vendor's hardware — deletes
+  /// the partial output and encodes again on the CPU. That encoder is then
+  /// skipped for the rest of the session. A cancel is never retried.
+  static Future<void> _encodeWithFallback({
+    required ProcessOptions options,
+    required String output,
+    required JobReporter reporter,
+    required ProgressSink? progress,
+    required int totalFrames,
+    required void Function(String encoder) announce,
+    required List<String> Function(
+      String encoder,
+      Map<Quality, List<String>> presets,
+    ) args,
+  }) async {
+    final first = await selectEncoder(options.codec);
+    announce(first.name);
+    try {
+      await _run(
+        args(first.name, first.presets),
+        reporter: reporter,
+        progress: progress,
+        totalFrames: totalFrames,
+      );
+      return;
+    } on PipelineException {
+      if (!_isHardware(first.name)) rethrow;
+      _brokenEncoders.add(first.name);
+      final partial = File(output);
+      if (partial.existsSync()) partial.deleteSync();
+      final cpu = await selectEncoder(options.codec, cpuOnly: true);
+      reporter.log(S.current.logHardwareFallback(first.name, cpu.name));
+      await _run(
+        args(cpu.name, cpu.presets),
+        reporter: reporter,
+        progress: progress,
+        totalFrames: totalFrames,
+      );
+    }
   }
 
   /// Decodes every frame to lossless PNG in [framesDir].
@@ -477,11 +589,7 @@ class FfmpegRunner {
     bool minterpolate = false,
     ProgressSink? progress,
   }) async {
-    final encoder = await selectEncoder(options.codec);
-    final pixelFormat = _pixelFormat(info, encoder.name);
     final s = S.current;
-    reporter.log(s.logEncode(s.qualityLabel(options.quality), encoder.name));
-
     final filterParts = <String>[
       if (postWidth != null && postHeight != null)
         'scale=$postWidth:$postHeight:flags=lanczos',
@@ -496,26 +604,33 @@ class FfmpegRunner {
         .where((e) => e.path.endsWith('.png'))
         .length;
 
-    await _run(
-      [
-        '-y',
-        '-framerate', fps.toString(),
-        '-i', p.join(framesDir, 'frame_%06d.png'),
-        if (info.hasAudio) ...['-i', audioSource],
-        '-map', '0:v:0',
-        if (info.hasAudio) ...['-map', '1:a:0?'],
-        '-c:v', encoder.name,
-        ...encoder.presets[options.quality]!,
-        '-pix_fmt', pixelFormat,
-        ..._colorArgs(info, pixelFormat),
-        '-movflags', '+faststart',
-        ..._audioArgs(info),
-        if (filterParts.isNotEmpty) ...['-filter:v', filterParts.join(',')],
-        output,
-      ],
+    await _encodeWithFallback(
+      options: options,
+      output: output,
       reporter: reporter,
       progress: progress,
       totalFrames: totalFrames,
+      announce: (encoder) =>
+          reporter.log(s.logEncode(s.qualityLabel(options.quality), encoder)),
+      args: (encoder, presets) {
+        final pixelFormat = pixelFormatFor(info, encoder);
+        return [
+          '-y',
+          '-framerate', fps.toString(),
+          '-i', p.join(framesDir, 'frame_%06d.png'),
+          if (info.hasAudio) ...['-i', audioSource],
+          '-map', '0:v:0',
+          if (info.hasAudio) ...['-map', '1:a:0?'],
+          '-c:v', encoder,
+          ...presets[options.quality]!,
+          '-pix_fmt', pixelFormat,
+          ..._colorArgs(info, pixelFormat),
+          '-movflags', '+faststart',
+          ..._audioArgs(info),
+          if (filterParts.isNotEmpty) ...['-filter:v', filterParts.join(',')],
+          output,
+        ];
+      },
     );
     reporter.log(s.logEncodeDone);
   }
