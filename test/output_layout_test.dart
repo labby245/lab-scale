@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labscale/models/media_file.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   test('a file picked on its own lands in the output root', () {
@@ -18,7 +19,12 @@ void main() {
       isImage: true,
       sourceRoot: '/in/Foto Liburan',
     );
-    expect(file.destinationDir('/out'), '/out/Foto Liburan_upscaled');
+    // Built with p.join so the expectation uses the platform's separator —
+    // destinationDir does, and Windows joins with a backslash.
+    expect(
+      file.destinationDir('/out'),
+      p.join('/out', 'Foto Liburan_upscaled'),
+    );
   });
 
   test('nested folders flatten into the one destination', () {
@@ -46,6 +52,6 @@ void main() {
       isImage: true,
       sourceRoot: '/in/Trip/',
     );
-    expect(file.destinationDir('/out'), '/out/Trip_upscaled');
+    expect(file.destinationDir('/out'), p.join('/out', 'Trip_upscaled'));
   });
 }
