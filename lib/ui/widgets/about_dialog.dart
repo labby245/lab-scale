@@ -116,6 +116,11 @@ class _AboutDialogState extends State<_AboutDialog> {
               runSpacing: 8,
               children: [
                 _LinkChip(
+                  icon: Icons.public,
+                  label: s.website,
+                  onPressed: () => _open(kProductUrl),
+                ),
+                _LinkChip(
                   icon: Icons.code,
                   label: s.sourceCode,
                   onPressed: () => _open(kRepoUrl),
@@ -187,12 +192,27 @@ class _AboutDialogState extends State<_AboutDialog> {
               ),
             ),
             const SizedBox(height: 6),
-            InkWell(
-              onTap: () => _open(kInstagramUrl),
-              child: const Text(
-                'Instagram @labstory.studio',
-                style: TextStyle(fontSize: 11.5, color: LabColors.textMuted),
-              ),
+            Row(
+              children: [
+                InkWell(
+                  onTap: () => _open(kWebsiteUrl),
+                  child: const Text(
+                    'labstory.id',
+                    style: TextStyle(fontSize: 11.5, color: LabColors.textMuted),
+                  ),
+                ),
+                const Text(
+                  '  ·  ',
+                  style: TextStyle(fontSize: 11.5, color: LabColors.textFaint),
+                ),
+                InkWell(
+                  onTap: () => _open(kInstagramUrl),
+                  child: const Text(
+                    'Instagram @labstory.studio',
+                    style: TextStyle(fontSize: 11.5, color: LabColors.textMuted),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

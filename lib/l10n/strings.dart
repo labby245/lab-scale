@@ -342,6 +342,7 @@ class S {
         'Also from us: Fotolane — get thousands of event photos upload-ready, '
             'automatically.',
       );
+  String get website => _('Situs LabScale', 'LabScale website');
   String get sourceCode => _('Kode sumber', 'Source code');
   String get reportIssue => _('Laporkan masalah', 'Report a problem');
   String get licenses => _('Lisensi', 'Licences');
