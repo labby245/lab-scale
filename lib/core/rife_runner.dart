@@ -1,8 +1,10 @@
 /// Drives `rife-ncnn-vulkan` for AI frame interpolation.
 ///
-/// RIFE is 5–10x faster than FFmpeg's `minterpolate` and produces noticeably
-/// smoother motion. When the binary is missing the pipeline falls back to
-/// minterpolate instead of failing.
+/// RIFE runs on the GPU. Measured on an M1 (720p, 4 s, to 60 fps) the whole
+/// RIFE path took 15.4 s against minterpolate's 18.0 s — about 1.2x, so the
+/// case for it is the AI model's interpolation, not raw speed. When the
+/// binary is missing the pipeline falls back to minterpolate instead of
+/// failing.
 library;
 
 import 'dart:async';

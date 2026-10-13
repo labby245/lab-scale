@@ -8,7 +8,7 @@ Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untu
 
 - **Upscale** — delapan pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: foto realistis, desain & ilustrasi, anime & manga, video anime, draf cepat, atau Lanczos tanpa AI. Skala 1×–4×.
 - **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
-- **Boost ke 60 FPS** — motion interpolation via RIFE AI (5–10× lebih cepat dan jauh lebih halus) atau FFmpeg `minterpolate`.
+- **Boost ke 60 FPS** — interpolasi frame lewat RIFE AI (di GPU) atau FFmpeg `minterpolate` (di CPU). Diukur di M1 (720p, 4 detik → 60 fps): jalur RIFE 15,4 detik, minterpolate 18,0 detik — RIFE bukan soal kecepatan.
 - **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan, dan hasilnya dikumpulkan ke satu folder `<nama folder>_upscaled` di dalam folder output. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
 - **Bandingkan sebelum/sesudah** — klik foto mana pun untuk membukanya di viewer **setinggi jendela penuh**, dengan pembatas yang bisa digeser kiri-kanan. Panah ←/→ berpindah antar file, Esc menutup. Untuk video, yang dibandingkan satu frame, dan tombol **Putar** memutar hasilnya.
 - **Kualitas & codec** — Fast → Ultra (lossless), H.264 / HEVC / AV1, dengan NVENC (Windows) atau VideoToolbox (macOS) otomatis bila tersedia.

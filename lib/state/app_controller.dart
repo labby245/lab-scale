@@ -321,6 +321,7 @@ class AppController extends ChangeNotifier {
     final temp = await getTemporaryDirectory();
     _tempDir = p.join(temp.path, 'labscale');
     await Directory(_tempDir).create(recursive: true);
+    final staleRemoved = Pipeline.cleanStaleWorkDirs(_tempDir);
     _thumbnailer = Thumbnailer(cacheDir: p.join(_tempDir, 'thumbs'));
 
     // Downloaded weights and the log live in the per-user support folder:
@@ -342,6 +343,9 @@ class AppController extends ChangeNotifier {
     _restorePreferences();
     await _restoreOutputDir();
     _logEnvironment();
+    if (staleRemoved > 0) {
+      _appLog?.write('removed $staleRemoved stale work folder(s) from temp');
+    }
     notifyListeners();
 
     // In the background: a slow or absent network must not delay the window.

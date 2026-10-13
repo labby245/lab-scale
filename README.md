@@ -19,33 +19,37 @@ macOS (Apple Silicon) · Windows
 
 ---
 
-LabScale makes small or blurry photos and videos bigger and sharper with AI,
-and makes choppy video smooth. Drop in a file or a whole folder, pick what you
-want, press **Process**.
+LabScale enlarges small, low-resolution photos and videos with AI, and makes
+choppy video smoother at 60 FPS. Drop in a file or a whole folder, pick what
+you want, press **Process**.
 
 ## Why LabScale
 
-- 🆓 **Free, for good** — no account, no watermark, no limit on how many files.
-- 🔒 **Private** — everything happens on your computer. Nothing is uploaded,
-  and your original files are never changed.
-- 🎬 **Photos *and* video** — enlarge up to 4×, and turn choppy video into
-  smooth 60 FPS.
+- 🆓 **Free** — open source, no account, no watermark, no limit on how many
+  files.
+- 🔒 **Private** — your photos and videos are processed on your computer and
+  never uploaded, and your original files are never changed. LabScale only
+  goes online to check for a new version and, if you pick one, to download an
+  optional model.
+- 🎬 **Photos *and* video** — enlarge up to 4×, and make choppy video
+  smoother at 60 FPS.
 - 📁 **Many at once** — drop a whole folder, then compare before and after
-  side by side.
+  with a draggable divider.
 
 ## What it does
 
 - **Upscale 1×–4×.** You choose by what the picture is: a photo, a design or
   illustration, anime, or anime video. There is also a quick draft mode, and a
   plain non-AI option.
-- **Smooth video to 60 FPS** by generating the frames in between.
+- **60 FPS video** by generating the frames in between: with the RIFE AI
+  model on a supported GPU, otherwise with FFmpeg's built-in interpolation.
 - **Whole folders at once.** Every file shows as a thumbnail, and the one being
   worked on has its own progress bar. A folder's results are collected in one
   `<folder>_upscaled` folder.
 - **Before / after viewer.** Click any file to compare the original and the
   result full-window, dragging a divider across. ←/→ moves between files.
-- **Cancel anytime.** LabScale also checks there is enough free disk space
-  before a long video job, instead of filling your disk halfway.
+- **Cancel anytime.** Before an AI video job, LabScale also checks there is
+  enough free disk space, instead of filling your disk halfway.
 - **English and Indonesian**, switchable in one click.
 - For the technically curious: video comes out as H.264, HEVC or AV1, using
   your GPU's hardware encoder when it has one (VideoToolbox on Mac, NVENC on
@@ -93,10 +97,15 @@ non-AI upscaling (Lanczos) and the FFmpeg 60 FPS boost, which run on the CPU.
 If they are grey, click **Setup & Status** to see why.
 
 For a sense of speed, measured on a MacBook Pro M1: one 1920×1280 photo takes
-about 6.5 seconds with the photo model, or about 0.7 seconds with "Quick
+about 6.5–7 seconds with the photo model, or about 0.7 seconds with "Quick
 draft". On a laptop without a Vulkan GPU (for example a 3rd-gen Core i3 with a
 GT 720M), the AI features are unavailable and the FFmpeg 60 FPS boost is very
 slow.
+
+**What we have tested ourselves:** a MacBook Pro M1 (all features) and a
+Windows 10 laptop without Vulkan (basic features). The Windows GPU list above
+comes from each vendor's published Vulkan support, not from us testing every
+GPU. The status dots in the app remain the surest check.
 
 ## Good to know
 

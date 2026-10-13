@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Pertanyaan lain / Other questions
+    url: mailto:hello@labstory.id
+    about: Untuk pertanyaan di luar laporan masalah. For anything that isn't a bug report.

@@ -1,0 +1,55 @@
+name: Laporkan masalah / Report a problem
+description: Sesuatu tidak berjalan seperti seharusnya. Something doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Terima kasih sudah melapor. Bahasa Indonesia atau English, dua-duanya boleh.
+        Thanks for reporting — Indonesian or English are both fine.
+  - type: textarea
+    id: what
+    attributes:
+      label: Apa yang terjadi? / What happened?
+      description: Langkah yang kamu lakukan, apa yang kamu harapkan, dan apa yang terjadi. Steps, what you expected, what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versi LabScale / LabScale version
+      description: Ikon ⓘ di kanan atas → Versi. The ⓘ icon at the top right → Version.
+      placeholder: "2.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistem / System
+      options:
+        - macOS (Apple Silicon)
+        - Windows 11
+        - Windows 10
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Chip / GPU
+      description: Misalnya "M1, 8 GB" atau "Core i5-8250U + MX150". E.g. "M1, 8 GB" or "Core i5-8250U + MX150".
+  - type: dropdown
+    id: dots
+    attributes:
+      label: Titik status di bilah bawah / Status dots in the bottom bar
+      description: Real-ESRGAN dan RIFE — hijau atau abu-abu? Green or grey?
+      options:
+        - Keduanya hijau / Both green
+        - Real-ESRGAN abu-abu / Real-ESRGAN grey
+        - RIFE abu-abu / RIFE grey
+        - Keduanya abu-abu / Both grey
+        - Tidak tahu / Don't know
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Ikon ⓘ → Buka folder log → lampirkan labscale.log (seret ke kotak ini). The ⓘ icon → Open log folder → attach labscale.log (drag it here).

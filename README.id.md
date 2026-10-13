@@ -19,35 +19,38 @@ macOS (Apple Silicon) · Windows
 
 ---
 
-LabScale membuat foto dan video yang kecil atau buram jadi lebih besar dan
-tajam dengan AI, dan membuat video yang patah-patah jadi mulus. Masukkan satu
-file atau satu folder, pilih yang kamu mau, tekan **Proses**.
+LabScale memperbesar foto dan video beresolusi rendah dengan AI, dan membuat
+video yang patah-patah jadi lebih mulus di 60 FPS. Masukkan satu file atau satu
+folder, pilih yang kamu mau, tekan **Proses**.
 
 ## Kenapa LabScale
 
-- 🆓 **Gratis selamanya** — tanpa akun, tanpa watermark, tanpa batas jumlah
-  file.
-- 🔒 **Privat** — semuanya diproses di komputermu. Tidak ada yang diunggah,
-  dan file aslimu tidak pernah diubah.
-- 🎬 **Foto *dan* video** — perbesar sampai 4×, dan ubah video patah-patah
-  jadi mulus 60 FPS.
+- 🆓 **Gratis** — open source, tanpa akun, tanpa watermark, tanpa batas
+  jumlah file.
+- 🔒 **Privat** — foto dan videomu diproses di komputermu sendiri dan tidak
+  diunggah, dan file aslimu tidak pernah diubah. LabScale hanya memakai
+  internet untuk mengecek versi baru dan, kalau kamu memilihnya, mengunduh
+  model opsional.
+- 🎬 **Foto *dan* video** — perbesar sampai 4×, dan buat video patah-patah
+  jadi lebih mulus di 60 FPS.
 - 📁 **Sekali banyak** — masukkan satu folder, lalu bandingkan sebelum dan
-  sesudahnya berdampingan.
+  sesudah dengan pembatas yang bisa digeser.
 
 ## Fiturnya
 
 - **Upscale 1×–4×.** Kamu memilih menurut jenis gambarnya: foto, desain atau
   ilustrasi, anime, atau video anime. Ada juga mode draf cepat dan pilihan
   biasa tanpa AI.
-- **Video mulus 60 FPS**, dengan membuat frame-frame di antaranya.
+- **Video 60 FPS**, dengan membuat frame-frame di antaranya: lewat model AI
+  RIFE kalau GPU-nya mendukung, selain itu lewat interpolasi bawaan FFmpeg.
 - **Satu folder sekaligus.** Setiap file tampil sebagai thumbnail, dan file
   yang sedang dikerjakan punya progress bar sendiri. Hasil dari satu folder
   dikumpulkan di folder `<nama folder>_upscaled`.
 - **Bandingkan sebelum / sesudah.** Klik file mana saja untuk membandingkan
   asli dan hasilnya selebar jendela, dengan pembatas yang bisa digeser.
   ←/→ untuk pindah file.
-- **Bisa dibatalkan kapan saja.** LabScale juga mengecek ruang disk sebelum
-  pekerjaan video yang panjang, bukan baru ketahuan penuh di tengah jalan.
+- **Bisa dibatalkan kapan saja.** Sebelum memproses video dengan AI, LabScale
+  juga mengecek ruang disk, bukan baru ketahuan penuh di tengah jalan.
 - **Bahasa Indonesia dan Inggris**, ganti dengan satu klik.
 - Untuk yang ingin tahu detail teknis: video disimpan sebagai H.264, HEVC,
   atau AV1, memakai encoder hardware GPU kalau ada (VideoToolbox di Mac,
@@ -94,9 +97,14 @@ tanpa AI (Lanczos) dan 60 FPS lewat FFmpeg, yang berjalan di CPU.
 abu-abu, klik **Setup & Status** untuk melihat alasannya.
 
 Gambaran kecepatan, diukur di MacBook Pro M1: satu foto hasil 1920×1280 butuh
-±6,5 detik dengan model foto, atau ±0,7 detik dengan "Draf cepat". Di laptop
+±6,5–7 detik dengan model foto, atau ±0,7 detik dengan "Draf cepat". Di laptop
 tanpa GPU Vulkan (contoh: Core i3 generasi ke-3 dengan GT 720M), fitur AI tidak
 tersedia, dan 60 FPS lewat FFmpeg berjalan sangat lambat.
+
+**Yang sudah kami uji langsung:** MacBook Pro M1 (semua fitur) dan laptop
+Windows 10 tanpa Vulkan (fitur dasar). Daftar GPU Windows di atas disusun dari
+dukungan Vulkan resmi masing-masing produsen, belum dari pengujian kami di
+setiap GPU. Titik status di app tetap penentu yang paling pasti.
 
 ## Perlu diketahui
 

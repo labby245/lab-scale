@@ -309,8 +309,8 @@ class S {
       );
   String get rifeName => _('Interpolasi AI (RIFE)', 'AI interpolation (RIFE)');
   String get rifeDetail => _(
-        'rife-ncnn-vulkan — 5–10× lebih cepat dari FFmpeg',
-        'rife-ncnn-vulkan — 5–10× faster than FFmpeg',
+        'rife-ncnn-vulkan — interpolasi frame AI di GPU',
+        'rife-ncnn-vulkan — AI frame interpolation on the GPU',
       );
   String get rifeHint => _(
         'Salin rife-ncnn-vulkan + folder model ke bin/',
@@ -327,9 +327,9 @@ class S {
 
   String get aboutBlurb => _(
         'Upscale AI dan boost 60 FPS untuk foto & video. Semuanya diproses di '
-            'komputer ini — tidak ada yang diunggah ke mana pun.',
+            'komputer ini — foto dan videomu tidak diunggah ke mana pun.',
         'AI upscaling and 60 FPS boost for photos and video. Everything runs on '
-            'this computer — nothing is uploaded anywhere.',
+            'this computer — your photos and videos are never uploaded.',
       );
   String version(String v) => _('Versi $v', 'Version $v');
   String get madeBy => _(
@@ -391,12 +391,12 @@ class S {
 
   String interpLabel(InterpEngine e) => switch (e) {
         InterpEngine.ffmpeg => _(
-            'FFmpeg (MCI bidir) — bawaan, lambat',
-            'FFmpeg (MCI bidir) — built in, slow',
+            'FFmpeg (MCI bidir) — tanpa AI, di CPU',
+            'FFmpeg (MCI bidir) — no AI, on the CPU',
           ),
         InterpEngine.rife => _(
-            'RIFE AI — 5–10× lebih cepat & halus',
-            'RIFE AI — 5–10× faster & smoother',
+            'RIFE AI — model AI, di GPU',
+            'RIFE AI — AI model, on the GPU',
           ),
       };
 

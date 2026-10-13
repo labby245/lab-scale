@@ -408,6 +408,40 @@ class Pipeline {
     }
   }
 
+  /// Removes work folders an earlier session left behind.
+  ///
+  /// A job that ends normally deletes its own frames, but one cut short by a
+  /// crash, a force quit or a power cut leaves them — tens of gigabytes for an
+  /// AI video — in the temp folder for good. Only folders this app names
+  /// (`labscale_*`, `gpu_probe_*`) and only ones untouched for [olderThan]
+  /// are removed, so a second LabScale window's live job is never touched.
+  /// Returns how many were removed.
+  static int cleanStaleWorkDirs(
+    String tempDir, {
+    Duration olderThan = const Duration(hours: 6),
+    DateTime? now,
+  }) {
+    final dir = Directory(tempDir);
+    if (!dir.existsSync()) return 0;
+    final cutoff = (now ?? DateTime.now()).subtract(olderThan);
+    var removed = 0;
+    for (final entry in dir.listSync(followLinks: false)) {
+      if (entry is! Directory) continue;
+      final name = p.basename(entry.path);
+      if (!name.startsWith('labscale_') && !name.startsWith('gpu_probe_')) {
+        continue;
+      }
+      try {
+        if (entry.statSync().modified.isAfter(cutoff)) continue;
+        entry.deleteSync(recursive: true);
+        removed++;
+      } on FileSystemException {
+        // In use or locked: try again next launch.
+      }
+    }
+    return removed;
+  }
+
   static Future<void> _deleteDir(String path) async {
     final dir = Directory(path);
     if (!await dir.exists()) return;

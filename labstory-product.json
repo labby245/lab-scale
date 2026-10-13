@@ -48,7 +48,7 @@
       ],
       "rows": [
         [
-          "Fitur AI jalan",
+          "Mendukung Vulkan",
           "Intel HD/UHD generasi ke-6 (2015) ke atas · NVIDIA GeForce GTX 650 / GT 740M (Kepler) ke atas · AMD Radeon HD 7000 / R7 / R9 (GCN) ke atas"
         ],
         [
@@ -68,11 +68,15 @@
       },
       {
         "title": "Gambaran kecepatan",
-        "text": "MacBook Pro M1: satu foto hasil 1920×1280 ±6,5 detik dengan model foto, atau ±0,7 detik dengan “Draf cepat”."
+        "text": "MacBook Pro M1: satu foto hasil 1920×1280 ±6,5–7 detik dengan model foto, atau ±0,7 detik dengan “Draf cepat”."
       },
       {
         "title": "Ruang disk",
         "text": "±400 MB untuk app. Video AI butuh ruang sementara — sisakan 20 GB+ untuk video yang panjang."
+      },
+      {
+        "title": "Yang sudah kami uji",
+        "text": "MacBook Pro M1 (semua fitur) dan laptop Windows 10 tanpa Vulkan (fitur dasar). Daftar GPU Windows disusun dari dukungan Vulkan resmi produsennya, belum dari pengujian kami di setiap GPU. Titik status di app tetap penentu yang paling pasti."
       }
     ]
   },
