@@ -1,3 +1,5 @@
+**New in 2.1.1:** on PCs whose GPU has no Vulkan support (common on older laptops), the AI features are now shown as unavailable with the reason, and the 60 FPS boost uses FFmpeg instead of failing. On small screens such as 1366×768 laptops, the window now fits the screen.
+
 **LabScale** makes small or blurry photos and videos bigger and sharper with AI, and makes choppy video smooth at 60 FPS.
 
 - 🆓 **Free, for good** — no account, no watermark, no limit on how many files.
@@ -21,6 +23,8 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 - **Windows:** if SmartScreen says "Windows protected your PC", click **More info → Run anyway**. No administrator rights needed.
 
 ---
+
+**Baru di 2.1.1:** di PC yang GPU-nya tidak mendukung Vulkan (umum di laptop lama), fitur AI kini ditandai tidak tersedia beserta alasannya, dan boost 60 FPS memakai FFmpeg alih-alih gagal. Di layar kecil seperti laptop 1366×768, jendela kini pas di layar.
 
 **LabScale** membuat foto dan video yang kecil atau buram jadi lebih besar dan tajam dengan AI, dan membuat video patah-patah jadi mulus 60 FPS.
 
