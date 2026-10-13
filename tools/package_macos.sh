@@ -43,8 +43,13 @@ if [[ ! -x "$BIN_DIR/ffmpeg" ]]; then
   "$ROOT/tools/fetch_binaries.sh"
 fi
 
-info "flutter build macos --release"
-flutter build macos --release
+# Version comes from pubspec.yaml, passed explicitly. Without this a stale
+# macos/Flutter/ephemeral config once made a local build report 2.0.0 while
+# pubspec said 2.1.1 — and the app then offered "2.1.1 available" to itself.
+PUB_VERSION="$(grep '^version:' pubspec.yaml | head -1 | sed 's/version:[[:space:]]*//')"
+info "flutter build macos --release ($PUB_VERSION)"
+flutter build macos --release \
+  --build-name="${PUB_VERSION%%+*}" --build-number="${PUB_VERSION##*+}"
 
 [[ -d "$BUILD_APP" ]] || { echo "ERROR: $BUILD_APP tidak ditemukan" >&2; exit 1; }
 

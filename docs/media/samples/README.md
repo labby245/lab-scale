@@ -18,3 +18,12 @@ misrepresent what any upscaler can recover.
 
 Only the bundled BSD-licensed models were used. The optional CC BY-NC-SA
 models were not, because these images promote a company's product.
+
+## App screenshot
+
+`app_compare_view.webp` is LabScale's real compare viewer (`CompareView`),
+rendered offscreen from the app's own widget code with the design pair above
+loaded: the 400×250 source on the left, the LabScale result on the right.
+It was rendered rather than screen-captured so that no clicks on a shared
+desktop were needed. The top bar (file name and "Show in Finder") is cropped
+off; the comparison stage below it is untouched.

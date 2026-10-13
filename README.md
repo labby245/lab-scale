@@ -74,10 +74,29 @@ Intel Macs are not supported.
    **More info → Run anyway**. The installer does not need administrator
    rights.
 
-The AI features need a GPU that supports Vulkan — most NVIDIA, AMD and Intel
-GPUs from about 2016 onward, with an up-to-date driver. On older laptops
-LabScale still runs: it says the AI features are unavailable, and the non-AI
-upscale and the 60 FPS boost keep working.
+## System requirements — will my computer handle it?
+
+The AI features (AI upscaling and RIFE) run on the **GPU** through Vulkan.
+Without a GPU that supports it, LabScale still opens and works, but only for
+non-AI upscaling (Lanczos) and the FFmpeg 60 FPS boost, which run on the CPU.
+
+| | Basic features only | Minimum for AI | Recommended |
+|---|---|---|---|
+| **Mac** | — | Apple M1, macOS 14, 8 GB RAM | Apple M1 or newer, 16 GB RAM for video |
+| **Windows** | Windows 10/11 64-bit, GPU without Vulkan | GPU with Vulkan, 2 GB VRAM, 8 GB RAM | GeForce GTX 1650 / Radeon RX 570 class or better, 4 GB VRAM, 16 GB RAM |
+| **Example Windows GPUs** | Intel HD Graphics 3rd–5th gen (e.g. HD 4000), old Fermi-based GeForce (e.g. GT 720M) | Intel HD/UHD 6th gen (2015) or newer, NVIDIA GeForce GTX 650 / GT 740M (Kepler) or newer, AMD Radeon HD 7000 / R7 / R9 (GCN) or newer | NVIDIA GTX 10/16 or RTX, AMD RX 400 or newer |
+| **What you can do** | Non-AI upscale, FFmpeg 60 FPS (slow on old CPUs) | AI photo upscaling; short AI video | AI photo and video upscaling, RIFE 60 FPS |
+| **Disk space** | ~400 MB for the app | same, plus temporary space for video | 20 GB+ free for long AI video |
+
+**The surest check:** open LabScale and look at the dots in the bottom bar. If
+**Real-ESRGAN** and **RIFE** are green, the AI features run on your computer.
+If they are grey, click **Setup & Status** to see why.
+
+For a sense of speed, measured on a MacBook Pro M1: one 1920×1280 photo takes
+about 6.5 seconds with the photo model, or about 0.7 seconds with "Quick
+draft". On a laptop without a Vulkan GPU (for example a 3rd-gen Core i3 with a
+GT 720M), the AI features are unavailable and the FFmpeg 60 FPS boost is very
+slow.
 
 ## Good to know
 

@@ -75,10 +75,28 @@ Mac Intel tidak didukung.
 2. Kalau Windows SmartScreen menampilkan "Windows protected your PC", klik
    **More info → Run anyway**. Installer-nya tidak butuh hak administrator.
 
-Fitur AI butuh GPU yang mendukung Vulkan — kebanyakan GPU NVIDIA, AMD, dan
-Intel sejak sekitar 2016, dengan driver terbaru. Di laptop yang lebih tua
-LabScale tetap bisa dipakai: app memberi tahu bahwa fitur AI tidak tersedia,
-sedangkan upscale tanpa AI dan boost 60 FPS tetap jalan.
+## Spesifikasi — apakah komputerku mumpuni?
+
+Fitur AI (upscale AI dan RIFE) berjalan di **GPU** lewat Vulkan. Tanpa GPU yang
+mendukungnya, LabScale tetap terbuka dan bisa dipakai, tapi hanya untuk upscale
+tanpa AI (Lanczos) dan 60 FPS lewat FFmpeg, yang berjalan di CPU.
+
+| | Hanya fitur dasar | Minimum untuk AI | Disarankan |
+|---|---|---|---|
+| **Mac** | — | Apple M1, macOS 14, RAM 8 GB | Apple M1 atau lebih baru, RAM 16 GB untuk video |
+| **Windows** | Windows 10/11 64-bit, GPU tanpa Vulkan | GPU dengan Vulkan, VRAM 2 GB, RAM 8 GB | GPU kelas GeForce GTX 1650 / Radeon RX 570 ke atas, VRAM 4 GB, RAM 16 GB |
+| **Contoh GPU Windows** | Intel HD Graphics generasi ke-3 sampai ke-5 (mis. HD 4000), GeForce lama berbasis Fermi (mis. GT 720M) | Intel HD/UHD generasi ke-6 (2015) ke atas, NVIDIA GeForce GTX 650 / GT 740M (Kepler) ke atas, AMD Radeon HD 7000 / R7 / R9 (GCN) ke atas | NVIDIA GTX 10/16 atau RTX, AMD RX 400 ke atas |
+| **Yang bisa dikerjakan** | Upscale tanpa AI, 60 FPS lewat FFmpeg (lambat di CPU lama) | Upscale AI foto; video AI pendek | Upscale AI foto dan video, RIFE 60 FPS |
+| **Ruang disk** | ±400 MB untuk app | sama, plus ruang sementara untuk video | 20 GB+ kosong untuk video AI panjang |
+
+**Cara paling pasti:** buka LabScale, lihat titik di bilah bawah. Kalau
+**Real-ESRGAN** dan **RIFE** hijau, fitur AI bisa jalan di komputermu. Kalau
+abu-abu, klik **Setup & Status** untuk melihat alasannya.
+
+Gambaran kecepatan, diukur di MacBook Pro M1: satu foto hasil 1920×1280 butuh
+±6,5 detik dengan model foto, atau ±0,7 detik dengan "Draf cepat". Di laptop
+tanpa GPU Vulkan (contoh: Core i3 generasi ke-3 dengan GT 720M), fitur AI tidak
+tersedia, dan 60 FPS lewat FFmpeg berjalan sangat lambat.
 
 ## Perlu diketahui
 

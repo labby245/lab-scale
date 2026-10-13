@@ -31,8 +31,10 @@ try {
         & (Join-Path $PSScriptRoot 'fetch_binaries.ps1')
     }
 
-    Write-Host "`n== flutter build windows --release ==" -ForegroundColor Cyan
-    & flutter build windows --release
+    # Version from pubspec.yaml, passed explicitly (see package_macos.sh).
+    $pubVersion = (Select-String -Path (Join-Path $root 'pubspec.yaml') -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
+    Write-Host "`n== flutter build windows --release ($pubVersion) ==" -ForegroundColor Cyan
+    & flutter build windows --release --build-name=$($pubVersion.Split('+')[0]) --build-number=$($pubVersion.Split('+')[1])
     if ($LASTEXITCODE -ne 0) { throw "flutter build gagal (exit $LASTEXITCODE)" }
 
     if (-not (Test-Path $releaseDir)) { throw "Folder rilis tidak ditemukan: $releaseDir" }
