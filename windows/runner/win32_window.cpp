@@ -1,5 +1,7 @@
 #include "win32_window.h"
 
+#include <algorithm>
+
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
@@ -134,10 +136,31 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  int x = Scale(origin.x, scale_factor);
+  int y = Scale(origin.y, scale_factor);
+  int width = Scale(size.width, scale_factor);
+  int height = Scale(size.height, scale_factor);
+
+  // The requested size is for a desktop monitor. On a 1366x768 laptop it
+  // would put the bottom of the window — the status bar — below the screen
+  // edge, so shrink it to the work area (the screen minus the taskbar) and
+  // centre it there instead.
+  MONITORINFO info = {sizeof(MONITORINFO)};
+  if (GetMonitorInfo(monitor, &info)) {
+    const RECT& work = info.rcWork;
+    const int margin = Scale(16, scale_factor);
+    const int work_width = work.right - work.left;
+    const int work_height = work.bottom - work.top;
+    if (width > work_width - 2 * margin || height > work_height - 2 * margin) {
+      width = (std::min)(width, work_width - 2 * margin);
+      height = (std::min)(height, work_height - 2 * margin);
+      x = work.left + (work_width - width) / 2;
+      y = work.top + (work_height - height) / 2;
+    }
+  }
+
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      window_class, title.c_str(), WS_OVERLAPPEDWINDOW, x, y, width, height,
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {
