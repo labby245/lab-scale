@@ -112,7 +112,9 @@ class _WideWorkspace extends StatelessWidget {
                 // (Real-ESRGAN and RIFE both expand when switched on), so this
                 // column — and only this column — gets its own scrollbar.
                 child: SingleChildScrollView(
-                  child: _ControlColumn(controller: controller),
+                  child: _InkLayer(
+                    child: _ControlColumn(controller: controller),
+                  ),
                 ),
               ),
             ],
@@ -133,19 +135,37 @@ class _NarrowWorkspace extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(LabSpacing.pagePadding),
-      child: Column(
-        children: [
-          FileStage(controller: controller),
-          const SizedBox(height: LabSpacing.gap),
-          _ControlColumn(controller: controller),
-          if (controller.logLines.isNotEmpty) ...[
+      child: _InkLayer(
+        child: Column(
+          children: [
+            FileStage(controller: controller),
             const SizedBox(height: LabSpacing.gap),
-            LogCard(controller: controller),
+            _ControlColumn(controller: controller),
+            if (controller.logLines.isNotEmpty) ...[
+              const SizedBox(height: LabSpacing.gap),
+              LogCard(controller: controller),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
+}
+
+/// Gives scrolled content a Material of its own to paint ink on.
+///
+/// Hover and focus highlights (a dropdown keeps its focus highlight after a
+/// pick) are painted on the nearest Material ancestor. Without this that is
+/// the Scaffold, outside the scroll view's clip, so a scrolled-away dropdown
+/// left its grey highlight floating over the header — seen on Windows.
+class _InkLayer extends StatelessWidget {
+  const _InkLayer({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      Material(type: MaterialType.transparency, child: child);
 }
 
 class _ControlColumn extends StatelessWidget {

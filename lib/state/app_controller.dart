@@ -78,7 +78,15 @@ class AppController extends ChangeNotifier {
     int? activeIndex,
     double? fileProgress,
     List<JobResult> results = const [],
+    Capabilities capabilities = const Capabilities(),
+    ProcessOptions options = const ProcessOptions(),
+    String outputDir = '',
+    String tempDir = '',
   }) {
+    _capabilities = capabilities;
+    _options = options;
+    _outputDir = outputDir;
+    _tempDir = tempDir;
     _files = files;
     _phase = phase;
     _activeIndex = activeIndex;
@@ -736,11 +744,15 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _detachReporter(JobReporter reporter) async {
+    // Close first: the streams deliver asynchronously, so the job's last
+    // lines ("Gambar tersimpan.", "Enkode selesai.") are still queued when
+    // process() returns. Closing flushes them to the listeners; cancelling
+    // first threw them away, and every log ended one or two lines short.
+    await reporter.close();
     await _logSub?.cancel();
     await _progressSub?.cancel();
     _logSub = null;
     _progressSub = null;
-    await reporter.close();
   }
 
   /// Reveals [path] (or the output folder) in Explorer / Finder.

@@ -133,16 +133,21 @@ class _MediaStageState extends State<MediaStage> {
         fit: StackFit.expand,
         children: [
           _buildBody(),
+          // Centred: the corners belong to the comparison's Original/Result
+          // tags, and a corner toggle covered the "Result" one.
           if (offersToggle)
             Positioned(
               top: 8,
-              right: 8,
-              child: _ModeToggle(
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _ModeToggle(
                 playing: _playing,
-                onChanged: (value) {
-                  setState(() => _playing = value);
-                  _syncPlayer();
-                },
+                  onChanged: (value) {
+                    setState(() => _playing = value);
+                    _syncPlayer();
+                  },
+                ),
               ),
             ),
         ],

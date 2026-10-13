@@ -231,7 +231,10 @@ class _UpscaleSettings extends StatelessWidget {
   /// greyed out.
   String _modelLabel(S s, UpscaleModel m) {
     final download = downloadableFor(m);
-    if (download != null && !controller.isModelInstalled(m)) {
+    // No download offer where no AI model can run anyway.
+    if (download != null &&
+        controller.capabilities.esrgan &&
+        !controller.isModelInstalled(m)) {
       return '${s.modelLabel(m)}${s.modelDownloadSuffix(download.sizeBytes)}';
     }
     return s.modelLabel(m);
@@ -262,6 +265,10 @@ class _UpscaleSettings extends StatelessWidget {
         ),
         if (download != null && controller.capabilities.esrgan)
           _ModelDownloadPanel(controller: controller, download: download),
+        // The AI entries are greyed out; say why right here rather than only
+        // in Setup & Status, where nobody looking at this menu would go.
+        if (controller.capabilities.esrganIssue != null)
+          _Notice(tone: LabColors.warning, text: s.noVulkanHint),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -310,8 +317,8 @@ class _UpscaleSettings extends StatelessWidget {
           _Notice(tone: LabColors.warning, text: s.esrganVideoNotice),
         // A missing binary is a broken install; a missing downloadable model
         // is already explained by the download panel above.
-        if (controller.capabilities.esrganIssue != null && model.isAi)
-          _Notice(tone: LabColors.warning, text: s.noVulkanHint)
+        if (controller.capabilities.esrganIssue != null)
+          const SizedBox.shrink()
         else if (controller.esrganMissing && !controller.capabilities.esrgan)
           _Notice(tone: LabColors.danger, text: s.esrganMissingNotice)
         else if (controller.esrganMissing && download == null)

@@ -1,4 +1,4 @@
-**New in 2.1.1:** on PCs whose GPU has no Vulkan support (common on older laptops), the AI features are now shown as unavailable with the reason, and the 60 FPS boost uses FFmpeg instead of failing. On small screens such as 1366×768 laptops, the window now fits the screen.
+**New in 2.1.1:** on PCs whose GPU has no Vulkan support (common on older laptops), the AI features are now shown as unavailable with the reason, and the 60 FPS boost uses FFmpeg instead of failing. On small screens such as 1366×768 laptops, the window now fits the screen. The process log now shows every job through to its last line.
 
 **LabScale** makes small or blurry photos and videos bigger and sharper with AI, and makes choppy video smooth at 60 FPS.
 
@@ -24,7 +24,7 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 
 ---
 
-**Baru di 2.1.1:** di PC yang GPU-nya tidak mendukung Vulkan (umum di laptop lama), fitur AI kini ditandai tidak tersedia beserta alasannya, dan boost 60 FPS memakai FFmpeg alih-alih gagal. Di layar kecil seperti laptop 1366×768, jendela kini pas di layar.
+**Baru di 2.1.1:** di PC yang GPU-nya tidak mendukung Vulkan (umum di laptop lama), fitur AI kini ditandai tidak tersedia beserta alasannya, dan boost 60 FPS memakai FFmpeg alih-alih gagal. Di layar kecil seperti laptop 1366×768, jendela kini pas di layar. Log proses kini tampil lengkap sampai baris terakhir.
 
 **LabScale** membuat foto dan video yang kecil atau buram jadi lebih besar dan tajam dengan AI, dan membuat video patah-patah jadi mulus 60 FPS.
 
