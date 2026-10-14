@@ -41,8 +41,8 @@ you want, press **Process**.
 - **Upscale 1×–4×, three simple choices:** **Design & illustration** (logos,
   posters, text), **Photo** (camera and phone shots) and **Video** (fast, for
   real footage). The choices are curated by a professional photographer at
-  Labstory Studio: Design and Photo are the models used in day-to-day client
-  work, and Video was picked after side-by-side tests on real footage.
+  Labstory Studio, through side-by-side tests on design, photo and real video
+  footage.
 - **60 FPS video** by generating the frames in between: with the RIFE AI
   model on a supported GPU, otherwise with FFmpeg's built-in interpolation.
 - **Whole folders at once.** Every file shows as a thumbnail, and the one being

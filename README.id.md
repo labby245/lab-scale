@@ -41,8 +41,7 @@ folder, pilih yang kamu mau, tekan **Proses**.
 - **Upscale 1×–4×, tiga pilihan sederhana:** **Desain & ilustrasi** (logo,
   poster, teks), **Foto** (hasil kamera dan HP), dan **Video** (cepat, untuk
   rekaman asli). Pilihannya dikurasi oleh fotografer profesional di Labstory
-  Studio: Desain dan Foto adalah model yang dipakai sehari-hari untuk pekerjaan
-  klien, dan Video dipilih setelah uji banding di rekaman asli.
+  Studio lewat uji banding di desain, foto, dan rekaman video asli.
 - **Video 60 FPS**, dengan membuat frame-frame di antaranya: lewat model AI
   RIFE kalau GPU-nya mendukung, selain itu lewat interpolasi bawaan FFmpeg.
 - **Satu folder sekaligus.** Setiap file tampil sebagai thumbnail, dan file
