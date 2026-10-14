@@ -30,20 +30,6 @@ void main() {
       expect(bytes, ((30 + 30 * 16) * 100 * 100 * kPngBytesPerPixel).round());
     });
 
-    test('AnimeVideoV3 at 2x really is cheaper', () {
-      final anime = estimate(const ProcessOptions(
-        upscale: true,
-        upscaleModel: UpscaleModel.realesrAnimeVideoV3,
-        upscaleScale: 2,
-      ));
-      final x4plus = estimate(const ProcessOptions(
-        upscale: true,
-        upscaleModel: UpscaleModel.realesrganX4Plus,
-        upscaleScale: 2,
-      ));
-      expect(anime, lessThan(x4plus));
-    });
-
     test('RIFE doubles a 30fps clip before the upscaler sees it', () {
       final bytes = estimate(const ProcessOptions(
         upscale: true,

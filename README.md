@@ -38,9 +38,11 @@ you want, press **Process**.
 
 ## What it does
 
-- **Upscale 1×–4×.** You choose by what the picture is: a photo, a design or
-  illustration, anime, or anime video. There is also a quick draft mode, and a
-  plain non-AI option.
+- **Upscale 1×–4×, three simple choices:** **Design & illustration** (logos,
+  posters, text), **Photo** (camera and phone shots) and **Video** (fast, for
+  real footage). The choices are curated by a professional photographer at
+  Labstory Studio: Design and Photo are the models used in day-to-day client
+  work, and Video was picked after side-by-side tests on real footage.
 - **60 FPS video** by generating the frames in between: with the RIFE AI
   model on a supported GPU, otherwise with FFmpeg's built-in interpolation.
 - **Whole folders at once.** Every file shows as a thumbnail, and the one being
@@ -113,8 +115,7 @@ non-AI upscaling (Lanczos) and the FFmpeg 60 FPS boost, which run on the CPU.
 If they are grey, click **Setup & Status** to see why.
 
 For a sense of speed, measured on a MacBook Pro M1: one 1920×1280 photo takes
-about 6.5–7 seconds with the photo model, or about 0.7 seconds with "Quick
-draft". On a laptop without a Vulkan GPU (for example a 3rd-gen Core i3 with a
+about 6.5–7 seconds with Photo, or about 0.7 seconds with Video. On a laptop without a Vulkan GPU (for example a 3rd-gen Core i3 with a
 GT 720M), the AI features are unavailable and the FFmpeg 60 FPS boost is very
 slow.
 
@@ -128,13 +129,13 @@ GPU. The status dots in the app remain the surest check.
 - **Video upscaling with AI is heavy.** Every frame is upscaled one by one, so
   it suits short clips. LabScale estimates the temporary disk space a job needs
   and tells you up front if it will not fit.
-- **2× costs as much as 4×** with most AI models — they only have 4× weights,
-  so LabScale runs at 4× and scales down. "Anime video" is the exception: it
-  has its own 2× and 3× weights and is much faster.
-- **Three optional models are downloaded when you pick them** — UltraMix
-  Balanced, UltraSharp and Remacri (about 33 MB each). They are licensed for
-  **non-commercial use only** (CC BY-NC-SA 4.0); the models that come with the
-  installer have no such restriction.
+- **2× costs as much as 4×** — the AI models only have 4× weights, so
+  LabScale runs at 4× and scales down. For long video, pick **Video**: it is
+  about 8× faster than Photo.
+- **Design & illustration is downloaded when you first pick it** — its model,
+  UltraMix Balanced (about 33 MB), is licensed for **non-commercial use only**
+  (CC BY-NC-SA 4.0). Photo and Video come with the installer and have no such
+  restriction, so use those for commercial work.
 - **Updates.** LabScale checks GitHub for a newer version when it starts and
   shows a small banner if there is one. It never downloads or installs
   anything by itself.

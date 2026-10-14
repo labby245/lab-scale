@@ -38,9 +38,11 @@ folder, pilih yang kamu mau, tekan **Proses**.
 
 ## Fiturnya
 
-- **Upscale 1×–4×.** Kamu memilih menurut jenis gambarnya: foto, desain atau
-  ilustrasi, anime, atau video anime. Ada juga mode draf cepat dan pilihan
-  biasa tanpa AI.
+- **Upscale 1×–4×, tiga pilihan sederhana:** **Desain & ilustrasi** (logo,
+  poster, teks), **Foto** (hasil kamera dan HP), dan **Video** (cepat, untuk
+  rekaman asli). Pilihannya dikurasi oleh fotografer profesional di Labstory
+  Studio: Desain dan Foto adalah model yang dipakai sehari-hari untuk pekerjaan
+  klien, dan Video dipilih setelah uji banding di rekaman asli.
 - **Video 60 FPS**, dengan membuat frame-frame di antaranya: lewat model AI
   RIFE kalau GPU-nya mendukung, selain itu lewat interpolasi bawaan FFmpeg.
 - **Satu folder sekaligus.** Setiap file tampil sebagai thumbnail, dan file
@@ -113,7 +115,7 @@ tanpa AI (Lanczos) dan 60 FPS lewat FFmpeg, yang berjalan di CPU.
 abu-abu, klik **Setup & Status** untuk melihat alasannya.
 
 Gambaran kecepatan, diukur di MacBook Pro M1: satu foto hasil 1920×1280 butuh
-±6,5–7 detik dengan model foto, atau ±0,7 detik dengan "Draf cepat". Di laptop
+±6,5–7 detik dengan Foto, atau ±0,7 detik dengan Video. Di laptop
 tanpa GPU Vulkan (contoh: Core i3 generasi ke-3 dengan GT 720M), fitur AI tidak
 tersedia, dan 60 FPS lewat FFmpeg berjalan sangat lambat.
 
@@ -127,13 +129,13 @@ setiap GPU. Titik status di app tetap penentu yang paling pasti.
 - **Upscale video dengan AI itu berat.** Setiap frame di-upscale satu per satu,
   jadi cocok untuk klip pendek. LabScale memperkirakan ruang disk sementara
   yang dibutuhkan dan memberi tahu di awal kalau tidak cukup.
-- **2× sama beratnya dengan 4×** di kebanyakan model AI — modelnya hanya punya
-  bobot 4×, jadi LabScale menjalankan 4× lalu memperkecilnya. Pengecualiannya
-  "Video anime": punya bobot 2× dan 3× sendiri dan jauh lebih cepat.
-- **Tiga model opsional diunduh saat kamu memilihnya** — UltraMix Balanced,
-  UltraSharp, dan Remacri (sekitar 33 MB masing-masing). Lisensinya hanya untuk
-  **pemakaian non-komersial** (CC BY-NC-SA 4.0); model yang ikut installer
-  tidak punya batasan itu.
+- **2× sama beratnya dengan 4×** — model AI-nya hanya punya bobot 4×, jadi
+  LabScale menjalankan 4× lalu memperkecilnya. Untuk video panjang, pilih
+  **Video**: sekitar 8× lebih cepat dari Foto.
+- **Desain & ilustrasi diunduh saat pertama kamu memilihnya** — modelnya,
+  UltraMix Balanced (sekitar 33 MB), berlisensi **hanya untuk pemakaian
+  non-komersial** (CC BY-NC-SA 4.0). Foto dan Video ikut installer dan tidak
+  punya batasan itu, jadi pakai keduanya untuk pekerjaan komersial.
 - **Pembaruan.** Saat dibuka, LabScale mengecek GitHub apakah ada versi baru
   dan menampilkan banner kecil kalau ada. LabScale tidak pernah mengunduh atau
   memasang apa pun sendiri.

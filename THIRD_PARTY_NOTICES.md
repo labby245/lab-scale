@@ -81,9 +81,8 @@ replaced. Build sources:
 
 | Model | Licence | Author |
 |---|---|---|
-| RealESRGAN x4plus, x4plus-anime | BSD-3-Clause | Xintao Wang |
-| realesr-animevideov3 (x2, x3, x4) | BSD-3-Clause | Xintao Wang |
-| realesr-general-x4v3 (shown as "Quick draft", file `upscayl-lite-4x`) | BSD-3-Clause | Xintao Wang |
+| RealESRGAN x4plus (shown as "Photo") | BSD-3-Clause | Xintao Wang |
+| realesr-general-x4v3 (shown as "Video", file `upscayl-lite-4x`) | BSD-3-Clause | Xintao Wang |
 | RIFE v4.6 / v4.25 | MIT | hzwer (Practical-RIFE) |
 
 <https://github.com/xinntao/Real-ESRGAN>, <https://github.com/hzwer/Practical-RIFE>
@@ -127,15 +126,13 @@ in `LICENSE`, with those copyright lines.
 
 ## AI models downloaded on demand
 
-These are **not** in the installers. LabScale downloads one only when you pick
-it, from a pinned commit of <https://github.com/upscayl/upscayl>
+This model is **not** in the installers. LabScale downloads it only when you
+pick it, from a pinned commit of <https://github.com/upscayl/upscayl>
 (`resources/models`), and checks it against a fixed SHA-256 before use.
 
 | Model | Licence | Author | Original |
 |---|---|---|---|
-| UltraMix Balanced | CC BY-NC-SA 4.0 | Kim2091 | <https://huggingface.co/Kim2091/UltraSharp> |
-| UltraSharp | CC BY-NC-SA 4.0 | Kim2091 | <https://huggingface.co/Kim2091/UltraSharp> |
-| Remacri | CC BY-NC-SA 4.0 | Foolhardy | <https://openmodeldb.info/models/4x-Remacri> |
+| UltraMix Balanced (shown as "Design & illustration") | CC BY-NC-SA 4.0 | Kim2091 | <https://huggingface.co/Kim2091/UltraSharp> |
 
 CC BY-NC-SA 4.0 (`licenses/CC-BY-NC-SA-4.0.txt`) allows **non-commercial use
 only**. If you use LabScale commercially, use the bundled models instead.

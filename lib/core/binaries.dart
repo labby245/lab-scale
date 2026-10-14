@@ -180,10 +180,10 @@ class Binaries {
         File(p.join(dir, '$stem.param')).existsSync() &&
         File(p.join(dir, '$stem.bin')).existsSync();
 
-    // Most models are one file pair. AnimeVideoV3 instead ships one pair per
-    // scale — realesr-animevideov3-x2/-x3/-x4 — and the binary appends the
-    // suffix itself, so looking only for the bare name would report a model
-    // that works perfectly well as missing.
+    // Most models are one file pair. A model with weights per scale (as
+    // realesr-animevideov3 had, before 2.2.0) ships one pair per scale —
+    // <name>-x2/-x3/-x4 — and the binary appends the suffix itself, so
+    // looking only for the bare name would report it missing.
     //
     // Every declared scale must be present, not merely one of them: this
     // check exists so the dropdown never offers a model that fails once the

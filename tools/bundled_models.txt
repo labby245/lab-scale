@@ -5,9 +5,6 @@
 # Only weights whose licence allows redistribution belong here. Everything
 # else is downloaded on demand by the app — see lib/core/model_store.dart.
 realesrgan-x4plus
-realesrgan-x4plus-anime
-realesr-animevideov3-x2
-realesr-animevideov3-x3
-realesr-animevideov3-x4
-# Upscayl's name for xinntao's realesr-general-x4v3 (BSD-3-Clause).
+# Upscayl's name for xinntao's realesr-general-x4v3 (BSD-3-Clause): the
+# "Video" entry, and the model the startup GPU probe runs.
 upscayl-lite-4x

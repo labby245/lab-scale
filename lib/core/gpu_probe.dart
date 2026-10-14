@@ -145,13 +145,11 @@ class GpuProbe {
 String? probeModelFor(String modelsDir) {
   for (final name in const [
     'upscayl-lite-4x',
-    'realesr-animevideov3-x4',
-    'realesrgan-x4plus-anime',
     'realesrgan-x4plus',
   ]) {
     if (File(p.join(modelsDir, '$name.param')).existsSync() &&
         File(p.join(modelsDir, '$name.bin')).existsSync()) {
-      return name.endsWith('-x4') ? name.substring(0, name.length - 3) : name;
+      return name;
     }
   }
   return null;

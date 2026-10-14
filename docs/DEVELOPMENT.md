@@ -6,7 +6,7 @@ Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untu
 
 ## Fitur
 
-- **Upscale** — delapan pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: foto realistis, desain & ilustrasi, anime & manga, video anime, draf cepat, atau Lanczos tanpa AI. Skala 1×–4×.
+- **Upscale** — tiga pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: Desain & ilustrasi (UltraMix Balanced), Foto (x4plus), dan Video (`realesr-general-x4v3`). Lanczos tanpa AI hanya muncul di komputer yang tidak bisa menjalankan AI. Skala 1×–4×.
 - **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
 - **Boost ke 60 FPS** — interpolasi frame lewat RIFE AI (di GPU) atau FFmpeg `minterpolate` (di CPU). Diukur di M1 (720p, 4 detik → 60 fps): jalur RIFE 15,4 detik, minterpolate 18,0 detik — RIFE bukan soal kecepatan.
 - **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan, dan hasilnya dikumpulkan ke satu folder `<nama folder>_upscaled` di dalam folder output. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
@@ -47,9 +47,9 @@ flutter run -d windows    # atau: flutter run -d macos
 
 `bin/` sengaja tidak masuk git — isinya besar dan berlisensi terpisah.
 
-**Model upscale: dibundel vs diunduh.** Yang ikut installer hanya bobot berlisensi bebas — daftarnya di [`tools/bundled_models.txt`](../tools/bundled_models.txt), dibaca kedua packager: x4plus, x4plus-anime, AnimeVideoV3, dan `upscayl-lite-4x` (itu `realesr-general-x4v3` milik xinntao, BSD-3, dengan nama lain). UltraMix Balanced, UltraSharp, dan Remacri berlisensi **CC BY-NC-SA 4.0** — tidak boleh masuk installer berlisensi MIT, jadi app mengunduhnya sendiri saat dipilih ([`lib/core/model_store.dart`](../lib/core/model_store.dart)): dari satu commit Upscayl yang dikunci, diverifikasi sha256, ke folder per-user (`~/Library/Application Support/com.labby245.labscale/models` atau `%APPDATA%\…\models`). Di dropdown, model itu diberi label "unduh 33 MB" dan menampilkan kredit + catatan non-komersial. `--extra-models` / `-ExtraModels` tetap ada untuk menaruh ketiganya di `bin/` saat development.
+**Model upscale: dibundel vs diunduh.** Yang ikut installer hanya bobot berlisensi bebas — daftarnya di [`tools/bundled_models.txt`](../tools/bundled_models.txt), dibaca kedua packager: x4plus dan `upscayl-lite-4x` (itu `realesr-general-x4v3` milik xinntao, BSD-3, dengan nama lain). UltraMix Balanced berlisensi **CC BY-NC-SA 4.0** — tidak boleh masuk installer berlisensi MIT, jadi app mengunduhnya sendiri saat dipilih ([`lib/core/model_store.dart`](../lib/core/model_store.dart)): dari satu commit Upscayl yang dikunci, diverifikasi sha256, ke folder per-user (`~/Library/Application Support/com.labby245.labscale/models` atau `%APPDATA%\…\models`). Di dropdown, model itu diberi label "unduh 33 MB" dan menampilkan kredit + catatan non-komersial. `--extra-models` / `-ExtraModels` tetap ada untuk menaruhnya di `bin/` saat development.
 
-Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai terhadap aslinya:
+Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai terhadap aslinya. UltraSharp, Remacri, x4plus-anime, dan AnimeVideoV3 dihapus dari menu di 2.2.0:
 
 | Model | Desain (SSIM) | Foto (rasio detail) | Detik |
 |---|---|---|---|
@@ -62,7 +62,19 @@ Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai
 
 Rasio detail 1,00× berarti detail halus kembali sebanyak aslinya; di bawah itu buram, di atas itu mengarang.
 
-**Kenapa 2× tidak lebih cepat dari 4×.** Hanya AnimeVideoV3 yang punya bobot terpisah untuk 2× dan 3×. Model lain 4× saja, jadi permintaan 2× dijalankan di 4× lalu diperkecil FFmpeg — waktu GPU dan ruang sementara sama seperti 4× penuh. Log menyebutkannya (`jaringan 4× lalu diperkecil`). Pada jalur video ini berarti frame sementara berukuran 4×, bukan 2×: klip 1080p panjang bisa memakan puluhan GB di folder temp. Kalau ruang sempit, pilih AnimeVideoV3 atau proses per potongan.
+Untuk 2.2.0 diuji lagi di M1 dengan dua sumber, masing-masing dikecilkan 4× lalu di-upscale balik: poster desain datar dan potongan 1920×1080 dari footage udara 4K asli. Detik = waktu Real-ESRGAN per gambar untuk footage (960×540 → 3840×2160):
+
+| Model | SSIM poster | Detik per frame footage |
+|---|---|---|
+| UltraMix Balanced | **0,966** | 6,1 |
+| x4plus | 0,949 | 6,3 |
+| `realesr-general-x4v3` | 0,946 | **0,8** |
+| AnimeVideoV3 | 0,938 | 0,6 |
+| Lanczos | 0,955 | — |
+
+Di footage, AnimeVideoV3 sama cepatnya dengan `realesr-general-x4v3`, tapi hasilnya tetap buram, nyaris seperti Lanczos. `realesr-general-x4v3` mengembalikan detail yang terlihat, jadi model itu yang jadi pilihan "Video". SSIM footage tidak dipakai sebagai penentu: Lanczos menang di angka itu karena tidak mengarang tekstur, padahal hasilnya paling buram.
+
+**Kenapa 2× tidak lebih cepat dari 4×.** Semua model di menu hanya punya bobot 4×, jadi permintaan 2× dijalankan di 4× lalu diperkecil FFmpeg — waktu GPU dan ruang sementara sama seperti 4× penuh. Log menyebutkannya (`jaringan 4× lalu diperkecil`). Pada jalur video ini berarti frame sementara berukuran 4×, bukan 2×: klip 1080p panjang bisa memakan puluhan GB di folder temp. Kalau ruang sempit, proses per potongan.
 
 **RIFE v4.25 (opsional).** Default-nya v4.6 dari rilis nihui 2022, karena unduhannya ringan. Untuk model yang jauh lebih baik, tambahkan `--rife-latest` (bash) atau `-RifeLatest` (PowerShell). Harganya unduhan ~790 MB: **setiap model RIFE setelah v4.6 butuh build ncnn yang lebih baru** — binary lama menolak semuanya dengan `layer MemoryData not exists or registered` — dan satu-satunya build yang dipublikasikan ada di dalam satu arsip berisi ~50 model. Hanya yang diperlukan yang disimpan.
 
@@ -228,7 +240,7 @@ flutter test
 
 - **"FFmpeg tidak ditemukan"** — jalankan `tools/fetch_binaries.*`, atau install FFmpeg ke PATH.
 - **Upscale AI abu-abu / gagal** — `realesrgan-ncnn-vulkan` belum ada di `bin/`. Cek Setup & Status di status bar.
-- **Real-ESRGAN lambat pada video** — diproses per-frame; pakai untuk klip pendek atau pilih Lanczos.
+- **Real-ESRGAN lambat pada video** — diproses per-frame; pakai untuk klip pendek atau pilih "Video", yang sekitar 8× lebih cepat dari "Foto".
 - **Vulkan error di Windows** — update driver GPU; ncnn butuh driver Vulkan yang layak.
 - **Gatekeeper menolak app di Mac** — build ad hoc, belum di-notarisasi. Setujui sekali di System Settings → Privacy & Security → Open Anyway.
 - **"Ruang disk tidak cukup"** — jalur frame memerlukan ruang sementara besar; perkiraannya ada di log. Lihat `lib/core/disk_space.dart`.

@@ -1,11 +1,10 @@
 /// Optional Real-ESRGAN weights, downloaded on demand into the user's own
 /// models folder.
 ///
-/// Three of the best design/photo models (UltraSharp, UltraMix Balanced,
-/// Remacri) are licensed CC BY-NC-SA 4.0. That is fine for a person
-/// upscaling their own pictures, but it cannot be folded into an MIT
-/// installer that anyone may use commercially. So they stay out of the
-/// download, and the app fetches them only when someone picks one — with the
+/// The design model (UltraMix Balanced) is licensed CC BY-NC-SA 4.0. That is
+/// fine for a person upscaling their own pictures, but it cannot be folded
+/// into an MIT installer that anyone may use commercially. So it stays out of
+/// the download, and the app fetches it only when someone picks it — with the
 /// author and the non-commercial terms shown right there.
 ///
 /// Every file is pinned to one commit and one sha256. A moved or altered file
@@ -84,42 +83,6 @@ final List<DownloadableModel> kDownloadableModels = [
       _upscayl(
         'ultramix-balanced-4x.bin',
         '171cae5968485d366b4fb575d232f98d117d94b766b15f22849cfccde40d2050',
-        33424520,
-      ),
-    ],
-  ),
-  DownloadableModel(
-    model: UpscaleModel.ultrasharp,
-    author: 'Kim2091',
-    license: _ccByNcSa,
-    licenseUrl: _ccByNcSaUrl,
-    files: [
-      _upscayl(
-        'ultrasharp-4x.param',
-        '0136ca83686809a8f17f7111f11b951e8db93610e24b7f4137c9ffe4dbc4a806',
-        116029,
-      ),
-      _upscayl(
-        'ultrasharp-4x.bin',
-        'fb3e279d40d4cddb44db4e684d59e68d0aa39852c8cc14dc3f23ccc7e6eee9c1',
-        33424520,
-      ),
-    ],
-  ),
-  DownloadableModel(
-    model: UpscaleModel.remacri,
-    author: 'Foolhardy',
-    license: _ccByNcSa,
-    licenseUrl: _ccByNcSaUrl,
-    files: [
-      _upscayl(
-        'remacri-4x.param',
-        '859ecba5b3592ecf3e76c93bed65e9f627b5236dd696aae5a84ecf8c93ab65ce',
-        140295,
-      ),
-      _upscayl(
-        'remacri-4x.bin',
-        'a43be595c0d743314c30b50fe7ef188be0c61cc55c46ce81adb79ba4b3c3fb7a',
         33424520,
       ),
     ],

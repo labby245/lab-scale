@@ -320,6 +320,18 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The upscale dropdown's entries. Lanczos only appears where no AI model
+  /// can run — on a PC without Vulkan it is the one upscaler that works, and
+  /// anywhere else it would only be a worse choice to stumble on.
+  List<UpscaleModel> get offeredModels {
+    final aiRuns =
+        UpscaleModel.values.any((m) => m.isAi && isModelInstalled(m));
+    return [
+      for (final m in UpscaleModel.values)
+        if (m.isAi || !aiRuns) m,
+    ];
+  }
+
   /// Whether [model] can actually run here — the binary plus its weights.
   bool isModelInstalled(UpscaleModel model) {
     final name = model.ncnnName;
@@ -466,7 +478,11 @@ class AppController extends ChangeNotifier {
     // A stored model whose weights are not on this machine would leave the
     // dropdown showing a disabled entry the user cannot re-pick, so fall back
     // the same way a first run does.
-    if (storedModel == null || !isModelInstalled(model)) {
+    // Lanczos is hidden wherever AI runs, so a stored Lanczos there would be
+    // a selection the dropdown no longer shows.
+    if (storedModel == null ||
+        !isModelInstalled(model) ||
+        !offeredModels.contains(model)) {
       // Falling back on the binary's presence alone would just pick another
       // model whose weights are missing, landing back in the same state.
       // x4plus first because it is what the default fetch installs.

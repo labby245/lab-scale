@@ -43,7 +43,7 @@ void main() {
     String url(String name) => 'http://127.0.0.1:${server.port}/$name';
     String hash(String path) => sha256.convert(payloads[path]!).toString();
     return DownloadableModel(
-      model: UpscaleModel.ultrasharp,
+      model: UpscaleModel.ultramix,
       author: 'test',
       license: 'test',
       licenseUrl: 'https://example.com',

@@ -257,7 +257,7 @@ class _UpscaleSettings extends StatelessWidget {
         _LabeledDropdown<UpscaleModel>(
           label: s.upscaleModel,
           value: model,
-          items: UpscaleModel.values,
+          items: controller.offeredModels,
           labelOf: (m) => _modelLabel(s, m),
           // Downloadable models stay pickable to reach their download button
           // — unless no AI model can run here at all.
@@ -265,8 +265,8 @@ class _UpscaleSettings extends StatelessWidget {
               !controller.isModelInstalled(m) &&
               (downloadableFor(m) == null || !controller.capabilities.esrgan),
           // The AI entries are greyed out; one quiet line says why, right
-          // where the user is looking. Not a warning box: someone who only
-          // uses Lanczos has nothing to fix.
+          // where the user is looking. Not a warning box: Lanczos still
+          // works, so there is nothing the user must fix.
           hint: issue == null ? null : s.gpuIssue(issue),
           onChanged: (m) =>
               controller.updateOptions((o) => o.copyWith(upscaleModel: m)),

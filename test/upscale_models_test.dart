@@ -32,12 +32,23 @@ void main() {
     expect(UpscaleModel.fromId(null), UpscaleModel.lanczos);
   });
 
+  test('a model retired in 2.2.0 maps to the entry doing its job', () {
+    // Otherwise a stored choice would fall back to Lanczos, which is hidden
+    // wherever AI runs.
+    expect(UpscaleModel.fromId('ultrasharp-4x'), UpscaleModel.ultramix);
+    expect(
+        UpscaleModel.fromId('realesrgan-x4plus-anime'), UpscaleModel.ultramix);
+    expect(UpscaleModel.fromId('remacri-4x'), UpscaleModel.realesrganX4Plus);
+    expect(
+        UpscaleModel.fromId('realesr-animevideov3'), UpscaleModel.upscaylLite);
+  });
+
   test('labels say what the model is for, not just its name', () {
     // The point of the rewrite: someone scanning the dropdown should be able
     // to pick without knowing what "ultramix" means — in either language.
     const purposes = {
-      S.id: ['Foto', 'Desain', 'Anime', 'Video', 'Cepat', 'Draf'],
-      S.en: ['Photo', 'Design', 'Anime', 'video', 'Fast', 'draft'],
+      S.id: ['Foto', 'Desain', 'Video', 'Tanpa AI'],
+      S.en: ['Photo', 'Design', 'Video', 'No AI'],
     };
     purposes.forEach((s, words) {
       for (final m in UpscaleModel.values) {

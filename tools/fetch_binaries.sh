@@ -159,7 +159,7 @@ fi
 #
 # upscayl-lite-4x selalu diambil: itu realesr-general-x4v3 milik xinntao
 # (BSD-3) dengan nama lain, dan ikut di installer (tools/bundled_models.txt).
-# Tiga lainnya berlisensi CC BY-NC-SA 4.0 — tidak masuk installer, diunduh app
+# UltraMix berlisensi CC BY-NC-SA 4.0 — tidak masuk installer, diunduh app
 # saat dipilih. --extra-models menaruhnya di bin/ hanya untuk development.
 UPSCAYL_MODELS='https://raw.githubusercontent.com/upscayl/upscayl/a00d55fee90e0f9435d5eaa86e76700df8199af8/resources/models'
 
@@ -190,9 +190,9 @@ fetch_models() {
 info $'\n[4/4] Model upscale tambahan'
 fetch_models upscayl-lite-4x
 if [[ $EXTRA_MODELS -eq 1 ]]; then
-  fetch_models ultramix-balanced-4x ultrasharp-4x remacri-4x
+  fetch_models ultramix-balanced-4x
 else
-  skip "Ultramix / UltraSharp / Remacri dilewati — app mengunduhnya saat dipilih (--extra-models untuk menaruhnya di bin/)."
+  skip "UltraMix dilewati — app mengunduhnya saat dipilih (--extra-models untuk menaruhnya di bin/)."
 fi
 
 info $'\nSelesai. Isi bin/:'

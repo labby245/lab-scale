@@ -162,13 +162,13 @@ try {
     Write-Host "`n[4/4] Model upscale tambahan" -ForegroundColor Cyan
     # Pinned to the commit whose hashes lib/core/model_store.dart checks.
     # upscayl-lite-4x is xinntao's realesr-general-x4v3 (BSD-3) renamed, and
-    # ships in the installer; the other three only with -ExtraModels.
+    # ships in the installer; UltraMix only with -ExtraModels.
     $names = @('upscayl-lite-4x')
     if ($ExtraModels) {
-        $names += @('ultramix-balanced-4x', 'ultrasharp-4x', 'remacri-4x')
+        $names += @('ultramix-balanced-4x')
     }
     else {
-        Write-Host '  UltraMix / UltraSharp / Remacri dilewati - app mengunduhnya saat dipilih.' -ForegroundColor Yellow
+        Write-Host '  UltraMix dilewati - app mengunduhnya saat dipilih.' -ForegroundColor Yellow
     }
     & {
         $base = 'https://raw.githubusercontent.com/upscayl/upscayl/a00d55fee90e0f9435d5eaa86e76700df8199af8/resources/models'

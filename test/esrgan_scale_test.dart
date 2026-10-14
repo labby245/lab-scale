@@ -9,11 +9,9 @@ import 'package:labscale/core/esrgan_runner.dart';
 import 'package:labscale/models/process_options.dart';
 
 void main() {
-  test('only AnimeVideoV3 ships weights below 4x', () {
+  test('every AI model ships 4x weights only', () {
     for (final m in UpscaleModel.values.where((m) => m.isAi)) {
-      final expected =
-          m == UpscaleModel.realesrAnimeVideoV3 ? {2, 3, 4} : {4};
-      expect(m.nativeScales, expected, reason: m.id);
+      expect(m.nativeScales, {4}, reason: m.id);
     }
   });
 
@@ -33,15 +31,6 @@ void main() {
     }
   });
 
-  test('AnimeVideoV3 is asked for the scale it has', () {
-    const m = UpscaleModel.realesrAnimeVideoV3;
-    expect(EsrganRunner.ncnnScaleFor(m, 2), 2);
-    expect(EsrganRunner.ncnnScaleFor(m, 3), 3);
-    expect(EsrganRunner.ncnnScaleFor(m, 4), 4);
-    // No 1x weights exist, so that one still runs at 4x and resizes down.
-    expect(EsrganRunner.ncnnScaleFor(m, 1), 4);
-  });
-
   test('the -s that reaches the process is the model scale, not the request',
       () {
     // The output of a wrong -s comes back at exactly the requested size, so
@@ -57,9 +46,8 @@ void main() {
     }
 
     expect(scaleArg(UpscaleModel.ultramix, 2), '4');
-    expect(scaleArg(UpscaleModel.ultrasharp, 3), '4');
+    expect(scaleArg(UpscaleModel.upscaylLite, 3), '4');
     expect(scaleArg(UpscaleModel.realesrganX4Plus, 1), '4');
-    expect(scaleArg(UpscaleModel.realesrAnimeVideoV3, 2), '2');
   });
 
   test('the models directory is only passed when there is one', () {
@@ -96,9 +84,6 @@ void main() {
       () {
     expect(EsrganRunner.needsPostResize(UpscaleModel.ultramix, 2), isTrue);
     expect(EsrganRunner.needsPostResize(UpscaleModel.ultramix, 4), isFalse);
-    expect(
-        EsrganRunner.needsPostResize(UpscaleModel.realesrAnimeVideoV3, 2),
-        isFalse);
     expect(EsrganRunner.needsPostResize(UpscaleModel.realesrganX4Plus, 1),
         isTrue);
   });

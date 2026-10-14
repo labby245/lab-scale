@@ -110,8 +110,8 @@ class S {
   String get opsTitle => _('Operasi', 'Operations');
   String get upscale => 'Upscale';
   String get upscaleDescription => _(
-        'Perbesar resolusi dengan AI atau Lanczos',
-        'Increase resolution with AI or Lanczos',
+        'Perbesar resolusi foto & video',
+        'Increase photo & video resolution',
       );
   String get fpsBoost => _('Boost ke $kTargetFps FPS', 'Boost to $kTargetFps FPS');
   String get fpsViaRife => _(
@@ -365,28 +365,17 @@ class S {
   /// picking a model knows what "ultramix-balanced" does, but everybody knows
   /// whether they are upscaling a photo or a logo.
   String modelLabel(UpscaleModel m) => switch (m) {
-        UpscaleModel.lanczos =>
-          _('Cepat — tanpa AI (Lanczos)', 'Fast — no AI (Lanczos)'),
         UpscaleModel.ultramix => _(
-            'Desain & ilustrasi — paling seimbang',
-            'Design & illustration — best balance',
-          ),
-        UpscaleModel.ultrasharp => _(
-            'Desain tepi tajam — lebih renyah',
-            'Design, crisp edges — sharper',
+            'Desain & ilustrasi — logo, poster, teks',
+            'Design & illustration — logos, posters, text',
           ),
         UpscaleModel.realesrganX4Plus =>
-          _('Foto realistis — ESRGAN x4+', 'Photo, realistic — ESRGAN x4+'),
-        UpscaleModel.remacri => _(
-            'Foto lembut — tambah tekstur (agresif)',
-            'Photo, soft source — adds texture (strong)',
+          _('Foto — hasil kamera & HP', 'Photo — camera & phone shots'),
+        UpscaleModel.upscaylLite => _(
+            'Video — cepat, untuk rekaman asli',
+            'Video — fast, for real footage',
           ),
-        UpscaleModel.realesrganX4PlusAnime =>
-          _('Anime & manga — garis bersih', 'Anime & manga — clean lines'),
-        UpscaleModel.realesrAnimeVideoV3 =>
-          _('Video anime — jauh lebih cepat', 'Anime video — much faster'),
-        UpscaleModel.upscaylLite =>
-          _('Draf cepat — 9× lebih cepat', 'Quick draft — 9× faster'),
+        UpscaleModel.lanczos => _('Tanpa AI — Lanczos', 'No AI — Lanczos'),
       };
 
   String interpLabel(InterpEngine e) => switch (e) {
@@ -500,11 +489,11 @@ class S {
       );
   String get noVulkanHint => _(
         'GPU atau driver di komputer ini tidak mendukung Vulkan, jadi fitur AI '
-            'tidak bisa jalan. Upscale Lanczos dan boost 60 FPS lewat FFmpeg '
-            'tetap bisa dipakai. Memperbarui driver GPU kadang menolong.',
+            'tidak bisa jalan. Upscale tanpa AI (Lanczos) dan boost 60 FPS '
+            'lewat FFmpeg tetap bisa dipakai. Memperbarui driver GPU kadang menolong.',
         'This computer’s GPU or driver does not support Vulkan, so the AI '
-            'features cannot run. Lanczos upscaling and the FFmpeg 60 FPS boost '
-            'still work. Updating the GPU driver sometimes helps.',
+            'features cannot run. Upscaling without AI (Lanczos) and the FFmpeg '
+            '60 FPS boost still work. Updating the GPU driver sometimes helps.',
       );
   String get noVulkanShort => _(
         'Tidak bisa jalan: GPU/driver tidak mendukung Vulkan',

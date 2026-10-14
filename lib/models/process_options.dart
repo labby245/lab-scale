@@ -4,48 +4,31 @@ library;
 /// The upscalers offered in the UI. Their labels — by what each is *for*,
 /// not by model name — live in `S.modelLabel`.
 ///
-/// Ordering is the dropdown's order: the everyday choices first.
+/// Ordering is the dropdown's order. The three AI entries are the whole menu
+/// wherever AI runs; Lanczos is only offered where it does not (see
+/// `AppController.offeredModels`).
 ///
-/// The figures in each comment come from measuring on an M1 — a 1920x1280
-/// original reduced 4x then upscaled back, scored against the original.
-/// "detail" is how much fine detail came back relative to the original: 1.00x
-/// is right, below is blurry, above is invented.
+/// Measured on an M1, each source reduced 4x then upscaled back: a flat
+/// design poster, and a 1920x1080 crop of real 4K aerial footage.
 enum UpscaleModel {
-  lanczos('lanczos', null, 'lanczos', nativeScales: {}),
-
-  /// Design SSIM 0.9931 (best of every model tried), photo detail 0.99x.
-  /// The strongest all-rounder, and markedly better than x4plus on flat
-  /// colour and type, where x4plus fills in letter counters and rings edges.
+  /// The cleanest of every model tried on flat colour and type (design SSIM
+  /// 0.966, against 0.949 for x4plus). CC BY-NC-SA, so downloaded on demand
+  /// rather than bundled.
   ultramix('ultramix-balanced-4x', 'ultramix-balanced-4x', 'ultramix'),
 
-  /// Design SSIM 0.9875, photo detail 1.05x — a touch crisper than the
-  /// original rather than faithful to it.
-  ultrasharp('ultrasharp-4x', 'ultrasharp-4x', 'ultrasharp'),
-
-  /// Design SSIM 0.9827, photo detail 0.93x. Kept as the familiar baseline.
+  /// The bundled, commercially safe (BSD) photo model.
   realesrganX4Plus('realesrgan-x4plus', 'realesrgan-x4plus', 'esrgan-real'),
 
-  /// Photo detail 1.59x — invents a lot of texture. Some people want exactly
-  /// that on soft sources; it is the wrong default for a faithful upscale.
-  remacri('remacri-4x', 'remacri-4x', 'remacri'),
+  /// xinntao's realesr-general-x4v3 under Upscayl's file name. Softer than
+  /// x4plus (photo detail 0.72x against 0.93x) but 0.8s a frame where x4plus
+  /// takes 6.3s, which is what makes AI video upscaling practical; the anime
+  /// video model it replaced was as fast but left real footage blurred. Also
+  /// the model the startup GPU probe runs, for the same speed.
+  upscaylLite('upscayl-lite-4x', 'upscayl-lite-4x', 'video'),
 
-  realesrganX4PlusAnime(
-    'realesrgan-x4plus-anime',
-    'realesrgan-x4plus-anime',
-    'esrgan-anime',
-  ),
-
-  realesrAnimeVideoV3(
-    'realesr-animevideov3',
-    'realesr-animevideov3',
-    'esrgan-video',
-    // The only model shipping separate weights per scale.
-    nativeScales: {2, 3, 4},
-  ),
-
-  /// ~0.7s where the 32 MB networks take ~6.5s, at a real but modest quality
-  /// cost. Meant for checking a batch before committing to it.
-  upscaylLite('upscayl-lite-4x', 'upscayl-lite-4x', 'lite');
+  /// No AI: FFmpeg's Lanczos filter. Offered only where Real-ESRGAN cannot
+  /// run, as the one upscaler that still works there.
+  lanczos('lanczos', null, 'lanczos', nativeScales: {});
 
   const UpscaleModel(
     this.id,
@@ -78,10 +61,21 @@ enum UpscaleModel {
   /// remembering to amend a condition elsewhere.
   final Set<int> nativeScales;
 
-  static UpscaleModel fromId(String? id) => UpscaleModel.values.firstWhere(
-    (m) => m.id == id,
-    orElse: () => UpscaleModel.lanczos,
-  );
+  /// Models dropped from the menu in 2.2.0, mapped to the entry that does
+  /// the same job, so a stored preference lands somewhere sensible.
+  static const _retired = {
+    'ultrasharp-4x': ultramix,
+    'realesrgan-x4plus-anime': ultramix,
+    'remacri-4x': realesrganX4Plus,
+    'realesr-animevideov3': upscaylLite,
+  };
+
+  static UpscaleModel fromId(String? id) =>
+      _retired[id] ??
+      UpscaleModel.values.firstWhere(
+        (m) => m.id == id,
+        orElse: () => UpscaleModel.lanczos,
+      );
 }
 
 enum InterpEngine {

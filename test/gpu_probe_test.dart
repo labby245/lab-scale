@@ -83,11 +83,9 @@ void main() {
   test('the fastest bundled model is the one probed', () {
     for (final ext in ['param', 'bin']) {
       File(p.join(work.path, 'realesrgan-x4plus.$ext')).writeAsStringSync('');
-      File(p.join(work.path, 'realesr-animevideov3-x4.$ext'))
-          .writeAsStringSync('');
+      File(p.join(work.path, 'upscayl-lite-4x.$ext')).writeAsStringSync('');
     }
-    // AnimeVideoV3 is named without its -x4 suffix: the tool adds it.
-    expect(probeModelFor(work.path), 'realesr-animevideov3');
+    expect(probeModelFor(work.path), 'upscayl-lite-4x');
     expect(probeModelFor(p.join(work.path, 'nope')), isNull);
   });
 

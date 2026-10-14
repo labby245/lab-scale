@@ -1,10 +1,9 @@
-**New in 2.1.2:**
+**New in 2.2.0:**
 
-- Results are now saved to a LabScale folder in your user folder (for example C:\Users\name\LabScale or ~/LabScale) instead of Documents, so large videos don't get synced to OneDrive or iCloud. A folder you picked yourself is kept.
-- On Windows, LabScale now also tries Intel (Quick Sync) and AMD (AMF) hardware encoders. We haven't tested this on Intel/AMD GPUs ourselves yet, so if a hardware encoder fails, the video is automatically encoded again on the CPU.
-- Temporary files from interrupted jobs (for example after a force quit) are now cleaned up automatically when LabScale starts.
-- The About dialog now has a Contact button (hello@labstory.id) and a link to the LabScale website.
-- The 60 FPS engine labels no longer make speed claims we couldn't back up.
+- Upscaling now has three choices, curated by a professional photographer at Labstory Studio: Design & illustration, Photo, and Video. Design and Photo are the models used in day-to-day client work; Video was picked after side-by-side tests on real footage.
+- The “Video” choice (formerly “Quick draft”) uses a fast model that still brings back detail in real footage — about 8× faster than Photo (measured on a MacBook Pro M1).
+- The Anime & manga, Anime video, crisp-edge design and soft-photo models are gone, so the installer carries about 12 MB less model data. If you used one of them, LabScale moves you to the closest remaining choice automatically.
+- Upscaling without AI (Lanczos) now only appears on computers that cannot run AI.
 
 **LabScale** enlarges small, low-resolution photos and videos with AI, and makes choppy video smoother at 60 FPS.
 
@@ -29,13 +28,12 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 - **Windows:** if SmartScreen says "Windows protected your PC", click **More info → Run anyway**. No administrator rights needed.
 
 ---
-**Baru di 2.1.2:**
+**Baru di 2.2.0:**
 
-- Hasil kini disimpan di folder LabScale di folder pengguna (misalnya C:\Users\nama\LabScale atau ~/LabScale), bukan di Dokumen, supaya video besar tidak ikut tersinkron ke OneDrive atau iCloud. Folder yang sudah kamu pilih sendiri tetap dipakai.
-- Di Windows, LabScale kini juga mencoba encoder hardware Intel (Quick Sync) dan AMD (AMF). Dukungan ini belum kami uji langsung di GPU Intel/AMD, jadi kalau encoder hardware gagal, video otomatis dienkode ulang dengan CPU.
-- File sementara dari proses yang terhenti (misalnya karena app ditutup paksa) kini dibersihkan otomatis saat LabScale dibuka.
-- Dialog Tentang kini punya tombol Kontak (hello@labstory.id) dan tautan ke situs LabScale.
-- Label engine 60 FPS tidak lagi menyebut klaim kecepatan yang tidak terbukti.
+- Pilihan upscale kini tinggal tiga, dikurasi oleh fotografer profesional di Labstory Studio: Desain & ilustrasi, Foto, dan Video. Desain dan Foto adalah model yang dipakai sehari-hari untuk pekerjaan klien; Video dipilih setelah uji banding di rekaman asli.
+- Pilihan “Video” (sebelumnya “Draf cepat”) memakai model cepat yang tetap mengembalikan detail di rekaman asli — sekitar 8× lebih cepat dari Foto (diukur di MacBook Pro M1).
+- Model Anime & manga, Video anime, Desain tepi tajam, dan Foto lembut dihapus, jadi installer membawa sekitar 12 MB model lebih sedikit. Kalau sebelumnya kamu memakai salah satunya, LabScale otomatis memindahkanmu ke pilihan yang paling mirip.
+- Upscale tanpa AI (Lanczos) kini hanya muncul di komputer yang tidak bisa menjalankan AI.
 
 **LabScale** memperbesar foto dan video beresolusi rendah dengan AI, dan membuat video patah-patah jadi lebih mulus di 60 FPS.
 
