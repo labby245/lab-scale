@@ -1,11 +1,10 @@
 **New in 2.2.1:**
 
-- After updating the GPU driver and pressing Check again in Setup & Status, the upscale choice now switches straight to an AI model. Before, it could show up empty.
-- If you used Anime & manga or the crisp-edge design model, you are now moved to Design & illustration (with its download button), not to Photo.
-- Downloaded UltraSharp and Remacri model files are now removed automatically, since they can no longer be selected (about 33 MB each). On Windows, old models the installer no longer ships are also removed when you update.
-- The “not enough disk space” message no longer suggests a model that was removed.
-- Files made with the Video choice end in _lite again, as in 2.1.x.
-- The model list no longer checks the disk every time the screen updates.
+- The upscale choice no longer shows empty after a GPU driver update.
+- Anime or crisp-edge design users now move to Design & illustration, not Photo.
+- Old models that are no longer used are removed automatically to save disk space.
+- The disk-full message no longer mentions a removed model.
+- Video results end in _lite again, as in 2.1.x.
 
 **LabScale** enlarges small, low-resolution photos and videos with AI, and makes choppy video smoother at 60 FPS.
 
@@ -32,12 +31,11 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 ---
 **Baru di 2.2.1:**
 
-- Setelah driver GPU diperbarui dan kamu menekan Cek ulang di Setup & Status, pilihan upscale kini langsung pindah ke model AI. Sebelumnya pilihannya bisa tampil kosong.
-- Yang dulu memakai Anime & manga atau Desain tepi tajam kini dipindahkan ke Desain & ilustrasi (lengkap dengan tombol unduhnya), bukan ke Foto.
-- File model UltraSharp dan Remacri yang dulu diunduh kini dihapus otomatis, karena tidak bisa dipilih lagi (sekitar 33 MB per model). Di Windows, model lama yang tidak lagi ikut installer juga dihapus saat update.
-- Pesan “ruang disk tidak cukup” tidak lagi menyarankan model yang sudah dihapus.
-- Nama file hasil pilihan Video kembali berakhiran _lite seperti di 2.1.x.
-- Daftar model tidak lagi memeriksa disk setiap kali tampilan diperbarui.
+- Pilihan upscale tidak lagi kosong setelah driver GPU diperbarui.
+- Pengguna model Anime atau Desain tepi tajam dipindah ke Desain & ilustrasi, bukan Foto.
+- Model lama yang sudah tidak dipakai dihapus otomatis untuk menghemat ruang disk.
+- Pesan ruang disk penuh tidak lagi menyebut model yang sudah dihapus.
+- Hasil pilihan Video kembali berakhiran _lite seperti di 2.1.x.
 
 **LabScale** memperbesar foto dan video beresolusi rendah dengan AI, dan membuat video patah-patah jadi lebih mulus di 60 FPS.
 

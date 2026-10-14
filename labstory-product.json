@@ -4,7 +4,7 @@
   "version": "2.2.1",
   "releasedAt": "2026-10-14",
   "requirements": {
-    "intro": "Fitur AI (upscale AI dan video 60 FPS RIFE) berjalan di GPU lewat Vulkan. Tanpa GPU yang mendukungnya, LabScale tetap bisa dipakai untuk upscale tanpa AI dan 60 FPS lewat FFmpeg — keduanya berjalan di CPU.",
+    "intro": "Fitur AI butuh GPU yang mendukung Vulkan. Tanpa itu, LabScale tetap bisa dipakai, hanya tanpa AI.",
     "platforms": [
       {
         "name": "Mac",
@@ -64,19 +64,19 @@
     "notes": [
       {
         "title": "Cara paling pasti",
-        "text": "Buka LabScale dan lihat titik di bilah bawah: Real-ESRGAN dan RIFE hijau berarti fitur AI jalan. Abu-abu? Klik Setup & Status untuk melihat alasannya."
+        "text": "Buka LabScale. Titik Real-ESRGAN dan RIFE hijau berarti fitur AI jalan."
       },
       {
-        "title": "Gambaran kecepatan",
-        "text": "MacBook Pro M1: satu foto hasil 1920×1280 ±6,5–7 detik dengan Foto, atau ±0,7 detik dengan Video."
+        "title": "Kecepatan",
+        "text": "MacBook Pro M1: ±7 detik per foto dengan Foto, ±0,7 detik dengan Video."
       },
       {
         "title": "Ruang disk",
-        "text": "±400 MB untuk app. Video AI butuh ruang sementara — sisakan 20 GB+ untuk video yang panjang."
+        "text": "±400 MB untuk app. Sisakan 20 GB+ untuk video AI yang panjang."
       },
       {
-        "title": "Yang sudah kami uji",
-        "text": "MacBook Pro M1 (semua fitur) dan laptop Windows 10 tanpa Vulkan (fitur dasar). Daftar GPU Windows disusun dari dukungan Vulkan resmi produsennya, belum dari pengujian kami di setiap GPU. Titik status di app tetap penentu yang paling pasti."
+        "title": "Sudah kami uji",
+        "text": "MacBook Pro M1 dan laptop Windows 10 tanpa Vulkan. Daftar GPU Windows diambil dari data resmi produsennya."
       }
     ]
   },
@@ -85,22 +85,21 @@
       "version": "2.2.1",
       "date": "2026-10-14",
       "items": [
-        "Setelah driver GPU diperbarui dan kamu menekan Cek ulang di Setup & Status, pilihan upscale kini langsung pindah ke model AI. Sebelumnya pilihannya bisa tampil kosong.",
-        "Yang dulu memakai Anime & manga atau Desain tepi tajam kini dipindahkan ke Desain & ilustrasi (lengkap dengan tombol unduhnya), bukan ke Foto.",
-        "File model UltraSharp dan Remacri yang dulu diunduh kini dihapus otomatis, karena tidak bisa dipilih lagi (sekitar 33 MB per model). Di Windows, model lama yang tidak lagi ikut installer juga dihapus saat update.",
-        "Pesan “ruang disk tidak cukup” tidak lagi menyarankan model yang sudah dihapus.",
-        "Nama file hasil pilihan Video kembali berakhiran _lite seperti di 2.1.x.",
-        "Daftar model tidak lagi memeriksa disk setiap kali tampilan diperbarui."
+        "Pilihan upscale tidak lagi kosong setelah driver GPU diperbarui.",
+        "Pengguna model Anime atau Desain tepi tajam dipindah ke Desain & ilustrasi, bukan Foto.",
+        "Model lama yang sudah tidak dipakai dihapus otomatis untuk menghemat ruang disk.",
+        "Pesan ruang disk penuh tidak lagi menyebut model yang sudah dihapus.",
+        "Hasil pilihan Video kembali berakhiran _lite seperti di 2.1.x."
       ]
     },
     {
       "version": "2.2.0",
       "date": "2026-10-14",
       "items": [
-        "Pilihan upscale kini tinggal tiga, dikurasi oleh fotografer profesional di Labstory Studio: Desain & ilustrasi, Foto, dan Video. Ketiganya dipilih lewat uji banding di desain, foto, dan rekaman video asli.",
-        "Pilihan “Video” (sebelumnya “Draf cepat”) memakai model cepat yang tetap mengembalikan detail di rekaman asli — sekitar 8× lebih cepat dari Foto (diukur di MacBook Pro M1).",
-        "Model Anime & manga, Video anime, Desain tepi tajam, dan Foto lembut dihapus, jadi installer membawa sekitar 12 MB model lebih sedikit. Kalau sebelumnya kamu memakai salah satunya, LabScale otomatis memindahkanmu ke pilihan yang paling mirip.",
-        "Upscale tanpa AI (Lanczos) kini hanya muncul di komputer yang tidak bisa menjalankan AI."
+        "Pilihan upscale kini tinggal tiga: Desain & ilustrasi, Foto, dan Video. Dikurasi oleh fotografer profesional di Labstory Studio lewat uji banding.",
+        "Video (dulu “Draf cepat”): sekitar 8× lebih cepat dari Foto.",
+        "Model Anime, Video anime, Desain tepi tajam, dan Foto lembut dihapus. Installer ±12 MB lebih kecil.",
+        "Pilihan tanpa AI hanya muncul di komputer yang tidak bisa menjalankan AI."
       ]
     },
     {
@@ -138,7 +137,7 @@
   ],
   "en": {
     "requirements": {
-      "intro": "The AI features (AI upscaling and RIFE 60 FPS video) run on the GPU through Vulkan. Without a supported GPU, LabScale still works for non-AI upscaling and FFmpeg 60 FPS — both run on the CPU.",
+      "intro": "The AI features need a GPU that supports Vulkan. Without one, LabScale still works, just without AI.",
       "platforms": [
         {
           "name": "Mac",
@@ -198,19 +197,19 @@
       "notes": [
         {
           "title": "The surest check",
-          "text": "Open LabScale and look at the dots in the bottom bar: green Real-ESRGAN and RIFE mean the AI features work. Grey? Click Setup & Status to see why."
+          "text": "Open LabScale. Green Real-ESRGAN and RIFE dots mean the AI features work."
         },
         {
-          "title": "Speed at a glance",
-          "text": "MacBook Pro M1: one 1920×1280 output photo takes ±6.5–7 seconds with Photo, or ±0.7 seconds with Video."
+          "title": "Speed",
+          "text": "MacBook Pro M1: ±7 seconds per photo with Photo, ±0.7 seconds with Video."
         },
         {
           "title": "Disk space",
-          "text": "±400 MB for the app. AI video needs temporary space — keep 20 GB+ free for long videos."
+          "text": "±400 MB for the app. Keep 20 GB+ free for long AI videos."
         },
         {
           "title": "What we've tested",
-          "text": "A MacBook Pro M1 (all features) and a Windows 10 laptop without Vulkan (basic features). The Windows GPU list is based on the manufacturers' official Vulkan support, not on our own testing of every GPU. The status dot in the app remains the surest check."
+          "text": "A MacBook Pro M1 and a Windows 10 laptop without Vulkan. The Windows GPU list comes from the manufacturers' official data."
         }
       ]
     },
@@ -219,22 +218,21 @@
         "version": "2.2.1",
         "date": "2026-10-14",
         "items": [
-          "After updating the GPU driver and pressing Check again in Setup & Status, the upscale choice now switches straight to an AI model. Before, it could show up empty.",
-          "If you used Anime & manga or the crisp-edge design model, you are now moved to Design & illustration (with its download button), not to Photo.",
-          "Downloaded UltraSharp and Remacri model files are now removed automatically, since they can no longer be selected (about 33 MB each). On Windows, old models the installer no longer ships are also removed when you update.",
-          "The “not enough disk space” message no longer suggests a model that was removed.",
-          "Files made with the Video choice end in _lite again, as in 2.1.x.",
-          "The model list no longer checks the disk every time the screen updates."
+          "The upscale choice no longer shows empty after a GPU driver update.",
+          "Anime or crisp-edge design users now move to Design & illustration, not Photo.",
+          "Old models that are no longer used are removed automatically to save disk space.",
+          "The disk-full message no longer mentions a removed model.",
+          "Video results end in _lite again, as in 2.1.x."
         ]
       },
       {
         "version": "2.2.0",
         "date": "2026-10-14",
         "items": [
-          "Upscaling now has three choices, curated by a professional photographer at Labstory Studio: Design & illustration, Photo, and Video. All three were picked through side-by-side tests on design, photo and real video footage.",
-          "The “Video” choice (formerly “Quick draft”) uses a fast model that still brings back detail in real footage — about 8× faster than Photo (measured on a MacBook Pro M1).",
-          "The Anime & manga, Anime video, crisp-edge design and soft-photo models are gone, so the installer carries about 12 MB less model data. If you used one of them, LabScale moves you to the closest remaining choice automatically.",
-          "Upscaling without AI (Lanczos) now only appears on computers that cannot run AI."
+          "Upscaling now has three choices: Design & illustration, Photo, and Video. Curated by a professional photographer at Labstory Studio through side-by-side tests.",
+          "Video (formerly “Quick draft”): about 8× faster than Photo.",
+          "The Anime, Anime video, crisp-edge design and soft-photo models are gone. The installer is ±12 MB smaller.",
+          "The no-AI choice only appears on computers that cannot run AI."
         ]
       },
       {
