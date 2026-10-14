@@ -80,6 +80,20 @@ Mac Intel tidak didukung.
 2. Kalau Windows SmartScreen menampilkan "Windows protected your PC", klik
    **More info → Run anyway**. Installer-nya tidak butuh hak administrator.
 
+### Kenapa muncul peringatan?
+
+LabScale gratis, jadi tidak ditandatangani dengan sertifikat code signing
+berbayar (Windows) atau sertifikat developer Apple (Mac). Itu sebabnya Windows
+dan macOS menampilkan peringatan saat pertama dibuka; hal ini umum untuk app
+open source gratis. Installer-nya dibuat dari kode sumber di repo ini oleh
+[GitHub Actions](.github/workflows/release.yml), dan setiap rilis menyertakan
+`SHA256SUMS.txt` supaya kamu bisa mengecek unduhanmu utuh:
+
+- Mac: `shasum -a 256 LabScale-<versi>-macos.dmg`
+- Windows (Command Prompt): `certutil -hashfile LabScale-Setup-<versi>.exe SHA256`
+
+Hasilnya harus sama dengan baris untuk file itu di `SHA256SUMS.txt`.
+
 ## Spesifikasi — apakah komputerku mumpuni?
 
 Fitur AI (upscale AI dan RIFE) berjalan di **GPU** lewat Vulkan. Tanpa GPU yang

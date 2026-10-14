@@ -80,6 +80,20 @@ Intel Macs are not supported.
    **More info → Run anyway**. The installer does not need administrator
    rights.
 
+### Why the warning?
+
+LabScale is free, so it is not signed with a paid code signing certificate
+(Windows) or Apple developer certificate (Mac). That is why Windows and macOS
+show a warning the first time; this is common for free open-source apps. The
+installers are built from this repository's source code by
+[GitHub Actions](.github/workflows/release.yml), and every release includes
+`SHA256SUMS.txt` so you can check your download is intact:
+
+- Mac: `shasum -a 256 LabScale-<version>-macos.dmg`
+- Windows (Command Prompt): `certutil -hashfile LabScale-Setup-<version>.exe SHA256`
+
+The result should match the line for that file in `SHA256SUMS.txt`.
+
 ## System requirements — will my computer handle it?
 
 The AI features (AI upscaling and RIFE) run on the **GPU** through Vulkan.
