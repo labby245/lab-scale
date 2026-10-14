@@ -1,7 +1,7 @@
 name: labscale
 description: "LabScale — upscale AI dan boost 60 FPS untuk foto & video, diproses lokal."
 publish_to: 'none'
-version: 2.2.0+5
+version: 2.2.1+6
 
 environment:
   sdk: ^3.13.1

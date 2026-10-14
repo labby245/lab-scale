@@ -53,6 +53,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[InstallDelete]
+; Model weights 2.2.0 stopped shipping. [Files] only adds and replaces, so
+; an upgrade over 2.1.x would otherwise leave them in bin\models for good.
+Type: files; Name: "{app}\bin\models\realesrgan-x4plus-anime.*"
+Type: files; Name: "{app}\bin\models\realesr-animevideov3-x*.*"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 

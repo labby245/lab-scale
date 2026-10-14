@@ -37,6 +37,30 @@ void main() {
     ]);
   });
 
+  test('a Lanczos selection moves to AI once AI becomes usable', () {
+    // Refresh after fixing the driver: the dropdown stops listing Lanczos,
+    // so it must not keep holding it as its value.
+    final controller = AppController.inState(
+      capabilities: const Capabilities(ffmpeg: true, esrgan: true),
+      options: const ProcessOptions(upscaleModel: UpscaleModel.lanczos),
+    );
+    controller.reconcileModelAfterChange();
+    expect(
+        controller.offeredModels, contains(controller.options.upscaleModel));
+    expect(controller.options.upscaleModel.isAi, isTrue);
+  });
+
+  test('a downloadable model stays selected until it is fetched', () {
+    // A user mapped from a retired design model lands on Design with its
+    // download button, not silently on Photo.
+    final controller = AppController.inState(
+      capabilities: const Capabilities(ffmpeg: true, esrgan: true),
+      options: const ProcessOptions(upscaleModel: UpscaleModel.ultramix),
+    );
+    controller.reconcileModelAfterChange();
+    expect(controller.options.upscaleModel, UpscaleModel.ultramix);
+  });
+
   test('without a usable GPU, Lanczos is offered next to the greyed AI', () {
     // The AI entries stay visible so the Vulkan hint has something to explain.
     final controller = AppController.inState(

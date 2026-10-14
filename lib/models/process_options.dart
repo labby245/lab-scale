@@ -24,7 +24,9 @@ enum UpscaleModel {
   /// takes 6.3s, which is what makes AI video upscaling practical; the anime
   /// video model it replaced was as fast but left real footage blurred. Also
   /// the model the startup GPU probe runs, for the same speed.
-  upscaylLite('upscayl-lite-4x', 'upscayl-lite-4x', 'video'),
+  // Suffix kept from 2.1.x ("Draf cepat"): a photo run through it is not
+  // video-derived, and the same model keeps the same name.
+  upscaylLite('upscayl-lite-4x', 'upscayl-lite-4x', 'lite'),
 
   /// No AI: FFmpeg's Lanczos filter. Offered only where Real-ESRGAN cannot
   /// run, as the one upscaler that still works there.

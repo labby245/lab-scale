@@ -89,6 +89,9 @@ final List<DownloadableModel> kDownloadableModels = [
   ),
 ];
 
+/// Downloadable weights dropped from the menu in 2.2.0, by file stem.
+const kRetiredDownloads = ['ultrasharp-4x', 'remacri-4x'];
+
 DownloadableModel? downloadableFor(UpscaleModel model) {
   for (final entry in kDownloadableModels) {
     if (entry.model == model) return entry;
@@ -110,6 +113,27 @@ class ModelStore {
   /// Writable per-user folder the weights land in. Never inside the app
   /// bundle: writing there would break the macOS code signature.
   final String dir;
+
+  /// Deletes the weights of downloadable models the menu dropped in 2.2.0,
+  /// which nothing can select or remove any more (~33 MB each). Returns how
+  /// many files went.
+  int removeRetired() {
+    var removed = 0;
+    for (final stem in kRetiredDownloads) {
+      for (final ext in ['param', 'bin']) {
+        final file = File(p.join(dir, '$stem.$ext'));
+        try {
+          if (file.existsSync()) {
+            file.deleteSync();
+            removed++;
+          }
+        } on FileSystemException {
+          // Locked or read-only: harmless, it is only disk space.
+        }
+      }
+    }
+    return removed;
+  }
 
   /// Downloads every file of [model] into [dir], verifying each against its
   /// pinned hash.

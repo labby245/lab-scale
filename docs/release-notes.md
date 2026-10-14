@@ -1,9 +1,11 @@
-**New in 2.2.0:**
+**New in 2.2.1:**
 
-- Upscaling now has three choices, curated by a professional photographer at Labstory Studio: Design & illustration, Photo, and Video. All three were picked through side-by-side tests on design, photo and real video footage.
-- The “Video” choice (formerly “Quick draft”) uses a fast model that still brings back detail in real footage — about 8× faster than Photo (measured on a MacBook Pro M1).
-- The Anime & manga, Anime video, crisp-edge design and soft-photo models are gone, so the installer carries about 12 MB less model data. If you used one of them, LabScale moves you to the closest remaining choice automatically.
-- Upscaling without AI (Lanczos) now only appears on computers that cannot run AI.
+- After updating the GPU driver and pressing Check again in Setup & Status, the upscale choice now switches straight to an AI model. Before, it could show up empty.
+- If you used Anime & manga or the crisp-edge design model, you are now moved to Design & illustration (with its download button), not to Photo.
+- Downloaded UltraSharp and Remacri model files are now removed automatically, since they can no longer be selected (about 33 MB each). On Windows, old models the installer no longer ships are also removed when you update.
+- The “not enough disk space” message no longer suggests a model that was removed.
+- Files made with the Video choice end in _lite again, as in 2.1.x.
+- The model list no longer checks the disk every time the screen updates.
 
 **LabScale** enlarges small, low-resolution photos and videos with AI, and makes choppy video smoother at 60 FPS.
 
@@ -28,12 +30,14 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 - **Windows:** if SmartScreen says "Windows protected your PC", click **More info → Run anyway**. No administrator rights needed.
 
 ---
-**Baru di 2.2.0:**
+**Baru di 2.2.1:**
 
-- Pilihan upscale kini tinggal tiga, dikurasi oleh fotografer profesional di Labstory Studio: Desain & ilustrasi, Foto, dan Video. Ketiganya dipilih lewat uji banding di desain, foto, dan rekaman video asli.
-- Pilihan “Video” (sebelumnya “Draf cepat”) memakai model cepat yang tetap mengembalikan detail di rekaman asli — sekitar 8× lebih cepat dari Foto (diukur di MacBook Pro M1).
-- Model Anime & manga, Video anime, Desain tepi tajam, dan Foto lembut dihapus, jadi installer membawa sekitar 12 MB model lebih sedikit. Kalau sebelumnya kamu memakai salah satunya, LabScale otomatis memindahkanmu ke pilihan yang paling mirip.
-- Upscale tanpa AI (Lanczos) kini hanya muncul di komputer yang tidak bisa menjalankan AI.
+- Setelah driver GPU diperbarui dan kamu menekan Cek ulang di Setup & Status, pilihan upscale kini langsung pindah ke model AI. Sebelumnya pilihannya bisa tampil kosong.
+- Yang dulu memakai Anime & manga atau Desain tepi tajam kini dipindahkan ke Desain & ilustrasi (lengkap dengan tombol unduhnya), bukan ke Foto.
+- File model UltraSharp dan Remacri yang dulu diunduh kini dihapus otomatis, karena tidak bisa dipilih lagi (sekitar 33 MB per model). Di Windows, model lama yang tidak lagi ikut installer juga dihapus saat update.
+- Pesan “ruang disk tidak cukup” tidak lagi menyarankan model yang sudah dihapus.
+- Nama file hasil pilihan Video kembali berakhiran _lite seperti di 2.1.x.
+- Daftar model tidak lagi memeriksa disk setiap kali tampilan diperbarui.
 
 **LabScale** memperbesar foto dan video beresolusi rendah dengan AI, dan membuat video patah-patah jadi lebih mulus di 60 FPS.
 

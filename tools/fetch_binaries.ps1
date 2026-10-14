@@ -25,9 +25,9 @@ param(
     # registered"), and the only published Windows build of it ships inside one
     # archive with ~50 models. Only what is needed is kept.
     [switch]$RifeLatest,
-    # UltraMix / UltraSharp / Remacri into bin/models, for development. They
-    # are CC BY-NC-SA 4.0, so the installer leaves them out and the app
-    # downloads them when picked (lib/core/model_store.dart).
+    # UltraMix Balanced into bin/models, for development. It is CC BY-NC-SA
+    # 4.0, so the installer leaves it out and the app downloads it when
+    # picked (lib/core/model_store.dart).
     [switch]$ExtraModels
 )
 

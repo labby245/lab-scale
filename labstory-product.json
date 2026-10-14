@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "product": "labscale",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "releasedAt": "2026-10-14",
   "requirements": {
     "intro": "Fitur AI (upscale AI dan video 60 FPS RIFE) berjalan di GPU lewat Vulkan. Tanpa GPU yang mendukungnya, LabScale tetap bisa dipakai untuk upscale tanpa AI dan 60 FPS lewat FFmpeg — keduanya berjalan di CPU.",
@@ -81,6 +81,18 @@
     ]
   },
   "changelog": [
+    {
+      "version": "2.2.1",
+      "date": "2026-10-14",
+      "items": [
+        "Setelah driver GPU diperbarui dan kamu menekan Cek ulang di Setup & Status, pilihan upscale kini langsung pindah ke model AI. Sebelumnya pilihannya bisa tampil kosong.",
+        "Yang dulu memakai Anime & manga atau Desain tepi tajam kini dipindahkan ke Desain & ilustrasi (lengkap dengan tombol unduhnya), bukan ke Foto.",
+        "File model UltraSharp dan Remacri yang dulu diunduh kini dihapus otomatis, karena tidak bisa dipilih lagi (sekitar 33 MB per model). Di Windows, model lama yang tidak lagi ikut installer juga dihapus saat update.",
+        "Pesan “ruang disk tidak cukup” tidak lagi menyarankan model yang sudah dihapus.",
+        "Nama file hasil pilihan Video kembali berakhiran _lite seperti di 2.1.x.",
+        "Daftar model tidak lagi memeriksa disk setiap kali tampilan diperbarui."
+      ]
+    },
     {
       "version": "2.2.0",
       "date": "2026-10-14",
@@ -203,6 +215,18 @@
       ]
     },
     "changelog": [
+      {
+        "version": "2.2.1",
+        "date": "2026-10-14",
+        "items": [
+          "After updating the GPU driver and pressing Check again in Setup & Status, the upscale choice now switches straight to an AI model. Before, it could show up empty.",
+          "If you used Anime & manga or the crisp-edge design model, you are now moved to Design & illustration (with its download button), not to Photo.",
+          "Downloaded UltraSharp and Remacri model files are now removed automatically, since they can no longer be selected (about 33 MB each). On Windows, old models the installer no longer ships are also removed when you update.",
+          "The “not enough disk space” message no longer suggests a model that was removed.",
+          "Files made with the Video choice end in _lite again, as in 2.1.x.",
+          "The model list no longer checks the disk every time the screen updates."
+        ]
+      },
       {
         "version": "2.2.0",
         "date": "2026-10-14",

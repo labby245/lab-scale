@@ -298,6 +298,8 @@ class AppController extends ChangeNotifier {
       _appLog?.write('model download failed: ${model.id}: $e');
     } finally {
       _downloads.remove(model);
+      _installed = null;
+      _reconcileModel();
       notifyListeners();
     }
   }
@@ -333,7 +335,18 @@ class AppController extends ChangeNotifier {
   }
 
   /// Whether [model] can actually run here — the binary plus its weights.
-  bool isModelInstalled(UpscaleModel model) {
+  ///
+  /// Read on every rebuild of the ops card, so the answer is cached: it only
+  /// changes after a probe or a download, which both clear it.
+  bool isModelInstalled(UpscaleModel model) =>
+      (_installed ??= {
+        for (final m in UpscaleModel.values)
+          if (_hasWeights(m)) m,
+      }).contains(model);
+
+  Set<UpscaleModel>? _installed;
+
+  bool _hasWeights(UpscaleModel model) {
     final name = model.ncnnName;
     if (name == null) return true; // Lanczos needs nothing.
     return _capabilities.esrgan &&
@@ -362,6 +375,7 @@ class AppController extends ChangeNotifier {
     final support = await getApplicationSupportDirectory();
     Binaries.userModelsDir = p.join(support.path, 'models');
     _modelStore = ModelStore(Binaries.userModelsDir!);
+    final retired = _modelStore!.removeRetired();
     _appLog = AppLog(p.join(support.path, 'logs'))..open();
 
     try {
@@ -378,6 +392,9 @@ class AppController extends ChangeNotifier {
     _logEnvironment();
     if (staleRemoved > 0) {
       _appLog?.write('removed $staleRemoved stale work folder(s) from temp');
+    }
+    if (retired > 0) {
+      _appLog?.write('removed $retired file(s) of retired models');
     }
     notifyListeners();
 
@@ -430,6 +447,7 @@ class AppController extends ChangeNotifier {
       FfmpegRunner.encoders(),
       probeGpuTools(_tempDir),
     ]);
+    _installed = null;
     _capabilities = Capabilities(
       ffmpeg: Binaries.isAvailable(Tool.ffmpeg),
       esrgan: EsrganRunner.isAvailable,
@@ -465,32 +483,49 @@ class AppController extends ChangeNotifier {
     // so the probed encoder list has to go too.
     FfmpegRunner.invalidateEncoderCache();
     await _probeCapabilities();
+    _reconcileModel();
     notifyListeners();
+  }
+
+  /// Whether [model] can stay selected: the dropdown must list it, and it
+  /// must either run now or be one download away. Anything else would leave
+  /// the dropdown holding a value it does not show, or one the user cannot
+  /// re-pick.
+  bool _isSelectable(UpscaleModel model) =>
+      offeredModels.contains(model) &&
+      (isModelInstalled(model) ||
+          (downloadableFor(model) != null && _capabilities.esrgan));
+
+  /// The best model that runs here. Falling back on the binary's presence
+  /// alone would just pick another model whose weights are missing, landing
+  /// back in the same state. x4plus first because the installers bundle it.
+  UpscaleModel _fallbackModel() => [
+        UpscaleModel.realesrganX4Plus,
+        ...UpscaleModel.values.where((m) => m.isAi),
+      ].firstWhere(isModelInstalled, orElse: () => UpscaleModel.lanczos);
+
+  /// Re-checks the selection after what is installed changed under it — AI
+  /// becoming usable hides Lanczos, for one.
+  @visibleForTesting
+  void reconcileModelAfterChange() {
+    _installed = null;
+    _reconcileModel();
+  }
+
+  void _reconcileModel() {
+    if (_isSelectable(_options.upscaleModel)) return;
+    _options = _options.copyWith(upscaleModel: _fallbackModel());
   }
 
   void _restorePreferences() {
     final prefs = _prefs;
     if (prefs == null) return;
 
-    // Fall back to the best model the machine can actually run.
+    // A first run, or a stored model this machine cannot hold, falls back to
+    // the best model that runs here.
     final storedModel = prefs.getString(_kUpscaleModel);
     var model = UpscaleModel.fromId(storedModel);
-    // A stored model whose weights are not on this machine would leave the
-    // dropdown showing a disabled entry the user cannot re-pick, so fall back
-    // the same way a first run does.
-    // Lanczos is hidden wherever AI runs, so a stored Lanczos there would be
-    // a selection the dropdown no longer shows.
-    if (storedModel == null ||
-        !isModelInstalled(model) ||
-        !offeredModels.contains(model)) {
-      // Falling back on the binary's presence alone would just pick another
-      // model whose weights are missing, landing back in the same state.
-      // x4plus first because it is what the default fetch installs.
-      model = [
-        UpscaleModel.realesrganX4Plus,
-        ...UpscaleModel.values.where((m) => m.isAi),
-      ].firstWhere(isModelInstalled, orElse: () => UpscaleModel.lanczos);
-    }
+    if (storedModel == null || !_isSelectable(model)) model = _fallbackModel();
 
     // A stored 'rife' must not survive onto a machine without RIFE: the
     // dropdown disables that entry, which would leave it showing a selection

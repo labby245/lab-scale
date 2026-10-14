@@ -100,4 +100,23 @@ void main() {
           .having((e) => e.message, 'message', contains('404'))),
     );
   });
+
+  test('weights of retired models are removed, everything else kept', () {
+    for (final name in [
+      'ultrasharp-4x.param',
+      'ultrasharp-4x.bin',
+      'remacri-4x.bin',
+      'ultramix-balanced-4x.param',
+      'ultramix-balanced-4x.bin',
+    ]) {
+      File(p.join(dir.path, name)).writeAsStringSync('x');
+    }
+    expect(ModelStore(dir.path).removeRetired(), 3);
+    expect(
+      dir.listSync().map((e) => p.basename(e.path)).toSet(),
+      {'ultramix-balanced-4x.param', 'ultramix-balanced-4x.bin'},
+    );
+    // Nothing left to do on the next launch.
+    expect(ModelStore(dir.path).removeRetired(), 0);
+  });
 }

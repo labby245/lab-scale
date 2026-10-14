@@ -475,11 +475,11 @@ class S {
       );
   String notEnoughDisk(int needed, int free, String dir) => _(
         'Ruang disk tidak cukup: butuh ±${gb(needed)} untuk frame sementara, '
-            'tersedia ${gb(free)} di $dir. Kosongkan ruang, pilih "Video '
-            'anime" (punya bobot 2× sendiri), atau potong klipnya.',
+            'tersedia ${gb(free)} di $dir. Kosongkan ruang, atau potong '
+            'klipnya jadi bagian yang lebih pendek.',
         'Not enough disk space: about ${gb(needed)} is needed for temporary '
-            'frames, ${gb(free)} is free on $dir. Free up space, pick "Anime '
-            'video" (it has its own 2× weights), or trim the clip.',
+            'frames, ${gb(free)} is free on $dir. Free up space, or split the '
+            'clip into shorter parts.',
       );
   String get ffmpegMissingHint => _(
         'FFmpeg tidak ditemukan. Install ulang LabScale, atau letakkan ffmpeg '
