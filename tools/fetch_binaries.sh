@@ -116,13 +116,33 @@ if ! already_present ffmpeg; then
 fi
 
 # ── Real-ESRGAN ──────────────────────────────────────────────────────────────
-info $'\n[2/4] Real-ESRGAN (ncnn-vulkan)'
-if ! already_present realesrgan-ncnn-vulkan; then
+#
+# Built from source (tools/realesrgan/build_macos.sh): the 2022 release cannot
+# run the "Foto" model. Rebuilt whenever bin/ holds a binary made from other
+# pins — including the 2022 one, which has no build id at all.
+info $'\n[2/4] Real-ESRGAN (ncnn-vulkan, build dari source)'
+RESR_BUILD_ID="$("$ROOT/tools/realesrgan/build_macos.sh" --build-id)"
+if [[ $FORCE -eq 0 && -x "$BIN_DIR/realesrgan-ncnn-vulkan" \
+      && "$(cat "$BIN_DIR/realesrgan-ncnn-vulkan.build-id" 2>/dev/null)" == "$RESR_BUILD_ID" ]]; then
+  skip "realesrgan-ncnn-vulkan ($RESR_BUILD_ID) sudah ada — lewati (pakai --force untuk build ulang)"
+else
+  "$ROOT/tools/realesrgan/build_macos.sh" "$BIN_DIR/realesrgan-ncnn-vulkan"
+  ok "bin/realesrgan-ncnn-vulkan ($RESR_BUILD_ID)"
+fi
+# The x4plus weights come from xinntao's release (BSD-3-Clause). Only that
+# pair is taken: the binary in the archive is not used, and copying the whole
+# models folder would wipe weights other steps put there.
+if [[ $FORCE -eq 1 || ! -f "$BIN_DIR/models/realesrgan-x4plus.bin" ]]; then
   d="$(fetch_zip \
     'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-macos.zip' \
     realesrgan)"
-  install_exe "$d" realesrgan-ncnn-vulkan
-  install_models "$d" models
+  mkdir -p "$BIN_DIR/models"
+  for ext in param bin; do
+    f="$(find "$d" -name "realesrgan-x4plus.$ext" -type f -print -quit)"
+    [[ -n "$f" ]] || { echo "ERROR: realesrgan-x4plus.$ext tidak ada di arsip" >&2; exit 1; }
+    cp -f "$f" "$BIN_DIR/models/"
+  done
+  ok "models/realesrgan-x4plus"
 fi
 
 # ── RIFE ─────────────────────────────────────────────────────────────────────
@@ -189,6 +209,9 @@ fetch_models() {
 
 info $'\n[4/4] Model upscale tambahan'
 fetch_models upscayl-lite-4x
+# "Foto" on macOS: converted from Phhofm's checkpoint (CC BY 4.0), see
+# tools/realesrgan/convert_models.sh. Needs the binary built in step 2.
+"$ROOT/tools/realesrgan/convert_models.sh" "$BIN_DIR/models"
 if [[ $EXTRA_MODELS -eq 1 ]]; then
   fetch_models ultramix-balanced-4x
 else

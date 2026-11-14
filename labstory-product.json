@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "product": "labscale",
-  "version": "2.2.1",
-  "releasedAt": "2026-10-14",
+  "version": "2.3.0",
+  "releasedAt": "2026-11-14",
   "requirements": {
     "intro": "Fitur AI butuh GPU yang mendukung Vulkan. Tanpa itu, LabScale tetap bisa dipakai, hanya tanpa AI.",
     "platforms": [
@@ -68,7 +68,7 @@
       },
       {
         "title": "Kecepatan",
-        "text": "MacBook Pro M1: ±7 detik per foto dengan Foto, ±0,7 detik dengan Video."
+        "text": "MacBook Pro M1: ±8 detik per foto dengan Foto, ±1 detik dengan Video."
       },
       {
         "title": "Ruang disk",
@@ -81,6 +81,15 @@
     ]
   },
   "changelog": [
+    {
+      "version": "2.3.0",
+      "date": "2026-11-14",
+      "items": [
+        "Foto di Mac memakai model baru: kulit lebih natural, latar buram tetap buram, dan teks tetap tajam. Paling terasa di foto dari chat atau marketplace yang sudah dikompres.",
+        "Foto di Mac sedikit lebih lama: ±8 detik per foto di M1, sebelumnya ±7.",
+        "Di Windows, Foto tetap memakai model sebelumnya."
+      ]
+    },
     {
       "version": "2.2.1",
       "date": "2026-10-14",
@@ -120,18 +129,6 @@
         "Di PC yang GPU-nya tidak mendukung Vulkan (umum di laptop lama), fitur AI kini ditandai tidak tersedia beserta alasannya, dan boost 60 FPS memakai FFmpeg alih-alih gagal.",
         "Di layar kecil seperti laptop 1366×768, jendela kini pas di layar.",
         "Log proses kini tampil lengkap sampai baris terakhir."
-      ]
-    },
-    {
-      "version": "2.1.0",
-      "date": "2026-10-13",
-      "items": [
-        "Rilis publik pertama: LabScale kini gratis dan open source.",
-        "Tampilan dalam Bahasa Indonesia dan Inggris, bisa diganti dari bagian atas jendela.",
-        "Proses bisa dibatalkan kapan saja tanpa meninggalkan file setengah jadi.",
-        "Sebelum memproses video dengan AI, LabScale mengecek apakah ruang disk cukup.",
-        "Model UltraMix, UltraSharp, dan Remacri bisa diunduh dari dalam app saat dipilih (khusus pemakaian non-komersial).",
-        "Ada pemberitahuan saat versi baru tersedia, dan folder log untuk melaporkan masalah."
       ]
     }
   ],
@@ -201,7 +198,7 @@
         },
         {
           "title": "Speed",
-          "text": "MacBook Pro M1: ±7 seconds per photo with Photo, ±0.7 seconds with Video."
+          "text": "MacBook Pro M1: ±8 seconds per photo with Photo, ±1 second with Video."
         },
         {
           "title": "Disk space",
@@ -214,6 +211,15 @@
       ]
     },
     "changelog": [
+      {
+        "version": "2.3.0",
+        "date": "2026-11-14",
+        "items": [
+          "Photo on Mac uses a new model: more natural skin, blurred backgrounds stay blurred, and text stays sharp. Most noticeable on photos from chats or marketplaces that were already compressed.",
+          "Photo on Mac takes a little longer: about 8 seconds per photo on an M1, up from about 7.",
+          "On Windows, Photo keeps the previous model."
+        ]
+      },
       {
         "version": "2.2.1",
         "date": "2026-10-14",
@@ -253,18 +259,6 @@
           "On PCs whose GPU has no Vulkan support (common on older laptops), the AI features are now shown as unavailable with the reason, and the 60 FPS boost uses FFmpeg instead of failing.",
           "On small screens such as 1366×768 laptops, the window now fits the screen.",
           "The process log now shows every job through to its last line."
-        ]
-      },
-      {
-        "version": "2.1.0",
-        "date": "2026-10-13",
-        "items": [
-          "First public release: LabScale is now free and open source.",
-          "Interface in Indonesian and English, switchable from the top of the window.",
-          "Jobs can be cancelled at any time without leaving half-finished files behind.",
-          "Before processing video with AI, LabScale checks that there is enough disk space.",
-          "The UltraMix, UltraSharp and Remacri models can be downloaded from inside the app when selected (non-commercial use only).",
-          "A notice appears when a new version is available, plus a log folder for reporting problems."
         ]
       }
     ]

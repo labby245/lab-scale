@@ -52,6 +52,10 @@ it: email **hello@labstory.id**.
 `realesrgan-ncnn-vulkan`, AI upscaling.
 Copyright © 2021 Xintao Wang. Copyright © 2019 nihui (realsr-ncnn-vulkan).
 <https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan>
+The macOS build is compiled by LabScale from that source on a current ncnn,
+with small changes (`tools/realesrgan/labscale.patch` in the LabScale
+repository): all ncnn layers built in, fp32 for models that use GridSample,
+and larger tiles on Apple Silicon.
 
 ### RIFE ncnn Vulkan — MIT
 
@@ -64,9 +68,15 @@ Copyright © 2021 Xintao Wang. Copyright © 2019 nihui (realsr-ncnn-vulkan).
 Neural network inference, compiled into both tools above.
 Copyright © 2017 THL A29 Limited, a Tencent company.
 <https://github.com/Tencent/ncnn>
-Includes libwebp (BSD-3-Clause, Google), stb (public domain / MIT) and, on
-Windows, dirent (MIT). The macOS builds include MoltenVK (Apache-2.0, The
-Khronos Group) and the LLVM OpenMP runtime (Apache-2.0 with LLVM exception).
+Includes libwebp (BSD-3-Clause, Google), stb (public domain / MIT),
+glslang (BSD-3-Clause and related permissive licences, The Khronos Group and
+others) and, on Windows, dirent (MIT). The macOS builds include MoltenVK
+(Apache-2.0, The Khronos Group, `licenses/Apache-2.0.txt`); the macOS RIFE
+build also includes the LLVM OpenMP runtime (Apache-2.0 with LLVM exception).
+
+Full texts, taken from the exact sources the macOS Real-ESRGAN build compiles:
+`licenses/ncnn.txt` (ncnn, with its third-party list), `licenses/glslang.txt`
+(glslang, every licence it carries) and `licenses/libwebp.txt` (libwebp).
 
 ### mpv / libmpv (via media_kit) — LGPL
 
@@ -81,11 +91,23 @@ replaced. Build sources:
 
 | Model | Licence | Author |
 |---|---|---|
-| RealESRGAN x4plus (shown as "Photo") | BSD-3-Clause | Xintao Wang |
+| RealESRGAN x4plus (shown as "Photo" on Windows) | BSD-3-Clause | Xintao Wang |
 | realesr-general-x4v3 (shown as "Video", file `upscayl-lite-4x`) | BSD-3-Clause | Xintao Wang |
+| 4xBHI_realplksr_dysample_real (shown as "Photo" on macOS, file `4xBHI-realplksr-real`) | CC BY 4.0 | Philip Hofmann (Phhofm) |
 | RIFE v4.6 / v4.25 | MIT | hzwer (Practical-RIFE) |
 
 <https://github.com/xinntao/Real-ESRGAN>, <https://github.com/hzwer/Practical-RIFE>
+
+**4xBHI_realplksr_dysample_real** by Philip Hofmann,
+<https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr>, licensed under
+Creative Commons Attribution 4.0 International (`licenses/CC-BY-4.0.txt`,
+<https://creativecommons.org/licenses/by/4.0/>). Changes: converted from
+PyTorch to the ncnn format (`tools/realesrgan/convert_models.sh` in the
+LabScale repository). The weights are unchanged; the network is written out
+in operations ncnn supports and computes the same result. It is a RealPLKSR
+network (architecture by dslisleedh and muslll) with a DySample upsampler
+(Liu et al., 2023), only in the macOS installer — the Windows build of
+Real-ESRGAN cannot run it yet, so "Photo" there is RealESRGAN x4plus.
 
 ```
 BSD 3-Clause License

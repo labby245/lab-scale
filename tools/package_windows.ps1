@@ -57,7 +57,7 @@ try {
     # rest are downloaded by the app on demand. Same list as package_macos.sh.
     $bundledModels = Get-Content (Join-Path $PSScriptRoot 'bundled_models.txt') |
         ForEach-Object { ($_ -replace '#.*$', '').Trim() } |
-        Where-Object { $_ }
+        Where-Object { $_ -and -not $_.StartsWith('macos:') }
 
     # Only the RIFE model the app would actually pick, in the same order as
     # Binaries._modelDirNames. Shipping the rest would add ~10 MB each for

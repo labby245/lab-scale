@@ -364,13 +364,18 @@ class S {
   /// Labelled by what each model is *for* rather than by its name — nobody
   /// picking a model knows what "ultramix-balanced" does, but everybody knows
   /// whether they are upscaling a photo or a logo.
-  String modelLabel(UpscaleModel m) => switch (m) {
+  ///
+  /// A model that supersedes another is never listed beside it and does the
+  /// same job, so it simply carries that entry's label.
+  String modelLabel(UpscaleModel m) => switch (m.supersedes ?? m) {
         UpscaleModel.ultramix => _(
             'Desain & ilustrasi — logo, poster, teks',
             'Design & illustration — logos, posters, text',
           ),
         UpscaleModel.realesrganX4Plus =>
           _('Foto — hasil kamera & HP', 'Photo — camera & phone shots'),
+        // Unreachable: a superseding model is labelled as the one it replaces.
+        UpscaleModel.realplksr => modelLabel(UpscaleModel.realesrganX4Plus),
         UpscaleModel.upscaylLite => _(
             'Video — cepat, untuk rekaman asli',
             'Video — fast, for real footage',

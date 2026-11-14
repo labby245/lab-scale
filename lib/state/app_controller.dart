@@ -325,12 +325,22 @@ class AppController extends ChangeNotifier {
   /// The upscale dropdown's entries. Lanczos only appears where no AI model
   /// can run — on a PC without Vulkan it is the one upscaler that works, and
   /// anywhere else it would only be a worse choice to stumble on.
+  ///
+  /// Of a model and the one it supersedes, exactly one is listed: the newer
+  /// where its weights are installed, the older everywhere else.
   List<UpscaleModel> get offeredModels {
     final aiRuns =
         UpscaleModel.values.any((m) => m.isAi && isModelInstalled(m));
+    final superseded = {
+      for (final m in UpscaleModel.values)
+        if (m.supersedes != null && isModelInstalled(m)) m.supersedes,
+    };
     return [
       for (final m in UpscaleModel.values)
-        if (m.isAi || !aiRuns) m,
+        if ((m.isAi || !aiRuns) &&
+            !superseded.contains(m) &&
+            (m.supersedes == null || isModelInstalled(m)))
+          m,
     ];
   }
 
@@ -350,7 +360,9 @@ class AppController extends ChangeNotifier {
     final name = model.ncnnName;
     if (name == null) return true; // Lanczos needs nothing.
     return _capabilities.esrgan &&
-        Binaries.hasEsrganModel(name, scales: model.nativeScales);
+        Binaries.hasEsrganModel(name, scales: model.nativeScales) &&
+        model.ncnnLayers
+            .every((layer) => Binaries.hasNcnnLayer(Tool.realesrgan, layer));
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -496,13 +508,25 @@ class AppController extends ChangeNotifier {
       (isModelInstalled(model) ||
           (downloadableFor(model) != null && _capabilities.esrgan));
 
-  /// The best model that runs here. Falling back on the binary's presence
-  /// alone would just pick another model whose weights are missing, landing
-  /// back in the same state. x4plus first because the installers bundle it.
-  UpscaleModel _fallbackModel() => [
-        UpscaleModel.realesrganX4Plus,
-        ...UpscaleModel.values.where((m) => m.isAi),
-      ].firstWhere(isModelInstalled, orElse: () => UpscaleModel.lanczos);
+  /// The best model that runs here and that the menu lists. Falling back on
+  /// the binary's presence alone would just pick another model whose weights
+  /// are missing, landing back in the same state; picking one the menu hides
+  /// (a superseded entry) would leave the dropdown holding a value it does
+  /// not show. Photo first because the installers bundle it, with whatever
+  /// supersedes it ahead of it — so a stored x4plus on a Mac that gained
+  /// realplksr lands on realplksr.
+  UpscaleModel _fallbackModel() {
+    const photo = UpscaleModel.realesrganX4Plus;
+    final offered = offeredModels;
+    return [
+      ...UpscaleModel.values.where((m) => m.supersedes == photo),
+      photo,
+      ...UpscaleModel.values.where((m) => m.isAi),
+    ].firstWhere(
+      (m) => isModelInstalled(m) && offered.contains(m),
+      orElse: () => UpscaleModel.lanczos,
+    );
+  }
 
   /// Re-checks the selection after what is installed changed under it — AI
   /// becoming usable hides Lanczos, for one.

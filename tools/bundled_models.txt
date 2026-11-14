@@ -4,7 +4,16 @@
 #
 # Only weights whose licence allows redistribution belong here. Everything
 # else is downloaded on demand by the app — see lib/core/model_store.dart.
+#
+# A `macos:` prefix ships a stem in the macOS installer only.
+
+# xinntao's x4plus (BSD-3-Clause): "Foto" wherever the model below cannot
+# run — on Windows, whose Real-ESRGAN binary predates GridSample.
 realesrgan-x4plus
 # Upscayl's name for xinntao's realesr-general-x4v3 (BSD-3-Clause): the
 # "Video" entry, and the model the startup GPU probe runs.
 upscayl-lite-4x
+# Phhofm's 4xBHI_realplksr_dysample_real (CC BY 4.0), converted to ncnn by
+# tools/realesrgan/convert_models.sh: "Foto" on macOS. Needs the binary that
+# tools/realesrgan/build_macos.sh builds.
+macos:4xBHI-realplksr-real

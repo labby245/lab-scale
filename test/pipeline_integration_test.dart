@@ -311,6 +311,32 @@ void main() {
       ? false
       : 'realesrgan-ncnn-vulkan tidak terpasang di bin/'));
 
+  group('image — Photo on realplksr (macOS build)', () {
+    test('realplksr upscales a still 4x', () async {
+      // Runs only with LabScale's own Real-ESRGAN build: the 2022 binary has
+      // no GridSample layer and fails on this model.
+      final still = await makeStill('photo_plksr.png');
+      final result = await run(
+        still,
+        const ProcessOptions(
+          upscale: true,
+          upscaleModel: UpscaleModel.realplksr,
+          upscaleScale: 4,
+          sharpness: 0.3,
+        ),
+      );
+
+      expect(result.error, isNull);
+      final info = await FfmpegRunner.probe(result.outputPath);
+      expect(info.width, _clipWidth * 4);
+      expect(info.height, _clipHeight * 4);
+      expect(p.basename(result.outputPath), contains('_plksr-real-4x'));
+    }, timeout: const Timeout(Duration(minutes: 5)));
+  }, skip: _noFfmpeg ?? (Binaries.isAvailable(Tool.realesrgan) &&
+          Binaries.hasEsrganModel(UpscaleModel.realplksr.ncnnName!)
+      ? false
+      : 'realplksr belum ada di bin/ — jalankan tools/fetch_binaries.sh'));
+
   group('video — RIFE frame path', () {
     test('RIFE interpolation reaches the target rate', () async {
       final clip = await makeClip('src_rife.mp4');

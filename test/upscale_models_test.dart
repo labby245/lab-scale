@@ -2,6 +2,8 @@
 /// entries have to stay distinguishable and honest about what is installed.
 library;
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labscale/core/model_store.dart';
 import 'package:labscale/l10n/strings.dart';
@@ -57,6 +59,32 @@ void main() {
             reason: '${s.code} ${m.id}: "$label" tidak menyebut peruntukannya');
       }
     });
+  });
+
+  test('a superseding model replaces an AI model and is never a download', () {
+    // It is listed only where its weights already are; a download offer
+    // would put it on a machine whose binary cannot run it.
+    for (final m in UpscaleModel.values) {
+      final old = m.supersedes;
+      if (old == null) continue;
+      expect(m.isAi && old.isAi, isTrue, reason: m.id);
+      expect(old.supersedes, isNull, reason: 'no chains: ${m.id}');
+      expect(downloadableFor(m), isNull, reason: m.id);
+    }
+  });
+
+  test('superseding weights ship in the macOS installer, the old ones in all',
+      () {
+    final entries = File('tools/bundled_models.txt')
+        .readAsLinesSync()
+        .map((l) => l.split('#').first.trim())
+        .where((l) => l.isNotEmpty)
+        .toSet();
+    for (final m in UpscaleModel.values) {
+      if (m.supersedes == null) continue;
+      expect(entries, contains('macos:${m.ncnnName}'), reason: m.id);
+      expect(entries, contains(m.supersedes!.ncnnName), reason: m.id);
+    }
   });
 
   test('every downloadable model is pinned and credited', () {

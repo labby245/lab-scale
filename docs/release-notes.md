@@ -1,10 +1,8 @@
-**New in 2.2.1:**
+**New in 2.3.0:**
 
-- The upscale choice no longer shows empty after a GPU driver update.
-- Anime or crisp-edge design users now move to Design & illustration, not Photo.
-- Old models that are no longer used are removed automatically to save disk space.
-- The disk-full message no longer mentions a removed model.
-- Video results end in _lite again, as in 2.1.x.
+- Photo on Mac uses a new model: more natural skin, blurred backgrounds stay blurred, and text stays sharp. Most noticeable on photos from chats or marketplaces that were already compressed.
+- Photo on Mac takes a little longer: about 8 seconds per photo on an M1, up from about 7.
+- On Windows, Photo keeps the previous model.
 
 **LabScale** enlarges small, low-resolution photos and videos with AI, and makes choppy video smoother at 60 FPS.
 

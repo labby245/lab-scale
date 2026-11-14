@@ -25,6 +25,18 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$ROOT/bin"
+
+# The Photo model needs LabScale's own Real-ESRGAN build (GridSample). A bin/
+# still holding the 2022 release, or a build from other pins, would ship a
+# Photo entry that fails on every job — so the build id must match.
+want_build="$("$ROOT/tools/realesrgan/build_macos.sh" --build-id)"
+have_build="$(cat "$BIN_DIR/realesrgan-ncnn-vulkan.build-id" 2>/dev/null || echo 'tidak ada')"
+if [[ "$have_build" != "$want_build" ]]; then
+  echo "ERROR: bin/realesrgan-ncnn-vulkan bukan build $want_build (yang ada: $have_build)." >&2
+  echo "       Jalankan tools/fetch_binaries.sh untuk mem-build ulang." >&2
+  exit 1
+fi
+
 DIST_DIR="$ROOT/dist"
 APP_NAME="LabScale"
 BUILD_APP="$ROOT/build/macos/Build/Products/Release/$APP_NAME.app"
@@ -68,6 +80,7 @@ PAYLOAD_DIRS=()
 BUNDLED_MODELS=()
 while IFS= read -r line; do
   line="${line%%#*}"; line="${line//[[:space:]]/}"
+  line="${line#macos:}"   # macOS-only entries are ours too
   [[ -n "$line" ]] && BUNDLED_MODELS+=("$line")
 done < "$ROOT/tools/bundled_models.txt"
 

@@ -6,7 +6,7 @@ Upscale AI dan boost 60 FPS untuk foto & video — aplikasi desktop Flutter untu
 
 ## Fitur
 
-- **Upscale** — tiga pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: Desain & ilustrasi (UltraMix Balanced), Foto (x4plus), dan Video (`realesr-general-x4v3`). Lanczos tanpa AI hanya muncul di komputer yang tidak bisa menjalankan AI. Skala 1×–4×.
+- **Upscale** — tiga pilihan yang diberi label menurut *peruntukannya*, bukan nama modelnya: Desain & ilustrasi (UltraMix Balanced), Foto (RealPLKSR `4xBHI_realplksr_dysample_real` di macOS, x4plus di Windows), dan Video (`realesr-general-x4v3`). Lanczos tanpa AI hanya muncul di komputer yang tidak bisa menjalankan AI. Skala 1×–4×.
 - **Sharpness** — unsharp mask yang bisa diatur, diterapkan dalam satu pass bersama enkode.
 - **Boost ke 60 FPS** — interpolasi frame lewat RIFE AI (di GPU) atau FFmpeg `minterpolate` (di CPU). Diukur di M1 (720p, 4 detik → 60 fps): jalur RIFE 15,4 detik, minterpolate 18,0 detik — RIFE bukan soal kecepatan.
 - **Batch / folder** — drop satu folder, semua media di dalamnya diproses berurutan, dan hasilnya dikumpulkan ke satu folder `<nama folder>_upscaled` di dalam folder output. Semuanya muncul sebagai grid thumbnail, dan saat batch jalan file yang sedang dikerjakan memakai progress bar di atas gambarnya sendiri — tidak perlu membaca log untuk tahu sudah sampai mana.
@@ -21,7 +21,7 @@ LabScale adalah aplikasi Flutter murni. Tidak ada runtime Python, tidak ada serv
 | Tool | Peran | GPU |
 |---|---|---|
 | `ffmpeg` / `ffprobe` | probe, ekstrak frame, filter, enkode | NVENC / VideoToolbox |
-| `realesrgan-ncnn-vulkan` | upscale AI | Vulkan (Win) / Metal via MoltenVK (Mac) |
+| `realesrgan-ncnn-vulkan` | upscale AI — di macOS di-build sendiri dari source (lihat di bawah) | Vulkan (Win) / Metal via MoltenVK (Mac) |
 | `rife-ncnn-vulkan` | interpolasi frame AI (RIFE v4.25) | Vulkan / Metal |
 
 Video mengambil salah satu dari dua jalur:
@@ -47,7 +47,9 @@ flutter run -d windows    # atau: flutter run -d macos
 
 `bin/` sengaja tidak masuk git — isinya besar dan berlisensi terpisah.
 
-**Model upscale: dibundel vs diunduh.** Yang ikut installer hanya bobot berlisensi bebas — daftarnya di [`tools/bundled_models.txt`](../tools/bundled_models.txt), dibaca kedua packager: x4plus dan `upscayl-lite-4x` (itu `realesr-general-x4v3` milik xinntao, BSD-3, dengan nama lain). UltraMix Balanced berlisensi **CC BY-NC-SA 4.0** — tidak boleh masuk installer berlisensi MIT, jadi app mengunduhnya sendiri saat dipilih ([`lib/core/model_store.dart`](../lib/core/model_store.dart)): dari satu commit Upscayl yang dikunci, diverifikasi sha256, ke folder per-user (`~/Library/Application Support/com.labby245.labscale/models` atau `%APPDATA%\…\models`). Di dropdown, model itu diberi label "unduh 33 MB" dan menampilkan kredit + catatan non-komersial. `--extra-models` / `-ExtraModels` tetap ada untuk menaruhnya di `bin/` saat development.
+Di macOS, `fetch_binaries.sh` kini butuh **Xcode command line tools, `cmake`, dan `python3`**: Real-ESRGAN di-build dari source (~5 menit) dan model Foto dikonversi dari bobot aslinya (lingkungan Python dengan torch ~1 GB, sekali saja, disimpan di `~/Library/Caches/labscale`). Penjelasannya di [Real-ESRGAN macOS](#real-esrgan-macos-build-sendiri).
+
+**Model upscale: dibundel vs diunduh.** Yang ikut installer hanya bobot berlisensi bebas — daftarnya di [`tools/bundled_models.txt`](../tools/bundled_models.txt), dibaca kedua packager: x4plus, `upscayl-lite-4x` (itu `realesr-general-x4v3` milik xinntao, BSD-3, dengan nama lain), dan — khusus installer macOS, ditandai `macos:` — `4xBHI-realplksr-real` (CC BY 4.0, Phhofm). Di Mac yang punya model itu, menu Foto memakainya dan x4plus tidak didaftarkan (`UpscaleModel.supersedes`); di Windows sebaliknya. UltraMix Balanced berlisensi **CC BY-NC-SA 4.0** — tidak boleh masuk installer berlisensi MIT, jadi app mengunduhnya sendiri saat dipilih ([`lib/core/model_store.dart`](../lib/core/model_store.dart)): dari satu commit Upscayl yang dikunci, diverifikasi sha256, ke folder per-user (`~/Library/Application Support/com.labby245.labscale/models` atau `%APPDATA%\…\models`). Di dropdown, model itu diberi label "unduh 33 MB" dan menampilkan kredit + catatan non-komersial. `--extra-models` / `-ExtraModels` tetap ada untuk menaruhnya di `bin/` saat development.
 
 Diukur di M1 — gambar 1920×1280 dikecilkan 4× lalu di-upscale balik, dinilai terhadap aslinya. UltraSharp, Remacri, x4plus-anime, dan AnimeVideoV3 dihapus dari menu di 2.2.0:
 
@@ -79,6 +81,39 @@ Di footage, AnimeVideoV3 sama cepatnya dengan `realesr-general-x4v3`, tapi hasil
 **RIFE v4.25 (opsional).** Default-nya v4.6 dari rilis nihui 2022, karena unduhannya ringan. Untuk model yang jauh lebih baik, tambahkan `--rife-latest` (bash) atau `-RifeLatest` (PowerShell). Harganya unduhan ~790 MB: **setiap model RIFE setelah v4.6 butuh build ncnn yang lebih baru** — binary lama menolak semuanya dengan `layer MemoryData not exists or registered` — dan satu-satunya build yang dipublikasikan ada di dalam satu arsip berisi ~50 model. Hanya yang diperlukan yang disimpan.
 
 Diukur di M1, 24 frame 1920×1080: v4.6 4,5 detik, v4.25 6,0 detik. Binary barunya tidak menurunkan performa model lama (4,4 detik).
+
+### Model Foto: diuji di foto nyata (2.3.0)
+
+Uji "dikecilkan lalu di-upscale balik" menguntungkan model yang dilatih di gambar bersih. Untuk 2.3.0, Foto dipilih dari pemakaian sungguhan: empat foto cetak 720×1280 yang diunduh dari chat (sudah dikompres ulang; isinya wajah, bayi, renda, teks nama, bingkai film), di-upscale 4× apa adanya dan dinilai berdampingan. 25 model dicoba — semua kandidat NCNN di Upscayl plus model PyTorch terbaru Phhofm (DAT2, HAT-L, DRCT-L, ATD, RealPLKSR, ESRGAN).
+
+| Model | Hasil | Waktu per foto 720×1280 (M1) |
+|---|---|---|
+| **4xBHI_realplksr_dysample_real** | kulit natural, latar buram tetap buram, teks tajam — dipilih | ~44 dtk (NCNN, fp32) |
+| 4xBHI_dat2_real | setara, sedikit lebih lembut | ~2,5 mnt (PyTorch/MPS); tak bisa di NCNN |
+| 4xLSDIRplusC | bersih, natural, agak lembut — terbaik di antara yang jalan di binary 2022 | ~40 dtk |
+| x4plus | kulit seperti lilin; mengarang garis tajam di latar yang buram | ~40 dtk |
+| UltraMix Balanced | seperti lukisan di foto (lengan bertekstur kayu) — tetap juara desain datar | ~40 dtk |
+| model "hq" (DAT2/HAT-L/DRCT-L) | memperjelas kotak-kotak JPEG | 1–1,5 mnt |
+| 4xNomosWebPhoto_RealPLKSR | varian tanpa DySample; mengarang garis di latar buram | — |
+
+Pelajaran: untuk foto dari chat/marketplace, pilih model yang dilatih dengan kerusakan JPEG (akhiran `real`/`plusC`); model `hq` yang unggul di benchmark bersih justru gagal. Di desain datar murni (poster, ikon), RealPLKSR menambah bintik halus di bidang warna dan garis tepi gelap tipis — UltraMix tetap pilihan Desain.
+
+### Real-ESRGAN macOS: build sendiri
+
+Rilis xinntao (2022-04-24) memakai ncnn yang belum punya layer `GridSample`, padahal DySample — upsampler model Foto — membutuhkannya. Jadi binary macOS di-build dari source oleh [`tools/realesrgan/build_macos.sh`](../tools/realesrgan/build_macos.sh): program yang sama, ncnn terbaru, MoltenVK statis, arm64, macOS 12+. Semua sumber dikunci ke commit/sha256 (glslang dibaca dari pin submodule ncnn). Perubahannya ada di [`labscale.patch`](../tools/realesrgan/labscale.patch):
+
+- **Semua layer ncnn ikut di-build.** Whitelist asli mematikan Sigmoid, Reshape, Slice, GroupNorm, MemoryData, dll.
+- **Model ber-`GridSample` jalan di fp32.** Di fp16 koordinat sampling DySample meleset: 1–3% piksel berbeda > 8 level dari PyTorch (maks 54). Di fp32 hasilnya identik (selisih maks 1 level). Model lain tetap fp16.
+- **Tile otomatis 400 px** bila budget memori GPU > 3,8 GB (Apple Silicon), dari 200.
+- **Tile model ber-`GridSample` minimal 400 px** (kecuali `-t` diberikan). Model ini menormalkan per tile (GroupNorm) dan melihat jauh melewati overlap 10 px, jadi di tile kecil tiap tile bergeser sampai ~1 level dari tetangganya. Diukur pada foto 720×1280 terhadap tile 800: lompatan di garis sambungan +0,34 level di tile 100, +0,10 di 200, +0,04 di 400 (tak terukur). Tile < 400 (lewat `-t`) mendapat overlap 32 px, yang memangkas lompatan itu sekitar separuh; di 400 px overlap 32 tidak dipakai karena menambah ~20% waktu tanpa hasil yang terlihat.
+
+Model lama menghasilkan output yang sama dengan binary 2022 (PSNR > 58 dB = pembulatan). Kecepatan di M1 (median 3×, binary 2022 → build ini): x4plus 6,6 → 6,4 dtk untuk 480×320 dan 35,7 → 33,3 dtk untuk 720×1280; Video sama di foto penuh (4,0 dtk), tapi tiap pemanggilan ~0,1 dtk lebih lama mulai (ncnn/MoltenVK baru), jadi di gambar kecil Video 0,83 → 0,93 dtk. Foto (realplksr) 7,8 dtk untuk 480×320, 43,7 dtk untuk 720×1280. `fetch_binaries.sh` mem-build ulang bila `bin/realesrgan-ncnn-vulkan.build-id` berbeda dari `BUILD_ID` di skrip — naikkan `BUILD_ID` setiap kali pin atau patch berubah. `package_macos.sh` menolak mengemas bila build id di `bin/` tidak cocok, dan app sendiri hanya menawarkan Foto realplksr bila binary yang ditemukannya memuat layer `GridSample` (`UpscaleModel.ncnnLayers`, `Binaries.hasNcnnLayer`) — bobot saja tidak cukup, jadi `bin/` yang basi tidak membuat menu Foto rusak. Workflow Release meng-cache binary dan lingkungan konversi dengan kunci hash skrip yang mem-pin-nya.
+
+**Konversi model** ([`convert_models.sh`](../tools/realesrgan/convert_models.sh) → [`export_realplksr.py`](../tools/realesrgan/export_realplksr.py)): bobot asli Phhofm (sha256 dikunci) dibaca spandrel, lalu diekspor pnnx ke ncnn. Tiga bagian graf ditulis ulang tanpa mengubah hitungannya (skrip mengeceknya, selisih 0): penulisan in-place PLKConv jadi split+concat; grid DySample dibangun dari `cumsum` input sehingga ikut ukuran tile berapa pun, dan `grid_sample` dijalankan per grup karena ncnn tak punya sumbu batch; `repeat_interleave` jadi concat. Konversinya deterministik, jadi sha256 hasil `.param`/`.bin` juga dikunci.
+
+Satu hal yang tidak berhasil: menandai hanya layer DySample sebagai fp32 lewat *featmask* ncnn (`31=3`). Begitu layer BinaryOp di jalur koordinat diberi fp32 sementara tetangganya fp16, output GPU rusak (PSNR ~5 dB). Seluruh model fp32 lebih lambat ~28% dari fp16 penuh, tapi benar.
+
+**Windows** masih memakai rilis 2022, jadi Foto di sana tetap x4plus. Membawa realplksr ke Windows berarti build yang sama dengan Vulkan loader biasa di CI Windows.
 
 ### Di mana binary dicari
 
