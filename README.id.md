@@ -114,7 +114,7 @@ tanpa AI (Lanczos) dan 60 FPS lewat FFmpeg, yang berjalan di CPU.
 abu-abu, klik **Setup & Status** untuk melihat alasannya.
 
 Gambaran kecepatan, diukur di MacBook Pro M1: satu foto hasil 1920×1280 butuh
-±6,5–7 detik dengan Foto, atau ±0,7 detik dengan Video. Di laptop
+±8 detik dengan Foto, atau ±1 detik dengan Video. Di laptop
 tanpa GPU Vulkan (contoh: Core i3 generasi ke-3 dengan GT 720M), fitur AI tidak
 tersedia, dan 60 FPS lewat FFmpeg berjalan sangat lambat.
 

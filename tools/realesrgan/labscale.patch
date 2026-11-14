@@ -1,0 +1,183 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 1e7b71a..6ec88b2 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -147,85 +147,10 @@ if(NOT USE_SYSTEM_NCNN)
+     option(NCNN_BUILD_EXAMPLES "" OFF)
+     option(NCNN_DISABLE_RTTI "" ON)
+     option(NCNN_DISABLE_EXCEPTION "" ON)
++    # LabScale: every ncnn layer is built. The original whitelist switched off
++    # layers that converted models such as RealPLKSR need (Sigmoid, Reshape,
++    # Slice, GroupNorm, MemoryData, ...); GridSample did not exist yet.
+ 
+-    option(WITH_LAYER_absval "" OFF)
+-    option(WITH_LAYER_argmax "" OFF)
+-    option(WITH_LAYER_batchnorm "" OFF)
+-    option(WITH_LAYER_bias "" OFF)
+-    option(WITH_LAYER_bnll "" OFF)
+-    option(WITH_LAYER_concat "" ON)
+-    option(WITH_LAYER_convolution "" ON)
+-    option(WITH_LAYER_crop "" ON)
+-    option(WITH_LAYER_deconvolution "" OFF)
+-    option(WITH_LAYER_dropout "" OFF)
+-    option(WITH_LAYER_eltwise "" ON)
+-    option(WITH_LAYER_elu "" OFF)
+-    option(WITH_LAYER_embed "" OFF)
+-    option(WITH_LAYER_exp "" OFF)
+-    option(WITH_LAYER_flatten "" ON)
+-    option(WITH_LAYER_innerproduct "" ON)
+-    option(WITH_LAYER_input "" ON)
+-    option(WITH_LAYER_log "" OFF)
+-    option(WITH_LAYER_lrn "" OFF)
+-    option(WITH_LAYER_memorydata "" OFF)
+-    option(WITH_LAYER_mvn "" OFF)
+-    option(WITH_LAYER_pooling "" OFF)
+-    option(WITH_LAYER_power "" OFF)
+-    option(WITH_LAYER_prelu "" ON)
+-    option(WITH_LAYER_proposal "" OFF)
+-    option(WITH_LAYER_reduction "" OFF)
+-    option(WITH_LAYER_relu "" ON)
+-    option(WITH_LAYER_reshape "" OFF)
+-    option(WITH_LAYER_roipooling "" OFF)
+-    option(WITH_LAYER_scale "" OFF)
+-    option(WITH_LAYER_sigmoid "" OFF)
+-    option(WITH_LAYER_slice "" OFF)
+-    option(WITH_LAYER_softmax "" OFF)
+-    option(WITH_LAYER_split "" ON)
+-    option(WITH_LAYER_spp "" OFF)
+-    option(WITH_LAYER_tanh "" OFF)
+-    option(WITH_LAYER_threshold "" OFF)
+-    option(WITH_LAYER_tile "" OFF)
+-    option(WITH_LAYER_rnn "" OFF)
+-    option(WITH_LAYER_lstm "" OFF)
+-    option(WITH_LAYER_binaryop "" ON)
+-    option(WITH_LAYER_unaryop "" OFF)
+-    option(WITH_LAYER_convolutiondepthwise "" OFF)
+-    option(WITH_LAYER_padding "" ON)
+-    option(WITH_LAYER_squeeze "" OFF)
+-    option(WITH_LAYER_expanddims "" OFF)
+-    option(WITH_LAYER_normalize "" OFF)
+-    option(WITH_LAYER_permute "" OFF)
+-    option(WITH_LAYER_priorbox "" OFF)
+-    option(WITH_LAYER_detectionoutput "" OFF)
+-    option(WITH_LAYER_interp "" ON)
+-    option(WITH_LAYER_deconvolutiondepthwise "" OFF)
+-    option(WITH_LAYER_shufflechannel "" OFF)
+-    option(WITH_LAYER_instancenorm "" OFF)
+-    option(WITH_LAYER_clip "" OFF)
+-    option(WITH_LAYER_reorg "" OFF)
+-    option(WITH_LAYER_yolodetectionoutput "" OFF)
+-    option(WITH_LAYER_quantize "" OFF)
+-    option(WITH_LAYER_dequantize "" OFF)
+-    option(WITH_LAYER_yolov3detectionoutput "" OFF)
+-    option(WITH_LAYER_psroipooling "" OFF)
+-    option(WITH_LAYER_roialign "" OFF)
+-    option(WITH_LAYER_packing "" ON)
+-    option(WITH_LAYER_requantize "" OFF)
+-    option(WITH_LAYER_cast "" ON)
+-    option(WITH_LAYER_hardsigmoid "" OFF)
+-    option(WITH_LAYER_selu "" OFF)
+-    option(WITH_LAYER_hardswish "" OFF)
+-    option(WITH_LAYER_noop "" OFF)
+-    option(WITH_LAYER_pixelshuffle "" ON)
+-    option(WITH_LAYER_deepcopy "" OFF)
+-    option(WITH_LAYER_mish "" OFF)
+-    option(WITH_LAYER_statisticspooling "" OFF)
+-    option(WITH_LAYER_swish "" OFF)
+-    option(WITH_LAYER_gemm "" OFF)
+-    option(WITH_LAYER_groupnorm "" OFF)
+-    option(WITH_LAYER_layernorm "" OFF)
+-    option(WITH_LAYER_softplus "" OFF)
+ 
+     add_subdirectory(ncnn)
+ endif()
+diff --git a/src/main.cpp b/src/main.cpp
+index ebe0e62..b2dcd2c 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -783,7 +783,11 @@ int main(int argc, char** argv)
+         // more fine-grained tilesize policy here
+         if (model.find(PATHSTR("models")) != path_t::npos)
+         {
+-            if (heap_budget > 1900)
++            // LabScale: with a large budget (Apple Silicon unified memory) 400 px
++            // tiles cut the per-tile overhead: ~7% faster than 200 on an M1.
++            if (heap_budget > 3800)
++                tilesize[i] = 400;
++            else if (heap_budget > 1900)
+                 tilesize[i] = 200;
+             else if (heap_budget > 550)
+                 tilesize[i] = 100;
+diff --git a/src/realesrgan.cpp b/src/realesrgan.cpp
+index 259886e..13f49a9 100644
+--- a/src/realesrgan.cpp
++++ b/src/realesrgan.cpp
+@@ -2,6 +2,9 @@
+ 
+ #include "realesrgan.h"
+ 
++#include <cstdio>
++#include <cstring>
++
+ #include <algorithm>
+ #include <vector>
+ 
+@@ -43,6 +46,34 @@ static const uint32_t realesrgan_postproc_tta_int8s_spv_data[] = {
+     #include "realesrgan_postproc_tta_int8s.spv.hex.h"
+ };
+ 
++// LabScale: models whose sampling grid is computed in-graph (GridSample, e.g. the
++// DySample upsampler of RealPLKSR) drift visibly when the grid is stored as fp16, so
++// such models run in fp32. Every other model keeps the fp16 path and its speed.
++static bool param_needs_fp32(FILE* fp)
++{
++    if (!fp)
++        return false;
++    bool found = false;
++    char line[4096];
++    while (fgets(line, sizeof(line), fp))
++    {
++        if (strncmp(line, "GridSample", 10) == 0)
++        {
++            found = true;
++            break;
++        }
++    }
++    rewind(fp);
++    return found;
++}
++
++static void use_fp32_storage(ncnn::Net& net)
++{
++    net.opt.use_fp16_packed = false;
++    net.opt.use_fp16_storage = false;
++    net.opt.use_int8_storage = false;
++}
++
+ RealESRGAN::RealESRGAN(int gpuid, bool _tta_mode)
+ {
+     net.opt.use_vulkan_compute = true;
+@@ -94,6 +125,9 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
+             fwprintf(stderr, L"_wfopen %ls failed\n", parampath.c_str());
+         }
+ 
++        if (param_needs_fp32(fp))
++            use_fp32_storage(net);
++
+         net.load_param(fp);
+ 
+         fclose(fp);
+@@ -110,6 +144,13 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
+         fclose(fp);
+     }
+ #else
++    {
++        FILE* fp = fopen(parampath.c_str(), "rb");
++        if (param_needs_fp32(fp))
++            use_fp32_storage(net);
++        if (fp)
++            fclose(fp);
++    }
+     net.load_param(parampath.c_str());
+     net.load_model(modelpath.c_str());
+ #endif

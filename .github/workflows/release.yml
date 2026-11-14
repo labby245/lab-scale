@@ -59,6 +59,13 @@ jobs:
           channel: stable
           cache: true
 
+      # fetch_binaries.sh builds Real-ESRGAN from source (cmake is on the
+      # runner) and converts the Photo model with torch + pnnx, whose pinned
+      # versions were verified on Python 3.10.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Fetch tools
         run: tools/fetch_binaries.sh --rife-latest
 

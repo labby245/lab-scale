@@ -114,8 +114,8 @@ non-AI upscaling (Lanczos) and the FFmpeg 60 FPS boost, which run on the CPU.
 **Real-ESRGAN** and **RIFE** are green, the AI features run on your computer.
 If they are grey, click **Setup & Status** to see why.
 
-For a sense of speed, measured on a MacBook Pro M1: one 1920×1280 photo takes
-about 6.5–7 seconds with Photo, or about 0.7 seconds with Video. On a laptop without a Vulkan GPU (for example a 3rd-gen Core i3 with a
+For a sense of speed, measured on a MacBook Pro M1: one photo upscaled to 1920×1280 takes
+about 8 seconds with Photo, or about 1 second with Video. On a laptop without a Vulkan GPU (for example a 3rd-gen Core i3 with a
 GT 720M), the AI features are unavailable and the FFmpeg 60 FPS boost is very
 slow.
 

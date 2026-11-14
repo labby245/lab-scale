@@ -369,6 +369,8 @@ class S {
             'Desain & ilustrasi — logo, poster, teks',
             'Design & illustration — logos, posters, text',
           ),
+        // Never listed together (see UpscaleModel.supersedes), so one label.
+        UpscaleModel.realplksr ||
         UpscaleModel.realesrganX4Plus =>
           _('Foto — hasil kamera & HP', 'Photo — camera & phone shots'),
         UpscaleModel.upscaylLite => _(

@@ -325,12 +325,22 @@ class AppController extends ChangeNotifier {
   /// The upscale dropdown's entries. Lanczos only appears where no AI model
   /// can run — on a PC without Vulkan it is the one upscaler that works, and
   /// anywhere else it would only be a worse choice to stumble on.
+  ///
+  /// Of a model and the one it supersedes, exactly one is listed: the newer
+  /// where its weights are installed, the older everywhere else.
   List<UpscaleModel> get offeredModels {
     final aiRuns =
         UpscaleModel.values.any((m) => m.isAi && isModelInstalled(m));
+    final superseded = {
+      for (final m in UpscaleModel.values)
+        if (m.supersedes != null && isModelInstalled(m)) m.supersedes,
+    };
     return [
       for (final m in UpscaleModel.values)
-        if (m.isAi || !aiRuns) m,
+        if ((m.isAi || !aiRuns) &&
+            !superseded.contains(m) &&
+            (m.supersedes == null || isModelInstalled(m)))
+          m,
     ];
   }
 
@@ -498,8 +508,12 @@ class AppController extends ChangeNotifier {
 
   /// The best model that runs here. Falling back on the binary's presence
   /// alone would just pick another model whose weights are missing, landing
-  /// back in the same state. x4plus first because the installers bundle it.
+  /// back in the same state. Photo first because the installers bundle it —
+  /// the macOS one [UpscaleModel.realplksr], the Windows one x4plus. A stored
+  /// x4plus on a Mac that gained realplksr lands here too, since the menu
+  /// stops listing x4plus there.
   UpscaleModel _fallbackModel() => [
+        UpscaleModel.realplksr,
         UpscaleModel.realesrganX4Plus,
         ...UpscaleModel.values.where((m) => m.isAi),
       ].firstWhere(isModelInstalled, orElse: () => UpscaleModel.lanczos);

@@ -4,19 +4,39 @@ library;
 /// The upscalers offered in the UI. Their labels — by what each is *for*,
 /// not by model name — live in `S.modelLabel`.
 ///
-/// Ordering is the dropdown's order. The three AI entries are the whole menu
-/// wherever AI runs; Lanczos is only offered where it does not (see
-/// `AppController.offeredModels`).
+/// Ordering is the dropdown's order. Wherever AI runs the menu is three AI
+/// entries — Design, Photo, Video — with Photo being [realplksr] where its
+/// weights are installed and [realesrganX4Plus] elsewhere; Lanczos is only
+/// offered where no AI runs (see `AppController.offeredModels`).
 ///
-/// Measured on an M1, each source reduced 4x then upscaled back: a flat
-/// design poster, and a 1920x1080 crop of real 4K aerial footage.
+/// Design and Video were measured on an M1, each source reduced 4x then
+/// upscaled back: a flat design poster, and a 1920x1080 crop of real 4K
+/// aerial footage. Photo was judged on real prints downloaded from a chat,
+/// upscaled 4x as they are.
 enum UpscaleModel {
   /// The cleanest of every model tried on flat colour and type (design SSIM
   /// 0.966, against 0.949 for x4plus). CC BY-NC-SA, so downloaded on demand
   /// rather than bundled.
   ultramix('ultramix-balanced-4x', 'ultramix-balanced-4x', 'ultramix'),
 
-  /// The bundled, commercially safe (BSD) photo model.
+  /// "Foto" where it can run: Phhofm's 4xBHI_realplksr_dysample_real
+  /// (CC BY 4.0), trained on JPEG-damaged photos. On real chat-compressed
+  /// prints it keeps skin natural, blurred backgrounds blurred and type
+  /// crisp, where x4plus turns skin waxy and invents edges in the blur.
+  ///
+  /// Its DySample upsampler needs ncnn's GridSample, which only LabScale's
+  /// own macOS build of Real-ESRGAN has (tools/realesrgan/), so only the
+  /// macOS installer carries its weights. Where they are present it stands
+  /// in for x4plus; elsewhere it is not listed at all.
+  realplksr(
+    '4xbhi-realplksr-real',
+    '4xBHI-realplksr-real',
+    'plksr-real',
+    supersedes: realesrganX4Plus,
+  ),
+
+  /// The bundled, commercially safe (BSD) photo model — "Foto" wherever
+  /// [realplksr] cannot run.
   realesrganX4Plus('realesrgan-x4plus', 'realesrgan-x4plus', 'esrgan-real'),
 
   /// xinntao's realesr-general-x4v3 under Upscayl's file name. Softer than
@@ -37,6 +57,7 @@ enum UpscaleModel {
     this.ncnnName,
     this.suffix, {
     this.nativeScales = const {4},
+    this.supersedes,
   });
 
   /// Stable identifier used for preferences and output filename suffixes.
@@ -62,6 +83,11 @@ enum UpscaleModel {
   /// ships x2 weights is a matter of saying so on its own line instead of
   /// remembering to amend a condition elsewhere.
   final Set<int> nativeScales;
+
+  /// The entry this one replaces in the menu where its weights are
+  /// installed. Such a model is never offered for download and never listed
+  /// where it cannot run, so the menu always shows exactly one of the pair.
+  final UpscaleModel? supersedes;
 
   /// Models dropped from the menu in 2.2.0, mapped to the entry that does
   /// the same job, so a stored preference lands somewhere sensible.

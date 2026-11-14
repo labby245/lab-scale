@@ -68,6 +68,7 @@ PAYLOAD_DIRS=()
 BUNDLED_MODELS=()
 while IFS= read -r line; do
   line="${line%%#*}"; line="${line//[[:space:]]/}"
+  line="${line#macos:}"   # macOS-only entries are ours too
   [[ -n "$line" ]] && BUNDLED_MODELS+=("$line")
 done < "$ROOT/tools/bundled_models.txt"
 
