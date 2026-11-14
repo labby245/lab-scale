@@ -151,12 +151,12 @@ Script PowerShell-nya bisa diperiksa dari macOS juga — `brew install powershel
 tools/package_macos.sh
 ```
 
-Menghasilkan `dist/LabScale-<versi>-macos.dmg`. **Hanya Apple Silicon, macOS 14+.**
+Menghasilkan `dist/LabScale-<versi>-macos.dmg`. **Hanya Apple Silicon, macOS 15+.**
 
 Tiga hal yang dijaga script ini, semuanya pernah atau hampir bikin build yang jalan di Mac ini tapi mati di Mac lain:
 
 - **ffmpeg Homebrew tidak statis.** `fetch_binaries.sh` menjalankan [`tools/bundle_ffmpeg_dylibs.sh`](../tools/bundle_ffmpeg_dylibs.sh): 17 dylib disalin ke `bin/`, load path ditulis ulang ke `@loader_path`, lalu dibuktikan dengan enkode sungguhan tanpa environment. Packager menolak ffmpeg yang masih menunjuk ke `/opt/homebrew`.
-- **Bottle Homebrew mengikuti macOS mesinnya.** ffmpeg yang di-fetch di macOS 15 tidak jalan di 14. Packager membandingkan `minos` setiap binary dengan `LSMinimumSystemVersion` app (14.0) dan menolak kalau lebih baru. Build pribadi: `ALLOW_NEWER_TOOLS=1 tools/package_macos.sh`. Rilis dibangun di runner `macos-14`, jadi cocok.
+- **Bottle Homebrew mengikuti macOS mesinnya.** ffmpeg yang di-fetch di macOS 15 tidak jalan di 14. Packager membandingkan `minos` setiap binary dengan `LSMinimumSystemVersion` app (15.0) dan menolak kalau lebih baru. Build pribadi di macOS yang lebih baru: `ALLOW_NEWER_TOOLS=1 tools/package_macos.sh`. Rilis dibangun di runner `macos-15`, jadi cocok. Sampai 2.2.1 minimumnya macOS 14; GitHub mempensiunkan runner macOS 14 pada 2 November 2026, jadi sejak 2.3.0 minimumnya 15.
 - **Arsitektur.** ffmpeg-nya arm64, jadi app dibangun arm64 saja (`EXCLUDED_ARCHS` di `macos/Runner/Configs/Release.xcconfig`). Mac Intel mendapat pesan sistem "tidak didukung", bukan app yang terbuka lalu gagal di enkode pertama.
 
 Butuh **Xcode lengkap** (Command Line Tools saja tidak cukup) dan **CocoaPods** — media_kit punya podspec:
@@ -189,7 +189,7 @@ Tanpa `SIGN_IDENTITY`, semuanya ditandatangani **ad hoc** — cara rilis saat in
 1. Naikkan `version:` di `pubspec.yaml`, tulis [`docs/release-notes.md`](release-notes.md), lalu perbarui [`labstory-product.json`](../labstory-product.json): `version`, `releasedAt`, dan entri `changelog` baru paling atas (teks biasa, Bahasa Indonesia, sapaan "kamu", maksimal 5 rilis). File ini dibaca apps.labstory.id tiap 10 menit untuk bagian "Spesifikasi" dan "Yang baru" di halaman produk, tanpa deploy situs. Formatnya ada di `labstory-platform/docs/API_CONTRACT.md` §11, dan `test/labstory_product_test.dart` gagal kalau versinya tidak sama dengan pubspec. Kalau spesifikasi berubah, ubah juga di sini. Teks pemasaran, FAQ, dan gambar tetap lewat sesi labstory-platform.
 2. `flutter analyze && flutter test` di Mac yang punya `bin/` lengkap (test ncnn hanya jalan di sana; CI ubuntu melewatinya).
 3. `git tag v<versi> && git push origin v<versi>`.
-4. Workflow [Release](../.github/workflows/release.yml) membangun `.dmg` (macos-14), installer + zip Windows, `ffmpeg-sources-<versi>.tar`, dan `SHA256SUMS.txt`, lalu menaruhnya di **draft** release.
+4. Workflow [Release](../.github/workflows/release.yml) membangun `.dmg` (macos-15), installer + zip Windows, `ffmpeg-sources-<versi>.tar`, dan `SHA256SUMS.txt`, lalu menaruhnya di **draft** release.
 5. Periksa draft-nya, lalu **Publish**. Pemeriksaan update di app ([`lib/core/update_check.dart`](../lib/core/update_check.dart)) membaca `releases/latest` lewat GitHub API — hanya rilis yang sudah dipublikasikan yang terlihat.
 
 **Kewajiban GPL.** FFmpeg yang dibundel adalah build GPL-3.0 (ada x264/x265), jadi setiap rilis wajib menyertakan source versi yang persis sama. [`tools/collect_gpl_sources.sh`](../tools/collect_gpl_sources.sh) mengumpulkannya: tarball ffmpeg untuk kedua platform + x264/x265 sesuai formula Homebrew, plus `BUILD-INFO.txt`. Script menolak jalan kalau versi Homebrew terpasang berbeda dari formula, karena source yang dilampirkan harus cocok dengan binary-nya.

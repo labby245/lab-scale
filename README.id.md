@@ -61,7 +61,7 @@ folder, pilih yang kamu mau, tekan **Proses**.
 
 ## Cara pasang
 
-### macOS (Apple Silicon, macOS 14 atau lebih baru)
+### macOS (Apple Silicon, macOS 15 atau lebih baru)
 
 1. Unduh `LabScale-<versi>-macos.dmg` dari
    [Releases](https://github.com/labby245/lab-scale/releases/latest).
@@ -103,7 +103,7 @@ tanpa AI (Lanczos) dan 60 FPS lewat FFmpeg, yang berjalan di CPU.
 
 | | Hanya fitur dasar | Minimum untuk AI | Disarankan |
 |---|---|---|---|
-| **Mac** | — | Apple M1, macOS 14, RAM 8 GB | Apple M1 atau lebih baru, RAM 16 GB untuk video |
+| **Mac** | — | Apple M1, macOS 15, RAM 8 GB | Apple M1 atau lebih baru, RAM 16 GB untuk video |
 | **Windows** | Windows 10/11 64-bit, GPU tanpa Vulkan | GPU dengan Vulkan, VRAM 2 GB, RAM 8 GB | GPU kelas GeForce GTX 1650 / Radeon RX 570 ke atas, VRAM 4 GB, RAM 16 GB |
 | **Contoh GPU Windows** | Intel HD Graphics generasi ke-3 sampai ke-5 (mis. HD 4000), GeForce lama berbasis Fermi (mis. GT 720M) | Intel HD/UHD generasi ke-6 (2015) ke atas, NVIDIA GeForce GTX 650 / GT 740M (Kepler) ke atas, AMD Radeon HD 7000 / R7 / R9 (GCN) ke atas | NVIDIA GTX 10/16 atau RTX, AMD RX 400 ke atas |
 | **Yang bisa dikerjakan** | Upscale tanpa AI, 60 FPS lewat FFmpeg (lambat di CPU lama) | Upscale AI foto; video AI pendek | Upscale AI foto dan video, RIFE 60 FPS |

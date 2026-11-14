@@ -11,7 +11,7 @@
         "rows": [
           {
             "label": "Minimum untuk AI",
-            "value": "Apple M1, macOS 14, RAM 8 GB"
+            "value": "Apple M1, macOS 15, RAM 8 GB"
           },
           {
             "label": "Disarankan",
@@ -87,7 +87,8 @@
       "items": [
         "Foto di Mac memakai model baru: kulit lebih natural, latar buram tetap buram, dan teks tetap tajam. Paling terasa di foto dari chat atau marketplace yang sudah dikompres.",
         "Foto di Mac sedikit lebih lama: ±8 detik per foto di M1, sebelumnya ±7.",
-        "Di Windows, Foto tetap memakai model sebelumnya."
+        "Di Windows, Foto tetap memakai model sebelumnya.",
+        "Versi Mac kini butuh macOS 15 (Sequoia) atau lebih baru. Di macOS 14, tetap pakai 2.2.1."
       ]
     },
     {
@@ -141,7 +142,7 @@
           "rows": [
             {
               "label": "Minimum for AI",
-              "value": "Apple M1, macOS 14, 8 GB RAM"
+              "value": "Apple M1, macOS 15, 8 GB RAM"
             },
             {
               "label": "Recommended",
@@ -217,7 +218,8 @@
         "items": [
           "Photo on Mac uses a new model: more natural skin, blurred backgrounds stay blurred, and text stays sharp. Most noticeable on photos from chats or marketplaces that were already compressed.",
           "Photo on Mac takes a little longer: about 8 seconds per photo on an M1, up from about 7.",
-          "On Windows, Photo keeps the previous model."
+          "On Windows, Photo keeps the previous model.",
+          "The Mac version now needs macOS 15 (Sequoia) or newer. On macOS 14, keep using 2.2.1."
         ]
       },
       {
