@@ -10,7 +10,11 @@
 #   - every ncnn layer is compiled in (the original whitelist turned off layers
 #     converted models need);
 #   - a model containing GridSample runs in fp32 — in fp16 its sampling grid
-#     drifts visibly; every other model keeps fp16 and its speed;
+#     drifts visibly; every other model keeps fp16 and its speed. Such a
+#     model normalises per tile, so small tiles came out up to a level apart
+#     from their neighbours: unless -t is given it gets tiles of at least
+#     400 px (no measurable step), and tiles below 400 px a 32 px overlap
+#     instead of 10;
 #   - 400 px auto tiles when the GPU budget is large (Apple Silicon), ~7%
 #     faster than 200.
 #
@@ -31,16 +35,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Bump BUILD_ID whenever a pin or labscale.patch changes: fetch_binaries.sh
 # rebuilds when the binary in bin/ was made from a different one.
-BUILD_ID='2026-11-14.1'
+BUILD_ID='2026-11-15.1'
 REALESRGAN_COMMIT='37026f49824c5cf84062e7c6a5dd71445dcf610f'   # xinntao, 2022-04-24
 NCNN_COMMIT='d1f6ac67e9fc91390cc70f7168573fd2626f1d66'         # Tencent, 2026-11-13
-GLSLANG_COMMIT='5017667d5a5300dff6aab57db1931a495ff9a10c'      # ncnn's submodule pin
 LIBWEBP_COMMIT='845d5476a866141ba35ac133f856fa62f0b7445f'      # v1.4.0
 MOLTENVK_VERSION='v1.4.2'
 MOLTENVK_SHA256='f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e'
-# The app is arm64-only with macOS 14 as its minimum; 11.0 matches the
-# binary this replaces and is well below that.
-DEPLOYMENT_TARGET='11.0'
+# MoltenVK's static library is built for macOS 12, so nothing lower is
+# honest; the app itself needs macOS 14 (package_macos.sh checks).
+DEPLOYMENT_TARGET='12.0'
 
 [[ $# -eq 1 ]] || { echo "usage: $0 <output-binary> | --build-id" >&2; exit 2; }
 if [[ "$1" == "--build-id" ]]; then echo "$BUILD_ID"; exit 0; fi
@@ -66,8 +69,15 @@ echo "  sumber (dikunci ke commit)…"
 checkout https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan.git "$REALESRGAN_COMMIT" "$WORK/resr"
 rm -rf "$WORK/resr/src/ncnn" "$WORK/resr/src/libwebp"
 checkout https://github.com/Tencent/ncnn.git "$NCNN_COMMIT" "$WORK/resr/src/ncnn"
-rm -rf "$WORK/resr/src/ncnn/glslang"
-checkout https://github.com/KhronosGroup/glslang.git "$GLSLANG_COMMIT" "$WORK/resr/src/ncnn/glslang"
+# glslang is whatever the pinned ncnn pins as its submodule — read from the
+# checkout, so bumping NCNN_COMMIT cannot leave a stale glslang behind.
+NCNN_DIR="$WORK/resr/src/ncnn"
+GLSLANG_URL="$(git -C "$NCNN_DIR" config -f .gitmodules submodule.glslang.url)"
+GLSLANG_COMMIT="$(git -C "$NCNN_DIR" ls-tree HEAD glslang | awk '$2 == "commit" {print $3}')"
+[[ -n "$GLSLANG_URL" && -n "$GLSLANG_COMMIT" ]] \
+  || { echo "ERROR: pin glslang tidak ditemukan di ncnn" >&2; exit 1; }
+rm -rf "$NCNN_DIR/glslang"
+checkout "$GLSLANG_URL" "$GLSLANG_COMMIT" "$NCNN_DIR/glslang"
 checkout https://github.com/webmproject/libwebp.git "$LIBWEBP_COMMIT" "$WORK/resr/src/libwebp"
 git -C "$WORK/resr" apply "$HERE/labscale.patch"
 

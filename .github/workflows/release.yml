@@ -66,6 +66,28 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Both outputs are fully pinned, so a cache keyed on the scripts that
+      # pin them is exact: fetch_binaries.sh skips the ~5 minute build when
+      # the restored binary's build id matches, and the torch environment
+      # (~1 GB) is reused. A broken venv (new Python patch release) is
+      # recreated by convert_models.sh on its own.
+      - name: Cache Real-ESRGAN build
+        uses: actions/cache@v4
+        with:
+          path: |
+            bin/realesrgan-ncnn-vulkan
+            bin/realesrgan-ncnn-vulkan.build-id
+          key: realesrgan-macos-${{ hashFiles('tools/realesrgan/build_macos.sh', 'tools/realesrgan/labscale.patch') }}
+
+      - name: Cache Photo model conversion
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/labscale
+            bin/models/4xBHI-realplksr-real.param
+            bin/models/4xBHI-realplksr-real.bin
+          key: model-convert-macos-py3.10-${{ hashFiles('tools/realesrgan/convert_models.sh', 'tools/realesrgan/export_realplksr.py') }}
+
       - name: Fetch tools
         run: tools/fetch_binaries.sh --rife-latest
 

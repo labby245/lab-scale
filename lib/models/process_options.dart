@@ -33,6 +33,7 @@ enum UpscaleModel {
     '4xBHI-realplksr-real',
     'plksr-real',
     supersedes: realesrganX4Plus,
+    ncnnLayers: {'GridSample'},
   ),
 
   /// The bundled, commercially safe (BSD) photo model — "Foto" wherever
@@ -58,6 +59,7 @@ enum UpscaleModel {
     this.suffix, {
     this.nativeScales = const {4},
     this.supersedes,
+    this.ncnnLayers = const {},
   });
 
   /// Stable identifier used for preferences and output filename suffixes.
@@ -88,6 +90,10 @@ enum UpscaleModel {
   /// installed. Such a model is never offered for download and never listed
   /// where it cannot run, so the menu always shows exactly one of the pair.
   final UpscaleModel? supersedes;
+
+  /// ncnn layers the Real-ESRGAN binary must have for this model to run.
+  /// Weights alone are not enough: the 2022 release lacks GridSample.
+  final Set<String> ncnnLayers;
 
   /// Models dropped from the menu in 2.2.0, mapped to the entry that does
   /// the same job, so a stored preference lands somewhere sensible.

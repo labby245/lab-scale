@@ -209,9 +209,49 @@ class Binaries {
     }
   }
 
+  /// Whether the [tool] binary has the ncnn layer [type] compiled in.
+  ///
+  /// ncnn keeps every layer's type name as a string in its registry, so the
+  /// name appears in the executable exactly when the layer can be created.
+  /// A model whose weights are present can still be unusable: the 2022
+  /// Real-ESRGAN release has no GridSample, and a stale `bin/` or a package
+  /// built from one would otherwise offer a model that fails on every job.
+  /// Read once per binary (~15 MB); [invalidate] clears it.
+  static bool hasNcnnLayer(Tool tool, String type) {
+    final binary = resolve(tool);
+    if (binary == null) return false;
+    return (_layerCache['$binary\u0000$type'] ??= _fileContains(binary, type));
+  }
+
+  static final Map<String, bool> _layerCache = {};
+
+  static bool _fileContains(String path, String text) {
+    final List<int> bytes;
+    try {
+      bytes = File(path).readAsBytesSync();
+    } on FileSystemException {
+      return false;
+    }
+    final needle = text.codeUnits;
+    final first = needle.first;
+    final last = bytes.length - needle.length;
+    outer:
+    for (var i = 0; i <= last; i++) {
+      if (bytes[i] != first) continue;
+      for (var j = 1; j < needle.length; j++) {
+        if (bytes[i + j] != needle[j]) continue outer;
+      }
+      return true;
+    }
+    return false;
+  }
+
   /// Clears the resolution cache. Used by tests and after the user installs a
   /// tool without restarting the app.
-  static void invalidate() => _cache.clear();
+  static void invalidate() {
+    _cache.clear();
+    _layerCache.clear();
+  }
 }
 
 class ToolMissingException implements Exception {

@@ -92,10 +92,22 @@ index 1e7b71a..6ec88b2 100644
      add_subdirectory(ncnn)
  endif()
 diff --git a/src/main.cpp b/src/main.cpp
-index ebe0e62..b2dcd2c 100644
+index ebe0e62..488ae50 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -783,7 +783,11 @@ int main(int argc, char** argv)
+@@ -773,6 +773,11 @@ int main(int argc, char** argv)
+         total_jobs_proc += jobs_proc[i];
+     }
+ 
++    // LabScale: remember which tile sizes came from -t, see wide_context below
++    std::vector<bool> tilesize_from_user(use_gpu_count);
++    for (int i=0; i<use_gpu_count; i++)
++        tilesize_from_user[i] = tilesize[i] != 0;
++
+     for (int i=0; i<use_gpu_count; i++)
+     {
+         if (tilesize[i] != 0)
+@@ -783,7 +788,11 @@ int main(int argc, char** argv)
          // more fine-grained tilesize policy here
          if (model.find(PATHSTR("models")) != path_t::npos)
          {
@@ -108,8 +120,29 @@ index ebe0e62..b2dcd2c 100644
                  tilesize[i] = 200;
              else if (heap_budget > 550)
                  tilesize[i] = 100;
+@@ -806,6 +815,20 @@ int main(int argc, char** argv)
+             realesrgan[i]->scale = scale;
+             realesrgan[i]->tilesize = tilesize[i];
+             realesrgan[i]->prepadding = prepadding;
++
++            // LabScale: RealPLKSR-style models see far past 10 px (stacked
++            // 17x17 kernels) and normalise per tile (GroupNorm), so small
++            // tiles come out up to a level apart from their neighbours. Unless
++            // -t was given they get at least 400 px tiles, where the step at a
++            // seam is not measurable. Smaller tiles (-t) get a 32 px overlap,
++            // which halves it; at 400 px that would cost ~20% for nothing.
++            if (realesrgan[i]->wide_context)
++            {
++                if (!tilesize_from_user[i])
++                    realesrgan[i]->tilesize = std::max(tilesize[i], 400);
++                if (realesrgan[i]->tilesize < 400)
++                    realesrgan[i]->prepadding = std::max(prepadding, 32);
++            }
+         }
+ 
+         // main routine
 diff --git a/src/realesrgan.cpp b/src/realesrgan.cpp
-index 259886e..13f49a9 100644
+index 259886e..86ff834 100644
 --- a/src/realesrgan.cpp
 +++ b/src/realesrgan.cpp
 @@ -2,6 +2,9 @@
@@ -157,23 +190,33 @@ index 259886e..13f49a9 100644
  RealESRGAN::RealESRGAN(int gpuid, bool _tta_mode)
  {
      net.opt.use_vulkan_compute = true;
-@@ -94,6 +125,9 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
+@@ -60,6 +91,7 @@ RealESRGAN::RealESRGAN(int gpuid, bool _tta_mode)
+     bicubic_3x = 0;
+     bicubic_4x = 0;
+     tta_mode = _tta_mode;
++    wide_context = false;
+ }
+ 
+ RealESRGAN::~RealESRGAN()
+@@ -94,6 +126,10 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
              fwprintf(stderr, L"_wfopen %ls failed\n", parampath.c_str());
          }
  
-+        if (param_needs_fp32(fp))
++        wide_context = param_needs_fp32(fp);
++        if (wide_context)
 +            use_fp32_storage(net);
 +
          net.load_param(fp);
  
          fclose(fp);
-@@ -110,6 +144,13 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
+@@ -110,6 +146,14 @@ int RealESRGAN::load(const std::string& parampath, const std::string& modelpath)
          fclose(fp);
      }
  #else
 +    {
 +        FILE* fp = fopen(parampath.c_str(), "rb");
-+        if (param_needs_fp32(fp))
++        wide_context = param_needs_fp32(fp);
++        if (wide_context)
 +            use_fp32_storage(net);
 +        if (fp)
 +            fclose(fp);
@@ -181,3 +224,18 @@ index 259886e..13f49a9 100644
      net.load_param(parampath.c_str());
      net.load_model(modelpath.c_str());
  #endif
+diff --git a/src/realesrgan.h b/src/realesrgan.h
+index 8ee0d34..c550fc6 100644
+--- a/src/realesrgan.h
++++ b/src/realesrgan.h
+@@ -30,6 +30,10 @@ public:
+     int tilesize;
+     int prepadding;
+ 
++    // LabScale: set by load() for models with an in-graph sampling grid
++    // (GridSample, e.g. RealPLKSR). They run in fp32 and need wider tiles.
++    bool wide_context;
++
+ private:
+     ncnn::Net net;
+     ncnn::Pipeline* realesrgan_preproc;

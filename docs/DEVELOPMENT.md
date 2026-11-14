@@ -88,7 +88,7 @@ Uji "dikecilkan lalu di-upscale balik" menguntungkan model yang dilatih di gamba
 
 | Model | Hasil | Waktu per foto 720×1280 (M1) |
 |---|---|---|
-| **4xBHI_realplksr_dysample_real** | kulit natural, latar buram tetap buram, teks tajam — dipilih | ~42 dtk (NCNN, fp32) |
+| **4xBHI_realplksr_dysample_real** | kulit natural, latar buram tetap buram, teks tajam — dipilih | ~44 dtk (NCNN, fp32) |
 | 4xBHI_dat2_real | setara, sedikit lebih lembut | ~2,5 mnt (PyTorch/MPS); tak bisa di NCNN |
 | 4xLSDIRplusC | bersih, natural, agak lembut — terbaik di antara yang jalan di binary 2022 | ~40 dtk |
 | x4plus | kulit seperti lilin; mengarang garis tajam di latar yang buram | ~40 dtk |
@@ -100,13 +100,14 @@ Pelajaran: untuk foto dari chat/marketplace, pilih model yang dilatih dengan ker
 
 ### Real-ESRGAN macOS: build sendiri
 
-Rilis xinntao (2022-04-24) memakai ncnn yang belum punya layer `GridSample`, padahal DySample — upsampler model Foto — membutuhkannya. Jadi binary macOS di-build dari source oleh [`tools/realesrgan/build_macos.sh`](../tools/realesrgan/build_macos.sh): program yang sama, ncnn terbaru, MoltenVK statis, arm64. Semua sumber dikunci ke commit/sha256. Perubahannya ada di [`labscale.patch`](../tools/realesrgan/labscale.patch):
+Rilis xinntao (2022-04-24) memakai ncnn yang belum punya layer `GridSample`, padahal DySample — upsampler model Foto — membutuhkannya. Jadi binary macOS di-build dari source oleh [`tools/realesrgan/build_macos.sh`](../tools/realesrgan/build_macos.sh): program yang sama, ncnn terbaru, MoltenVK statis, arm64, macOS 12+. Semua sumber dikunci ke commit/sha256 (glslang dibaca dari pin submodule ncnn). Perubahannya ada di [`labscale.patch`](../tools/realesrgan/labscale.patch):
 
 - **Semua layer ncnn ikut di-build.** Whitelist asli mematikan Sigmoid, Reshape, Slice, GroupNorm, MemoryData, dll.
 - **Model ber-`GridSample` jalan di fp32.** Di fp16 koordinat sampling DySample meleset: 1–3% piksel berbeda > 8 level dari PyTorch (maks 54). Di fp32 hasilnya identik (selisih maks 1 level). Model lain tetap fp16.
-- **Tile otomatis 400 px** bila budget memori GPU > 3,8 GB (Apple Silicon). Di M1 ~7% lebih cepat dari 200, juga untuk model lama.
+- **Tile otomatis 400 px** bila budget memori GPU > 3,8 GB (Apple Silicon), dari 200.
+- **Tile model ber-`GridSample` minimal 400 px** (kecuali `-t` diberikan). Model ini menormalkan per tile (GroupNorm) dan melihat jauh melewati overlap 10 px, jadi di tile kecil tiap tile bergeser sampai ~1 level dari tetangganya. Diukur pada foto 720×1280 terhadap tile 800: lompatan di garis sambungan +0,34 level di tile 100, +0,10 di 200, +0,04 di 400 (tak terukur). Tile < 400 (lewat `-t`) mendapat overlap 32 px, yang memangkas lompatan itu sekitar separuh; di 400 px overlap 32 tidak dipakai karena menambah ~20% waktu tanpa hasil yang terlihat.
 
-Model lama menghasilkan output yang sama dengan binary 2022 (PSNR > 58 dB = pembulatan). `fetch_binaries.sh` mem-build ulang bila `bin/realesrgan-ncnn-vulkan.build-id` berbeda dari `BUILD_ID` di skrip — naikkan `BUILD_ID` setiap kali pin atau patch berubah.
+Model lama menghasilkan output yang sama dengan binary 2022 (PSNR > 58 dB = pembulatan). Kecepatan di M1 (median 3×, binary 2022 → build ini): x4plus 6,6 → 6,4 dtk untuk 480×320 dan 35,7 → 33,3 dtk untuk 720×1280; Video sama di foto penuh (4,0 dtk), tapi tiap pemanggilan ~0,1 dtk lebih lama mulai (ncnn/MoltenVK baru), jadi di gambar kecil Video 0,83 → 0,93 dtk. Foto (realplksr) 7,8 dtk untuk 480×320, 43,7 dtk untuk 720×1280. `fetch_binaries.sh` mem-build ulang bila `bin/realesrgan-ncnn-vulkan.build-id` berbeda dari `BUILD_ID` di skrip — naikkan `BUILD_ID` setiap kali pin atau patch berubah. `package_macos.sh` menolak mengemas bila build id di `bin/` tidak cocok, dan app sendiri hanya menawarkan Foto realplksr bila binary yang ditemukannya memuat layer `GridSample` (`UpscaleModel.ncnnLayers`, `Binaries.hasNcnnLayer`) — bobot saja tidak cukup, jadi `bin/` yang basi tidak membuat menu Foto rusak. Workflow Release meng-cache binary dan lingkungan konversi dengan kunci hash skrip yang mem-pin-nya.
 
 **Konversi model** ([`convert_models.sh`](../tools/realesrgan/convert_models.sh) → [`export_realplksr.py`](../tools/realesrgan/export_realplksr.py)): bobot asli Phhofm (sha256 dikunci) dibaca spandrel, lalu diekspor pnnx ke ncnn. Tiga bagian graf ditulis ulang tanpa mengubah hitungannya (skrip mengeceknya, selisih 0): penulisan in-place PLKConv jadi split+concat; grid DySample dibangun dari `cumsum` input sehingga ikut ukuran tile berapa pun, dan `grid_sample` dijalankan per grup karena ncnn tak punya sumbu batch; `repeat_interleave` jadi concat. Konversinya deterministik, jadi sha256 hasil `.param`/`.bin` juga dikunci.
 

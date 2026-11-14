@@ -360,7 +360,9 @@ class AppController extends ChangeNotifier {
     final name = model.ncnnName;
     if (name == null) return true; // Lanczos needs nothing.
     return _capabilities.esrgan &&
-        Binaries.hasEsrganModel(name, scales: model.nativeScales);
+        Binaries.hasEsrganModel(name, scales: model.nativeScales) &&
+        model.ncnnLayers
+            .every((layer) => Binaries.hasNcnnLayer(Tool.realesrgan, layer));
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -506,17 +508,25 @@ class AppController extends ChangeNotifier {
       (isModelInstalled(model) ||
           (downloadableFor(model) != null && _capabilities.esrgan));
 
-  /// The best model that runs here. Falling back on the binary's presence
-  /// alone would just pick another model whose weights are missing, landing
-  /// back in the same state. Photo first because the installers bundle it —
-  /// the macOS one [UpscaleModel.realplksr], the Windows one x4plus. A stored
-  /// x4plus on a Mac that gained realplksr lands here too, since the menu
-  /// stops listing x4plus there.
-  UpscaleModel _fallbackModel() => [
-        UpscaleModel.realplksr,
-        UpscaleModel.realesrganX4Plus,
-        ...UpscaleModel.values.where((m) => m.isAi),
-      ].firstWhere(isModelInstalled, orElse: () => UpscaleModel.lanczos);
+  /// The best model that runs here and that the menu lists. Falling back on
+  /// the binary's presence alone would just pick another model whose weights
+  /// are missing, landing back in the same state; picking one the menu hides
+  /// (a superseded entry) would leave the dropdown holding a value it does
+  /// not show. Photo first because the installers bundle it, with whatever
+  /// supersedes it ahead of it — so a stored x4plus on a Mac that gained
+  /// realplksr lands on realplksr.
+  UpscaleModel _fallbackModel() {
+    const photo = UpscaleModel.realesrganX4Plus;
+    final offered = offeredModels;
+    return [
+      ...UpscaleModel.values.where((m) => m.supersedes == photo),
+      photo,
+      ...UpscaleModel.values.where((m) => m.isAi),
+    ].firstWhere(
+      (m) => isModelInstalled(m) && offered.contains(m),
+      orElse: () => UpscaleModel.lanczos,
+    );
+  }
 
   /// Re-checks the selection after what is installed changed under it — AI
   /// becoming usable hides Lanczos, for one.

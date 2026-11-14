@@ -69,10 +69,14 @@ Neural network inference, compiled into both tools above.
 Copyright © 2017 THL A29 Limited, a Tencent company.
 <https://github.com/Tencent/ncnn>
 Includes libwebp (BSD-3-Clause, Google), stb (public domain / MIT),
-glslang (BSD-3-Clause and related permissive licences, The Khronos Group) and,
-on Windows, dirent (MIT). The macOS builds include MoltenVK (Apache-2.0, The
-Khronos Group, `licenses/Apache-2.0.txt`); the macOS RIFE build also includes
-the LLVM OpenMP runtime (Apache-2.0 with LLVM exception).
+glslang (BSD-3-Clause and related permissive licences, The Khronos Group and
+others) and, on Windows, dirent (MIT). The macOS builds include MoltenVK
+(Apache-2.0, The Khronos Group, `licenses/Apache-2.0.txt`); the macOS RIFE
+build also includes the LLVM OpenMP runtime (Apache-2.0 with LLVM exception).
+
+Full texts, taken from the exact sources the macOS Real-ESRGAN build compiles:
+`licenses/ncnn.txt` (ncnn, with its third-party list), `licenses/glslang.txt`
+(glslang, every licence it carries) and `licenses/libwebp.txt` (libwebp).
 
 ### mpv / libmpv (via media_kit) — LGPL
 

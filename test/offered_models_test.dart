@@ -74,11 +74,22 @@ void main() {
   });
 
   group('Photo: realplksr where its weights are, x4plus elsewhere', () {
+    /// A stand-in Real-ESRGAN binary: what matters is whether ncnn's layer
+    /// registry (and so the string) has GridSample in it.
+    void installBinary({required bool gridSample}) {
+      final dir = Directory(p.join(cwd.path, 'bin'))..createSync();
+      File(p.join(dir.path, Tool.realesrgan.fileName)).writeAsStringSync(
+          'ncnn layers: Convolution\u0000${gridSample ? 'GridSample\u0000' : ''}');
+      Binaries.invalidate();
+    }
+
+    /// realplksr weights plus LabScale's own build of the binary.
     void installRealplksr() {
       for (final ext in ['param', 'bin']) {
         File(p.join(models.path, '4xBHI-realplksr-real.$ext'))
             .writeAsStringSync('');
       }
+      installBinary(gridSample: true);
     }
 
     test('with realplksr installed (macOS), it stands in for x4plus', () {
@@ -91,6 +102,26 @@ void main() {
         UpscaleModel.realplksr,
         UpscaleModel.upscaylLite,
       ]);
+    });
+
+    test('weights next to a binary without GridSample keep x4plus', () {
+      // A stale bin/ or a package built from one: the 2022 release would
+      // fail every Photo job on this model, so the menu must not switch.
+      installRealplksr();
+      installBinary(gridSample: false);
+      for (final ext in ['param', 'bin']) {
+        // Both installers carry x4plus.
+        File(p.join(models.path, 'realesrgan-x4plus.$ext')).writeAsStringSync('');
+      }
+      final controller = AppController.inState(
+        capabilities: const Capabilities(ffmpeg: true, esrgan: true),
+        options:
+            const ProcessOptions(upscaleModel: UpscaleModel.realplksr),
+      );
+      controller.reconcileModelAfterChange();
+      expect(controller.offeredModels, isNot(contains(UpscaleModel.realplksr)));
+      expect(controller.offeredModels, contains(UpscaleModel.realesrganX4Plus));
+      expect(controller.options.upscaleModel, UpscaleModel.realesrganX4Plus);
     });
 
     test('without it (Windows), x4plus stays and realplksr is not listed', () {
