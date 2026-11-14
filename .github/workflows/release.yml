@@ -44,7 +44,10 @@ jobs:
 
   macos:
     needs: draft
-    runs-on: macos-14   # Apple Silicon — the ffmpeg bundled is arm64
+    # Apple Silicon — the ffmpeg bundled is arm64. GitHub retired the macOS 14
+    # runners on 2026-11-02; Homebrew's ffmpeg follows the runner's macOS, so
+    # the app's minimum moved to 15 with it (package_macos.sh checks).
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:

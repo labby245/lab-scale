@@ -42,7 +42,7 @@ LIBWEBP_COMMIT='845d5476a866141ba35ac133f856fa62f0b7445f'      # v1.4.0
 MOLTENVK_VERSION='v1.4.2'
 MOLTENVK_SHA256='f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e'
 # MoltenVK's static library is built for macOS 12, so nothing lower is
-# honest; the app itself needs macOS 14 (package_macos.sh checks).
+# honest; the app itself needs macOS 15 (package_macos.sh checks).
 DEPLOYMENT_TARGET='12.0'
 
 [[ $# -eq 1 ]] || { echo "usage: $0 <output-binary> | --build-id" >&2; exit 2; }

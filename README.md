@@ -61,7 +61,7 @@ you want, press **Process**.
 
 ## Install
 
-### macOS (Apple Silicon, macOS 14 or newer)
+### macOS (Apple Silicon, macOS 15 or newer)
 
 1. Download `LabScale-<version>-macos.dmg` from
    [Releases](https://github.com/labby245/lab-scale/releases/latest).
@@ -104,7 +104,7 @@ non-AI upscaling (Lanczos) and the FFmpeg 60 FPS boost, which run on the CPU.
 
 | | Basic features only | Minimum for AI | Recommended |
 |---|---|---|---|
-| **Mac** | — | Apple M1, macOS 14, 8 GB RAM | Apple M1 or newer, 16 GB RAM for video |
+| **Mac** | — | Apple M1, macOS 15, 8 GB RAM | Apple M1 or newer, 16 GB RAM for video |
 | **Windows** | Windows 10/11 64-bit, GPU without Vulkan | GPU with Vulkan, 2 GB VRAM, 8 GB RAM | GeForce GTX 1650 / Radeon RX 570 class or better, 4 GB VRAM, 16 GB RAM |
 | **Example Windows GPUs** | Intel HD Graphics 3rd–5th gen (e.g. HD 4000), old Fermi-based GeForce (e.g. GT 720M) | Intel HD/UHD 6th gen (2015) or newer, NVIDIA GeForce GTX 650 / GT 740M (Kepler) or newer, AMD Radeon HD 7000 / R7 / R9 (GCN) or newer | NVIDIA GTX 10/16 or RTX, AMD RX 400 or newer |
 | **What you can do** | Non-AI upscale, FFmpeg 60 FPS (slow on old CPUs) | AI photo upscaling; short AI video | AI photo and video upscaling, RIFE 60 FPS |

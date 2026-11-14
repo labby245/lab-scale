@@ -3,6 +3,7 @@
 - Photo on Mac uses a new model: more natural skin, blurred backgrounds stay blurred, and text stays sharp. Most noticeable on photos from chats or marketplaces that were already compressed.
 - Photo on Mac takes a little longer: about 8 seconds per photo on an M1, up from about 7.
 - On Windows, Photo keeps the previous model.
+- The Mac version now needs macOS 15 (Sequoia) or newer. On macOS 14, keep using 2.2.1.
 
 **LabScale** enlarges small, low-resolution photos and videos with AI, and makes choppy video smoother at 60 FPS.
 
@@ -15,7 +16,7 @@
 
 | Your computer | Download |
 |---|---|
-| **Mac** with Apple Silicon (M1 or newer), macOS 14+ | `LabScale-…-macos.dmg` |
+| **Mac** with Apple Silicon (M1 or newer), macOS 15+ | `LabScale-…-macos.dmg` |
 | **Windows** 10 / 11 | `LabScale-Setup-….exe` |
 | Windows, without installing | `LabScale-…-windows-x64.zip` |
 
@@ -46,7 +47,7 @@ You do **not** need `ffmpeg-sources-….tar` or `SHA256SUMS.txt` — they are th
 
 | Komputermu | Unduh |
 |---|---|
-| **Mac** Apple Silicon (M1 atau lebih baru), macOS 14+ | `LabScale-…-macos.dmg` |
+| **Mac** Apple Silicon (M1 atau lebih baru), macOS 15+ | `LabScale-…-macos.dmg` |
 | **Windows** 10 / 11 | `LabScale-Setup-….exe` |
 | Windows, tanpa instal | `LabScale-…-windows-x64.zip` |
 

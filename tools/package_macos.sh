@@ -150,7 +150,7 @@ done
 if ((${#too_new[@]})); then
   echo "ERROR: app mendukung macOS $app_min, tapi binary ini butuh yang lebih baru:" >&2
   printf '  %s\n' "${too_new[@]}" >&2
-  echo "Bangun rilis di CI (macos-14), atau set ALLOW_NEWER_TOOLS=1 untuk build pribadi." >&2
+  echo "Bangun rilis di CI (macos-15), atau set ALLOW_NEWER_TOOLS=1 untuk build pribadi." >&2
   [[ "${ALLOW_NEWER_TOOLS:-}" == 1 ]] || exit 1
 fi
 

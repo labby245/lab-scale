@@ -11,7 +11,7 @@ Branch `release/public-1`: LabScale disiapkan untuk rilis gratis & open source (
 | Hal | Status |
 |---|---|
 | ffmpeg macOS mandiri (17 dylib, `@loader_path`) | terverifikasi: `DYLD_PRINT_LIBRARIES` tidak memuat apa pun dari `/opt/homebrew`; packager menolak kalau masih ada |
-| App arm64 saja, minimum macOS 14 | terverifikasi di build; packager menolak binary dengan `minos` lebih baru dari app |
+| App arm64 saja, minimum macOS 14 (15 sejak 2.3.0) | terverifikasi di build; packager menolak binary dengan `minos` lebih baru dari app |
 | Signing ad hoc (tanpa Developer ID) | `codesign --verify --deep --strict` lolos; persetujuan Gatekeeper dijelaskan di README |
 | Model CC BY-NC-SA diunduh dalam app | sha256 cocok dengan berkas sungguhan; jalur unduh diuji dengan server lokal |
 | Batalkan, cek ruang disk, log persisten, cek update, dialog Tentang, dua bahasa | test unit/widget/integrasi; UI dicek lewat screenshot build release |
